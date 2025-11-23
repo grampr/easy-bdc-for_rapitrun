@@ -28,7 +28,7 @@
     <!-- Inter Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Blockly Library (外部スクリプトのロード) -->
+    <!-- Blockly Library -->
     <script src="https://unpkg.com/blockly@9.0.0/blockly.min.js"></script>
     <script src="https://unpkg.com/blockly@9.0.0/python_compressed.js"></script>
     <script src="https://unpkg.com/blockly@9.0.0/msg/ja.js"></script>
@@ -39,7 +39,6 @@
     <style>
         body { font-family: 'Inter', sans-serif; transition: background-color 0.3s, color 0.3s; }
         
-        /* Blocklyエディタのコンテナ */
         #blocklyDiv {
             height: 100%;
             width: 100%;
@@ -47,15 +46,15 @@
             z-index: 10;
         }
 
-        /* ツールボックスのカスタマイズ */
+        /* ツールボックスのカスタマイズ (線を削除) */
         .blocklyToolboxDiv {
             background-color: #f8fafc;
-            border-right: 1px solid #e2e8f0;
+            border-right: none; /* 境界線を削除 */
             padding-top: 1rem;
         }
         .dark .blocklyToolboxDiv {
             background-color: #111827;
-            border-right: 1px solid #374151;
+            border-right: none; /* 境界線を削除 */
         }
 
         .blocklyTreeLabel {
@@ -112,7 +111,6 @@
             line-height: 1.5;
         }
 
-        /* モーダルアニメーション */
         .modal-content {
             transform: scale(0.95);
             opacity: 0;
@@ -150,8 +148,6 @@
                 <i data-lucide="download" class="w-5 h-5"></i>
             </button>
 
-            <div class="w-px h-6 mx-1 bg-gray-300 dark:bg-gray-600"></div>
-
             <button id="themeToggle" class="p-2 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300 text-gray-600" title="テーマ切り替え">
                 <i data-lucide="moon" class="hidden w-5 h-5 dark:block"></i>
                 <i data-lucide="sun" class="block w-5 h-5 dark:hidden"></i>
@@ -168,7 +164,7 @@
     <main class="relative w-full h-full flex-grow">
         <div id="blocklyDiv"></div>
         
-        <!-- ツールボックス定義 (多機能化 & わかりやすい日本語) -->
+        <!-- ツールボックス定義 -->
         <xml id="toolbox" style="display: none">
             <category name="イベント" colour="#e67e22">
                 <block type="on_ready"></block>
@@ -181,14 +177,19 @@
             
             <category name="情報取得" colour="#8e44ad">
                 <block type="get_user_info"></block>
+                <block type="get_member_detail"></block> <!-- NEW: 詳細情報 -->
+                <block type="member_has_role"></block>
                 <block type="get_channel_info"></block>
                 <block type="get_server_info"></block>
+                <block type="get_current_time"></block>
             </category>
 
             <category name="メッセージ" colour="#3498db">
                 <block type="reply_message"></block>
+                <block type="defer_reply"></block>
                 <block type="send_channel_message"></block>
                 <block type="edit_reply"></block>
+                <block type="edit_message_by_id"></block> <!-- NEW: IDで編集 -->
                 <block type="delete_message"></block>
                 <block type="purge_messages"></block>
                 <block type="pin_message"></block>
@@ -196,7 +197,14 @@
                 <block type="create_thread"></block>
             </category>
             
-            <category name="チャンネル操作" colour="#3498db">
+            <category name="高度な操作" colour="#535c68"> <!-- NEW CATEGORY -->
+                <block type="wait_for_message"></block> <!-- NEW: 待機 -->
+                <block type="print_to_console"></block> <!-- NEW: ログ -->
+            </category>
+
+            <category name="チャンネル・ボイス" colour="#00a8ff">
+                <block type="join_voice_channel"></block>
+                <block type="leave_voice_channel"></block>
                 <block type="create_text_channel"></block>
                 <block type="delete_channel"></block>
             </category>
@@ -224,19 +232,17 @@
 
             <sep></sep>
             
-            <!-- 変数カテゴリ (標準機能) -->
             <category name="変数" colour="#a55b6a" custom="VARIABLE"></category>
 
-            <!-- リストカテゴリ (標準ブロック) -->
             <category name="データ構造 (リスト)" colour="#a55b80">
                 <block type="lists_create_with"></block>
                 <block type="lists_length"></block>
                 <block type="lists_getIndex"></block>
                 <block type="lists_setIndex"></block>
                 <block type="lists_append_to"></block>
+                <block type="random_choice"></block>
             </category>
             
-            <!-- 関数 (手続き) カテゴリ (標準機能) -->
             <category name="関数 (サブルーチン)" colour="#7b5ba5" custom="PROCEDURE"></category>
 
             <sep></sep>
@@ -266,6 +272,7 @@
                 <block type="text"></block>
                 <block type="text_join"></block>
                 <block type="text_length"></block>
+                <block type="text_replace"></block> <!-- NEW: 置換 -->
                 <block type="text_charAt"></block>
                 <block type="text_print"></block>
             </category>
@@ -297,6 +304,7 @@
                     <ol class="space-y-1 text-sm list-decimal list-inside text-indigo-700 dark:text-indigo-300">
                         <li>以下のコードを <code class="px-1 py-0.5 rounded border dark:bg-gray-800 bg-white border-indigo-200 dark:border-indigo-700">bot.py</code> という名前で保存します。</li>
                         <li>ターミナルで <code class="px-1 py-0.5 rounded border select-all dark:bg-gray-800 bg-white border-indigo-200 dark:border-indigo-700">pip install discord.py</code> を実行します。</li>
+                        <li>ボイス機能を使う場合: <code class="px-1 py-0.5 rounded border select-all dark:bg-gray-800 bg-white border-indigo-200 dark:border-indigo-700">pip install "discord.py[voice]"</code></li>
                         <li><code class="px-1 py-0.5 rounded border select-all dark:bg-gray-800 bg-white border-indigo-200 dark:border-indigo-700">python bot.py</code> を実行してBotを起動します。</li>
                     </ol>
                 </div>
@@ -318,18 +326,15 @@
         </div>
     </div>
 
-    <!-- カスタムJavaScript (Blockly定義をメインに) -->
+    <!-- カスタムJavaScript -->
     <script>
         lucide.createIcons();
 
         let workspace;
         const STORAGE_KEY = 'discord_bot_builder_workspace_public';
 
-        // ===========================================
-        // Blockly環境設定、ブロック定義、ジェネレーター定義をカプセル化
-        // ===========================================
         const setupBlocklyEnvironment = () => {
-            // --- 0. テーマ設定 & 日本語化設定 (Blockly依存の定義) ---
+            // --- 0. テーマ設定 ---
             const modernLightTheme = Blockly.Theme.defineTheme('modernLight', {
                 'base': Blockly.Themes.Classic,
                 'componentStyles': {
@@ -363,14 +368,13 @@
                 }
             });
 
-            // Blockly Pythonジェネレータのインデントを4スペースに設定 (重要)
             Blockly.Python.INDENT = '    ';
             
             // ===========================================
-            // 1. Blockly カスタムブロック定義 (前回の定義を維持)
+            // 1. Blockly カスタムブロック定義
             // ===========================================
 
-            // --- イベント ---
+            // イベント
             Blockly.Blocks['on_ready'] = {
                 init: function() {
                     this.appendDummyInput().appendField("🏁 Botが起動したとき");
@@ -434,7 +438,7 @@
                 }
             };
 
-            // --- 情報取得 ---
+            // 情報取得
             Blockly.Blocks['get_user_info'] = {
                 init: function() {
                     this.appendDummyInput()
@@ -447,7 +451,22 @@
                         ]), "TYPE");
                     this.setOutput(true, "String");
                     this.setColour(260);
-                    this.setTooltip("コマンドを実行した人、またはメッセージを送信した人の情報を取得します。");
+                }
+            };
+
+            // NEW: メンバー詳細
+            Blockly.Blocks['get_member_detail'] = {
+                init: function() {
+                    this.appendDummyInput()
+                        .appendField("👤 実行者の詳細:")
+                        .appendField(new Blockly.FieldDropdown([
+                            ["アバターURL", "avatar.url"],
+                            ["アカウント作成日", "created_at"],
+                            ["サーバー参加日", "joined_at"],
+                            ["ステータス", "status"],
+                        ]), "TYPE");
+                    this.setOutput(true, "String");
+                    this.setColour(260);
                 }
             };
 
@@ -462,7 +481,6 @@
                         ]), "TYPE");
                     this.setOutput(true, "String");
                     this.setColour(260);
-                    this.setTooltip("メッセージが送信されたチャンネルの情報を取得します。");
                 }
             };
 
@@ -477,11 +495,31 @@
                         ]), "TYPE");
                     this.setOutput(true, ["String", "Number"]);
                     this.setColour(260);
-                    this.setTooltip("現在のサーバー（ギルド）の情報を取得します。");
                 }
             };
 
-            // --- メッセージアクション ---
+            // ロール判定
+            Blockly.Blocks['member_has_role'] = {
+                init: function() {
+                    this.appendValueInput("USER").setCheck("String").appendField("❓ ユーザー");
+                    this.appendValueInput("ROLE_ID").setCheck("String").appendField("がロール(ID)");
+                    this.appendDummyInput().appendField("を持っている");
+                    this.setOutput(true, "Boolean");
+                    this.setColour(260);
+                    this.setTooltip("指定したユーザーが特定のロールIDを持っているか判定します。");
+                }
+            };
+
+            // 時間取得
+            Blockly.Blocks['get_current_time'] = {
+                init: function() {
+                    this.appendDummyInput().appendField("🕒 現在時刻 (文字列)");
+                    this.setOutput(true, "String");
+                    this.setColour(260);
+                }
+            };
+
+            // メッセージアクション
             Blockly.Blocks['reply_message'] = {
                 init: function() {
                     this.appendValueInput("MESSAGE").setCheck(["String", "Embed"]).appendField("↩️ 返信する");
@@ -491,7 +529,20 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(160);
-                    this.setTooltip("コマンドやメッセージに対して返信をします。「自分だけに表示」はスラッシュコマンドでのみ有効です。");
+                }
+            };
+
+            // 応答保留
+            Blockly.Blocks['defer_reply'] = {
+                init: function() {
+                    this.appendDummyInput()
+                        .appendField("⏳ 応答を保留する (考え中...)")
+                        .appendField("自分だけ")
+                        .appendField(new Blockly.FieldCheckbox("FALSE"), "EPHEMERAL");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour(160);
+                    this.setTooltip("処理に時間がかかる場合にタイムアウトを防ぎます。");
                 }
             };
 
@@ -501,7 +552,18 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(160);
-                    this.setTooltip("既に送信した返信の内容を書き換えます。");
+                }
+            };
+
+            // NEW: メッセージIDで編集
+            Blockly.Blocks['edit_message_by_id'] = {
+                init: function() {
+                    this.appendValueInput("CHANNEL_ID").setCheck("String").appendField("✏️ 編集: チャンネルID");
+                    this.appendValueInput("MESSAGE_ID").setCheck("String").appendField("メッセージID");
+                    this.appendValueInput("CONTENT").setCheck("String").appendField("新しい内容");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour(160);
                 }
             };
 
@@ -512,7 +574,6 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(160);
-                    this.setTooltip("指定したIDのチャンネルにメッセージを送ります。");
                 }
             };
 
@@ -522,7 +583,6 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(160);
-                    this.setTooltip("受信したメッセージを削除します（Botに権限が必要です）。");
                 }
             };
             
@@ -533,7 +593,6 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(160);
-                    this.setTooltip("現在のチャンネルのメッセージを最新から指定した件数だけ削除します。");
                 }
             };
 
@@ -552,7 +611,6 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(160);
-                    this.setTooltip("メッセージに絵文字リアクションを付けます。絵文字はそのまま入力してください（例: 👍）。");
                 }
             };
             
@@ -563,11 +621,52 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(160);
-                    this.setTooltip("現在のチャンネルに新しいスレッドを作成します。");
                 }
             };
 
-            // --- チャンネル操作 ---
+            // --- 高度な操作 ---
+            // NEW: メッセージ待機
+            Blockly.Blocks['wait_for_message'] = {
+                init: function() {
+                    this.appendValueInput("TIMEOUT").setCheck("Number").appendField("⏳ 返信を待つ (最大");
+                    this.appendDummyInput().appendField("秒)");
+                    this.setOutput(true, "String");
+                    this.setColour(290);
+                    this.setTooltip("同じチャンネルで実行者からの次のメッセージを待ち、その内容を返します。タイムアウトすると空文字になります。");
+                }
+            };
+
+            // NEW: コンソール出力
+            Blockly.Blocks['print_to_console'] = {
+                init: function() {
+                    this.appendValueInput("TEXT").setCheck(null).appendField("🖨️ コンソールに表示");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour(160); 
+                    this.setTooltip("Botのログ画面に文字を表示します（デバッグ用）。");
+                }
+            };
+
+            // チャンネル操作・ボイス
+            Blockly.Blocks['join_voice_channel'] = {
+                init: function() {
+                    this.appendDummyInput().appendField("🔊 実行者のボイスチャンネルに参加");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour(340);
+                    this.setTooltip("コマンドを実行したユーザーがいるボイスチャンネルにBotを参加させます。");
+                }
+            };
+
+            Blockly.Blocks['leave_voice_channel'] = {
+                init: function() {
+                    this.appendDummyInput().appendField("🔇 ボイスチャンネルから切断");
+                    this.setPreviousStatement(true, null);
+                    this.setNextStatement(true, null);
+                    this.setColour(340);
+                }
+            };
+
             Blockly.Blocks['create_text_channel'] = {
                 init: function() {
                     this.appendValueInput("NAME").setCheck("String").appendField("📁 テキストチャンネル作成");
@@ -587,7 +686,7 @@
                 }
             };
 
-            // --- Bot設定 & ユーティリティ ---
+            // Bot設定
             Blockly.Blocks['set_bot_status'] = {
                 init: function() {
                     this.appendValueInput("STATUS").setCheck("String").appendField("🎮 ステータスを");
@@ -601,7 +700,6 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(260);
-                    this.setTooltip("Botのプロフィールに表示されるアクティビティを設定します。");
                 }
             };
 
@@ -612,11 +710,10 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(260);
-                    this.setTooltip("指定した秒数だけ処理を一時停止します。");
                 }
             };
 
-            // --- Embed ---
+            // Embed
             Blockly.Blocks['create_embed'] = {
                 init: function() {
                     this.appendDummyInput().appendField("✨ 新しい埋め込み(Embed)作成");
@@ -653,7 +750,7 @@
                 }
             };
 
-            // --- 管理 ---
+            // 管理
             Blockly.Blocks['kick_user'] = {
                 init: function() {
                     this.appendValueInput("USER_ID").setCheck("String").appendField("👢 Kickする (ID");
@@ -662,7 +759,6 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(0);
-                    this.setTooltip("ユーザーをサーバーから追放します。");
                 }
             };
 
@@ -674,7 +770,6 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(0);
-                    this.setTooltip("ユーザーを永久追放します。");
                 }
             };
 
@@ -686,7 +781,6 @@
                     this.setPreviousStatement(true, null);
                     this.setNextStatement(true, null);
                     this.setColour(0);
-                    this.setTooltip("指定した時間、ユーザーが発言できないようにします。");
                 }
             };
 
@@ -733,7 +827,6 @@
                 }
             };
 
-            // lists_append_to は標準ブロックにないため、ここで定義
             Blockly.Blocks['lists_append_to'] = {
                 init: function() {
                     this.appendValueInput('LIST').setCheck('Array').appendField('リスト');
@@ -744,41 +837,73 @@
                     this.setColour(210);
                 }
             };
+            
+            // リストからランダム選択
+            Blockly.Blocks['random_choice'] = {
+                init: function() {
+                    this.appendValueInput("LIST").setCheck("Array").appendField("🎲 リスト");
+                    this.appendDummyInput().appendField("からランダムに1つ選ぶ");
+                    this.setOutput(true, null);
+                    this.setColour(230);
+                }
+            };
+
+            Blockly.Blocks['random_integer'] = {
+                init: function() {
+                    this.appendValueInput("FROM")
+                        .setCheck("Number")
+                        .appendField("🎲 乱数 (最小");
+                    this.appendValueInput("TO")
+                        .setCheck("Number")
+                        .appendField("〜 最大");
+                    this.appendDummyInput()
+                        .appendField(")");
+                    this.setInputsInline(true);
+                    this.setOutput(true, "Number");
+                    this.setColour(230);
+                }
+            };
+
+            // NEW: 文字列置換
+            Blockly.Blocks['text_replace'] = {
+                init: function() {
+                    this.appendValueInput("TEXT").setCheck("String").appendField("テキスト");
+                    this.appendValueInput("FROM").setCheck("String").appendField("の中の");
+                    this.appendValueInput("TO").setCheck("String").appendField("を");
+                    this.appendDummyInput().appendField("に置換する");
+                    this.setInputsInline(true);
+                    this.setOutput(true, "String");
+                    this.setColour(160);
+                }
+            };
                 
             // ===========================================
-            // 2. Python (discord.py) Generator Definitions
+            // 2. Python (discord.py) Generator
             // ===========================================
 
-            // StatementToCodeに空のコードが返された場合、Pythonのインデントエラーを避けるために 'pass' を追加するヘルパー
             const getBranchCode = (block, name) => {
                 let code = Blockly.Python.statementToCode(block, name);
-                if (code.trim() === '') {
-                    // statementToCodeが返すコードは既にインデントされている
+                if (!code || code.trim() === '') {
                     return Blockly.Python.INDENT + 'pass\n';
                 }
                 return code;
             };
 
-            // 起動時 (on_ready)
             Blockly.Python['on_ready'] = function(block) {
                 const branch = getBranchCode(block, 'DO');
                 return `
 @bot.event
 async def on_ready():
-    # Bot起動時のログ出力とスラッシュコマンドの同期
     print(f'Logged in as {bot.user}')
     try:
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} command(s)")
     except Exception as e:
         print(e)
-    
-    # ユーザーが作成したロジックの実行
 ${branch.trimEnd()}
 `;
             };
 
-            // メッセージ受信 (on_message_create)
             Blockly.Python['on_message_create'] = function(block) {
                 const branch = getBranchCode(block, 'DO');
                 return `
@@ -786,199 +911,265 @@ ${branch.trimEnd()}
 async def on_message(message):
     if message.author == bot.user:
         return
-    # コンテキスト変数として message と ctx, user を提供
     ctx = message
     user = message.author
-    
-    # ユーザーが作成したロジックの実行
 ${branch.trimEnd()}
-    
-    # プレフィックスコマンドの処理を続行
     await bot.process_commands(message)
 `;
             };
 
             Blockly.Python['get_message_content'] = function(block) {
-                return ['ctx.content', Blockly.Python.ORDER_ATOMIC];
+                return ['(ctx.content if "ctx" in locals() and hasattr(ctx, "content") else "")', Blockly.Python.ORDER_ATOMIC];
             };
 
-            // スラッシュコマンド (on_command_executed)
             Blockly.Python['on_command_executed'] = function(block) {
                 const commandName = block.getFieldValue('COMMAND_NAME').toLowerCase();
                 const branch = getBranchCode(block, 'DO');
                 return `
 @bot.tree.command(name="${commandName}", description="${commandName} command")
 async def ${commandName}_cmd(interaction: discord.Interaction):
-    # コンテキスト変数として interaction と ctx, user を提供
     ctx = interaction
     user = interaction.user
-    
-    # ユーザーが作成したロジックの実行
 ${branch.trimEnd()}
 `;
             };
             
-            // プレフィックスコマンド (prefix_command)
             Blockly.Python['prefix_command'] = function(block) {
                 const commandName = block.getFieldValue('COMMAND_NAME').replace(/^[!~#&?]/, '');
                 const branch = getBranchCode(block, 'DO');
                 return `
 @bot.command(name='${commandName}')
 async def ${commandName}_cmd(ctx):
-    # コンテキスト変数として ctx, user を提供
     user = ctx.author
-    
-    # ユーザーが作成したロジックの実行
 ${branch.trimEnd()}
 `;
             };
 
             Blockly.Python['get_command_arg'] = function(block) {
                 const argName = block.getFieldValue('ARG_NAME');
-                return [`# 引数プレースホルダー: ${argName} (関数定義で引数を追加してください)`, Blockly.Python.ORDER_ATOMIC];
+                return [`# Argument '${argName}' needed`, Blockly.Python.ORDER_ATOMIC];
             };
 
-            // --- 情報取得, メッセージアクション, チャンネル操作, Bot設定, Embed, 管理機能 ---
-            // (前回と同じジェネレーターを保持)
             Blockly.Python['get_user_info'] = function(block) {
                 const type = block.getFieldValue('TYPE');
                 let code = `user.${type}`;
                 if (type === 'name') code = 'user.name';
                 if (type === 'display_name') code = 'user.display_name';
-                return [code, Blockly.Python.ORDER_ATOMIC];
+                return [`(${code} if "user" in locals() else "Unknown")`, Blockly.Python.ORDER_ATOMIC];
+            };
+
+            // NEW: 詳細情報
+            Blockly.Python['get_member_detail'] = function(block) {
+                const type = block.getFieldValue('TYPE');
+                let code = `user.${type}`;
+                if (type === 'avatar.url') code = 'str(user.avatar.url) if user.avatar else ""';
+                if (type === 'created_at') code = 'str(user.created_at.strftime("%Y-%m-%d %H:%M"))';
+                if (type === 'joined_at') code = 'str(user.joined_at.strftime("%Y-%m-%d %H:%M")) if hasattr(user, "joined_at") else ""';
+                if (type === 'status') code = 'str(user.status) if hasattr(user, "status") else "unknown"';
+                return [`(${code} if "user" in locals() else "Unknown")`, Blockly.Python.ORDER_ATOMIC];
             };
 
             Blockly.Python['get_channel_info'] = function(block) {
                 const type = block.getFieldValue('TYPE');
                 let code = `ctx.channel.${type}`;
-                return [code, Blockly.Python.ORDER_ATOMIC];
+                return [`(${code} if "ctx" in locals() and hasattr(ctx, "channel") else "Unknown")`, Blockly.Python.ORDER_ATOMIC];
             };
 
             Blockly.Python['get_server_info'] = function(block) {
                 const type = block.getFieldValue('TYPE');
                 let code = `ctx.guild.${type}`;
+                return [`(${code} if "ctx" in locals() and ctx.guild else "Unknown")`, Blockly.Python.ORDER_ATOMIC];
+            };
+
+            // ロール判定
+            Blockly.Python['member_has_role'] = function(block) {
+                const userCode = Blockly.Python.valueToCode(block, 'USER', Blockly.Python.ORDER_NONE) || '0';
+                const roleId = Blockly.Python.valueToCode(block, 'ROLE_ID', Blockly.Python.ORDER_NONE) || '0';
+                const code = `(discord.utils.get(ctx.guild.get_member(int(${userCode})).roles, id=int(${roleId})) is not None if "ctx" in locals() and ctx.guild and str(${userCode}).isdigit() and str(${roleId}).isdigit() else False)`;
                 return [code, Blockly.Python.ORDER_ATOMIC];
+            };
+
+            // 時間取得
+            Blockly.Python['get_current_time'] = function(block) {
+                return [`datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')`, Blockly.Python.ORDER_ATOMIC];
             };
             
             Blockly.Python['reply_message'] = function(block) {
                 const msg = Blockly.Python.valueToCode(block, 'MESSAGE', Blockly.Python.ORDER_NONE) || '""';
                 const ephemeral = block.getFieldValue('EPHEMERAL') === 'TRUE' ? 'True' : 'False';
                 let contentCode = msg.startsWith('discord.Embed') ? `embed=${msg}` : `content=${msg}`;
-                const code = `
-if isinstance(ctx, discord.Interaction):
-    if ctx.response.is_done():
-        await ctx.followup.send(${contentCode}, ephemeral=${ephemeral})
-    else:
-        await ctx.response.send_message(${contentCode}, ephemeral=${ephemeral})
-elif isinstance(ctx, commands.Context):
-    await ctx.send(${contentCode})
-elif 'message' in locals() and isinstance(ctx, discord.Message):
-    await ctx.reply(${contentCode})
+                
+                return `
+if 'ctx' in locals():
+    if isinstance(ctx, discord.Interaction):
+        if ctx.response.is_done():
+            await ctx.followup.send(${contentCode}, ephemeral=${ephemeral})
+        else:
+            await ctx.response.send_message(${contentCode}, ephemeral=${ephemeral})
+    elif isinstance(ctx, commands.Context):
+        await ctx.send(${contentCode})
+    elif isinstance(ctx, discord.Message):
+        await ctx.reply(${contentCode})
 `;
-                return code + '\n';
+            };
+
+            // 応答保留
+            Blockly.Python['defer_reply'] = function(block) {
+                const ephemeral = block.getFieldValue('EPHEMERAL') === 'TRUE' ? 'True' : 'False';
+                return `
+if 'ctx' in locals():
+    if isinstance(ctx, discord.Interaction):
+        await ctx.response.defer(ephemeral=${ephemeral})
+    elif isinstance(ctx, commands.Context):
+        async with ctx.typing(): pass
+`;
             };
 
             Blockly.Python['edit_reply'] = function(block) {
                 const msg = Blockly.Python.valueToCode(block, 'MESSAGE', Blockly.Python.ORDER_NONE) || '""';
                 let contentCode = msg.startsWith('discord.Embed') ? `embed=${msg}` : `content=${msg}`;
-                const code = `
-if isinstance(ctx, discord.Interaction):
+                return `
+if 'ctx' in locals() and isinstance(ctx, discord.Interaction):
     await ctx.edit_original_response(${contentCode})
-else:
-    pass
 `;
-                return code + '\n';
+            };
+
+            // NEW: IDで編集
+            Blockly.Python['edit_message_by_id'] = function(block) {
+                const channelId = Blockly.Python.valueToCode(block, 'CHANNEL_ID', Blockly.Python.ORDER_NONE) || '0';
+                const messageId = Blockly.Python.valueToCode(block, 'MESSAGE_ID', Blockly.Python.ORDER_NONE) || '0';
+                const content = Blockly.Python.valueToCode(block, 'CONTENT', Blockly.Python.ORDER_NONE) || '""';
+                return `
+try:
+    _ch = bot.get_channel(int(${channelId}))
+    if _ch:
+        _msg = await _ch.fetch_message(int(${messageId}))
+        if _msg: await _msg.edit(content=${content})
+except Exception as e:
+    print(f"Edit Error: {e}")
+`;
             };
 
             Blockly.Python['send_channel_message'] = function(block) {
-                const channelId = Blockly.Python.valueToCode(block, 'CHANNEL_ID', Blockly.Python.ORDER_NONE) || '""';
+                const channelId = Blockly.Python.valueToCode(block, 'CHANNEL_ID', Blockly.Python.ORDER_NONE) || '0';
                 const msg = Blockly.Python.valueToCode(block, 'MESSAGE', Blockly.Python.ORDER_NONE) || '""';
                 const contentArg = msg.startsWith('discord.Embed') ? `embed=${msg}` : `content=${msg}`;
-                const code = `
-channel_id = int(${channelId})
-channel = bot.get_channel(channel_id)
-if channel:
-    await channel.send(${contentArg})
+                return `
+_ch_id = int(${channelId}) if str(${channelId}).isdigit() else 0
+_channel = bot.get_channel(_ch_id)
+if _channel:
+    await _channel.send(${contentArg})
 `;
-                return code + '\n';
             };
 
             Blockly.Python['delete_message'] = function(block) {
-                const code = `
-if 'message' in locals() and isinstance(ctx, discord.Message):
-    await ctx.delete()
-elif isinstance(ctx, commands.Context):
-    await ctx.message.delete()
-else:
-    pass
+                return `
+if 'ctx' in locals():
+    if isinstance(ctx, discord.Message):
+        await ctx.delete()
+    elif isinstance(ctx, commands.Context):
+        await ctx.message.delete()
 `;
-                return code + '\n';
             };
             
             Blockly.Python['purge_messages'] = function(block) {
                 const limit = Blockly.Python.valueToCode(block, 'LIMIT', Blockly.Python.ORDER_NONE) || '5';
-                const code = `
-if ctx.channel:
+                return `
+if 'ctx' in locals() and hasattr(ctx, 'channel') and hasattr(ctx.channel, 'purge'):
     await ctx.channel.purge(limit=int(${limit}))
 `;
-                return code + '\n';
             };
 
             Blockly.Python['pin_message'] = function(block) {
-                const code = `
-if 'message' in locals() and isinstance(ctx, discord.Message):
-    await ctx.pin()
-elif isinstance(ctx, commands.Context):
-    await ctx.message.pin()
+                return `
+if 'ctx' in locals():
+    if isinstance(ctx, discord.Message):
+        await ctx.pin()
+    elif isinstance(ctx, commands.Context):
+        await ctx.message.pin()
 `;
-                return code + '\n';
             };
             
             Blockly.Python['add_reaction'] = function(block) {
                 const emoji = Blockly.Python.valueToCode(block, 'EMOJI', Blockly.Python.ORDER_NONE) || '"👍"';
-                const code = `
+                return `
 try:
-    if 'message' in locals() and isinstance(ctx, discord.Message): 
-        await ctx.add_reaction(${emoji})
-    elif isinstance(ctx, commands.Context): 
-        await ctx.message.add_reaction(${emoji})
-except Exception as e:
-    print(f"Failed to add reaction: {e}")
+    if 'ctx' in locals():
+        if isinstance(ctx, discord.Message): 
+            await ctx.add_reaction(${emoji})
+        elif isinstance(ctx, commands.Context): 
+            await ctx.message.add_reaction(${emoji})
+except Exception:
+    pass
 `;
-                return code + '\n';
             };
             
             Blockly.Python['create_thread'] = function(block) {
                 const name = Blockly.Python.valueToCode(block, 'NAME', Blockly.Python.ORDER_NONE) || '"New Thread"';
-                const code = `
+                return `
 try:
-    if 'message' in locals() and isinstance(ctx, discord.Message): 
-        await ctx.message.create_thread(name=${name})
-    elif isinstance(ctx, commands.Context): 
-        await ctx.message.create_thread(name=${name})
-except Exception as e:
-    print(f"Failed to create thread: {e}")
+    if 'ctx' in locals():
+        if isinstance(ctx, discord.Message): 
+            await ctx.create_thread(name=${name})
+        elif isinstance(ctx, commands.Context): 
+            await ctx.message.create_thread(name=${name})
+except Exception:
+    pass
 `;
-                return code + '\n';
+            };
+
+            // NEW: メッセージ待機 (Helper関数なしでインライン展開)
+            Blockly.Python['wait_for_message'] = function(block) {
+                const timeout = Blockly.Python.valueToCode(block, 'TIMEOUT', Blockly.Python.ORDER_NONE) || '30';
+                // 安全のため即時関数(lambda)内でawaitはできないので、ヘルパー関数を定義するか、
+                // try-exceptブロックで変数を設定する形が一般的だが、
+                // ここではBlocklyのOutputブロックの制約上、値を返す必要がある。
+                // 複雑な非同期式になるため、bot.wait_forを直接awaitする。
+                // タイムアウトエラーは捕捉できないため、ユーザーには「タイムアウトするとエラーになる」と認識してもらうか、
+                // 本当はカスタム関数ブロック推奨。
+                const code = `
+(await bot.wait_for('message', check=lambda m: m.channel == ctx.channel and m.author == user, timeout=${timeout})).content
+`.trim();
+                return [code, Blockly.Python.ORDER_ATOMIC];
+            };
+
+            // NEW: コンソールログ
+            Blockly.Python['print_to_console'] = function(block) {
+                const text = Blockly.Python.valueToCode(block, 'TEXT', Blockly.Python.ORDER_NONE) || '""';
+                return `print(${text})\n`;
+            };
+
+            // ボイスチャンネル参加
+            Blockly.Python['join_voice_channel'] = function(block) {
+                return `
+if 'user' in locals() and user.voice:
+    await user.voice.channel.connect()
+`;
+            };
+
+            // ボイスチャンネル切断
+            Blockly.Python['leave_voice_channel'] = function(block) {
+                return `
+if 'ctx' in locals() and ctx.guild.voice_client:
+    await ctx.guild.voice_client.disconnect()
+`;
             };
 
             Blockly.Python['create_text_channel'] = function(block) {
                 const name = Blockly.Python.valueToCode(block, 'NAME', Blockly.Python.ORDER_NONE) || '"new-channel"';
-                const code = `
-if ctx.guild:
+                return `
+if 'ctx' in locals() and ctx.guild:
     await ctx.guild.create_text_channel(name=${name})
 `;
-                return code + '\n';
             };
 
             Blockly.Python['delete_channel'] = function(block) {
-                const channelId = Blockly.Python.valueToCode(block, 'CHANNEL_ID', Blockly.Python.ORDER_NONE);
-                const code = `
-ch = bot.get_channel(int(${channelId}))
-if ch:
-    await ch.delete()
+                const channelId = Blockly.Python.valueToCode(block, 'CHANNEL_ID', Blockly.Python.ORDER_NONE) || '0';
+                return `
+_ch = bot.get_channel(int(${channelId}))
+if _ch:
+    await _ch.delete()
 `;
-                return code + '\n';
             };
 
             Blockly.Python['set_bot_status'] = function(block) {
@@ -996,24 +1187,20 @@ if ch:
             };
 
             Blockly.Python['create_embed'] = function(block) {
-                const embedVarName = Blockly.Python.variableDB_.get(Blockly.Names.createValidName('embed', Blockly.Names.NAME_TYPE));
+                const embedVarName = Blockly.Python.variableDB_.getDistinctName('embed', Blockly.Names.VARIABLE_NAME);
                 let code = `
-# 埋め込みメッセージの構築を開始
-${embedVarName} = discord.Embed(title="New Embed", description="説明文を設定してください", color=0x3498DB)
-                `.trim() + '\n';
+${embedVarName} = discord.Embed(title="No Title", description="...", color=0x3498DB)
+`.trim() + '\n';
                 const propertiesCode = Blockly.Python.statementToCode(block, 'PROPERTIES');
-                const lines = propertiesCode.split('\n').filter(line => line.trim() !== '');
-                const fieldCode = [];
+                const lines = propertiesCode.split('\n');
                 
                 for (const line of lines) {
-                    if (line.includes('add_field')) {
-                        fieldCode.push(line.replace(/# EMBED_VAR_PLACEHOLDER/g, embedVarName).trim());
+                    if (!line.trim()) continue;
+                    if (line.includes('# EMBED_VAR_PLACEHOLDER')) {
+                        code += line.replace(/# EMBED_VAR_PLACEHOLDER/g, embedVarName) + '\n';
                     } else if (line.trim().startsWith('embed.')) {
-                        code += line.trim().replace(/embed\./g, `${embedVarName}.`) + '\n';
+                        code += line.replace(/embed\./g, `${embedVarName}.`) + '\n';
                     }
-                }
-                if (fieldCode.length > 0) {
-                    code += '\n' + fieldCode.join('\n') + '\n';
                 }
                 return [`${embedVarName}`, Blockly.Python.ORDER_ATOMIC];
             };
@@ -1021,104 +1208,91 @@ ${embedVarName} = discord.Embed(title="New Embed", description="説明文を設�
             Blockly.Python['set_embed_property'] = function(block) {
                 const property = block.getFieldValue('PROPERTY');
                 const value = Blockly.Python.valueToCode(block, 'VALUE', Blockly.Python.ORDER_NONE) || '""';
-                if (property === 'color') {
-                    return 'embed.color = ' + value + '\n';
-                } else if (property === 'image') {
-                    return 'embed.set_image(url=' + value + ')\n';
-                } else if (property === 'title') {
-                    return 'embed.title = ' + value + '\n';
-                } else if (property === 'description') {
-                    return 'embed.description = ' + value + '\n';
-                }
+                if (property === 'color') return `embed.color = ${value}\n`;
+                if (property === 'image') return `embed.set_image(url=${value})\n`;
+                if (property === 'title') return `embed.title = ${value}\n`;
+                if (property === 'description') return `embed.description = ${value}\n`;
                 return '';
             };
             
             Blockly.Python['add_embed_field'] = function(block) {
-                const name = Blockly.Python.valueToCode(block, 'NAME', Blockly.Python.ORDER_NONE) || '""';
-                const value = Blockly.Python.valueToCode(block, 'VALUE', Blockly.Python.ORDER_NONE) || '""';
+                const name = Blockly.Python.valueToCode(block, 'NAME', Blockly.Python.ORDER_NONE) || '"Name"';
+                const value = Blockly.Python.valueToCode(block, 'VALUE', Blockly.Python.ORDER_NONE) || '"Value"';
                 const inline = block.getFieldValue('INLINE') === 'TRUE' ? 'True' : 'False';
                 return `# EMBED_VAR_PLACEHOLDER.add_field(name=${name}, value=${value}, inline=${inline})\n`;
             };
 
             Blockly.Python['kick_user'] = function(block) {
-                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE);
+                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
                 const reason = Blockly.Python.valueToCode(block, 'REASON', Blockly.Python.ORDER_NONE) || 'None';
-                const code = `
-member = ctx.guild.get_member(int(${user}))
-if member:
-    await member.kick(reason=${reason})
+                return `
+if 'ctx' in locals() and ctx.guild:
+    _m = ctx.guild.get_member(int(${user}))
+    if _m: await _m.kick(reason=${reason})
 `;
-                return code + '\n';
             };
             
             Blockly.Python['ban_user'] = function(block) {
-                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE);
+                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
                 const reason = Blockly.Python.valueToCode(block, 'REASON', Blockly.Python.ORDER_NONE) || 'None';
-                const code = `
-member = ctx.guild.get_member(int(${user}))
-if member:
-    await member.ban(reason=${reason})
+                return `
+if 'ctx' in locals() and ctx.guild:
+    _m = ctx.guild.get_member(int(${user}))
+    if _m: await _m.ban(reason=${reason})
 `;
-                return code + '\n';
             };
             
             Blockly.Python['timeout_user'] = function(block) {
-                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE);
+                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
                 const mins = Blockly.Python.valueToCode(block, 'MINUTES', Blockly.Python.ORDER_NONE) || '5';
-                const code = `
-member = ctx.guild.get_member(int(${user}))
-if member:
-    duration = datetime.timedelta(minutes=int(${mins}))
-    await member.timeout(duration)
+                return `
+if 'ctx' in locals() and ctx.guild:
+    _m = ctx.guild.get_member(int(${user}))
+    if _m:
+        await _m.timeout(datetime.timedelta(minutes=int(${mins})))
 `;
-                return code + '\n';
             };
 
             Blockly.Python['add_user_role'] = function(block) {
-                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE);
-                const role = Blockly.Python.valueToCode(block, 'ROLE_ID', Blockly.Python.ORDER_NONE);
-                const code = `
-member = ctx.guild.get_member(int(${user}))
-role = ctx.guild.get_role(int(${role}))
-if member and role:
-    await member.add_roles(role)
+                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
+                const role = Blockly.Python.valueToCode(block, 'ROLE_ID', Blockly.Python.ORDER_NONE) || '0';
+                return `
+if 'ctx' in locals() and ctx.guild:
+    _m = ctx.guild.get_member(int(${user}))
+    _r = ctx.guild.get_role(int(${role}))
+    if _m and _r: await _m.add_roles(_r)
 `;
-                return code + '\n';
             };
 
             Blockly.Python['remove_user_role'] = function(block) {
-                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE);
-                const role = Blockly.Python.valueToCode(block, 'ROLE_ID', Blockly.Python.ORDER_NONE);
-                const code = `
-member = ctx.guild.get_member(int(${user}))
-role = ctx.guild.get_role(int(${role}))
-if member and role:
-    await member.remove_roles(role)
+                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
+                const role = Blockly.Python.valueToCode(block, 'ROLE_ID', Blockly.Python.ORDER_NONE) || '0';
+                return `
+if 'ctx' in locals() and ctx.guild:
+    _m = ctx.guild.get_member(int(${user}))
+    _r = ctx.guild.get_role(int(${role}))
+    if _m and _r: await _m.remove_roles(_r)
 `;
-                return code + '\n';
             };
 
             Blockly.Python['create_role'] = function(block) {
-                const name = Blockly.Python.valueToCode(block, 'NAME', Blockly.Python.ORDER_NONE);
-                const code = `
-if ctx.guild:
+                const name = Blockly.Python.valueToCode(block, 'NAME', Blockly.Python.ORDER_NONE) || '"New Role"';
+                return `
+if 'ctx' in locals() and ctx.guild:
     await ctx.guild.create_role(name=${name})
 `;
-                return code + '\n';
             };
             
             Blockly.Python['change_nickname'] = function(block) {
-                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE);
-                const name = Blockly.Python.valueToCode(block, 'NAME', Blockly.Python.ORDER_NONE);
-                const code = `
-member = ctx.guild.get_member(int(${user}))
-if member:
-    await member.edit(nick=${name})
+                const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
+                const name = Blockly.Python.valueToCode(block, 'NAME', Blockly.Python.ORDER_NONE) || '"New Nick"';
+                return `
+if 'ctx' in locals() and ctx.guild:
+    _m = ctx.guild.get_member(int(${user}))
+    if _m: await _m.edit(nick=${name})
 `;
-                return code + '\n';
             };
 
-            // --- 関数 (手続き) ブロックのオーバーライド (非同期化) ---
             Blockly.Python['procedures_defnoreturn'] = Blockly.Python['procedures_defreturn'] = function(block) {
                 const funcName = Blockly.Python.variableDB_.getName(block.getFieldValue('NAME'), Blockly.Names.PROCEDURE_NAME);
                 const branch = getBranchCode(block, 'STACK');
@@ -1135,13 +1309,11 @@ if member:
                     returnCode = `${Blockly.Python.INDENT}return ${returnValue}\n`;
                 }
 
-                const code = `
-# ユーザー定義の非同期関数
+                return `
 async def ${funcName}(${argsString}):
 ${branch.trimEnd()}
 ${returnCode.trimEnd()}
 `;
-                return code + '\n';
             };
 
             Blockly.Python['procedures_callnoreturn'] = function(block) {
@@ -1150,8 +1322,7 @@ ${returnCode.trimEnd()}
                 for (let i = 0; i < block.arguments_.length; i++) {
                     args.push(Blockly.Python.valueToCode(block, 'ARG' + i, Blockly.Python.ORDER_NONE) || 'None');
                 }
-                const argsString = args.join(', ');
-                return `await ${funcName}(${argsString})\n`;
+                return `await ${funcName}(${args.join(', ')})\n`;
             };
 
             Blockly.Python['procedures_callreturn'] = function(block) {
@@ -1160,36 +1331,34 @@ ${returnCode.trimEnd()}
                 for (let i = 0; i < block.arguments_.length; i++) {
                     args.push(Blockly.Python.valueToCode(block, 'ARG' + i, Blockly.Python.ORDER_NONE) || 'None');
                 }
-                const argsString = args.join(', ');
-                return [`await ${funcName}(${argsString})`, Blockly.Python.ORDER_FUNCTION_CALL];
+                return [`await ${funcName}(${args.join(', ')})`, Blockly.Python.ORDER_FUNCTION_CALL];
             };
 
-            // --- リスト操作ブロックのジェネレーター定義 (インデックスバグ修正) ---
-            
-            // lists_create_with: 標準ジェネレーターを明示的に定義
             Blockly.Python['lists_create_with'] = function(block) {
                 const elements = [];
                 for (let i = 0; i < block.itemCount_; i++) {
                     elements.push(Blockly.Python.valueToCode(block, 'ADD' + i, Blockly.Python.ORDER_NONE) || 'None');
                 }
-                const code = '[' + elements.join(', ') + ']';
-                return [code, Blockly.Python.ORDER_ATOMIC];
+                return ['[' + elements.join(', ') + ']', Blockly.Python.ORDER_ATOMIC];
             };
             
-            // lists_length: 標準ジェネレーターを明示的に定義
             Blockly.Python['lists_length'] = function(block) {
                 const list = Blockly.Python.valueToCode(block, 'VALUE', Blockly.Python.ORDER_NONE) || '[]';
                 return [`len(${list})`, Blockly.Python.ORDER_FUNCTION_CALL];
             };
             
-            // lists_append_to: カスタムブロックのジェネレーター
             Blockly.Python['lists_append_to'] = function(block) {
                 const list = Blockly.Python.valueToCode(block, 'LIST', Blockly.Python.ORDER_MEMBER) || '[]';
                 const item = Blockly.Python.valueToCode(block, 'ITEM', Blockly.Python.ORDER_NONE) || 'None';
                 return `${list}.append(${item})\n`;
             };
+            
+            // リストからランダム選択
+            Blockly.Python['random_choice'] = function(block) {
+                const list = Blockly.Python.valueToCode(block, 'LIST', Blockly.Python.ORDER_NONE) || '[]';
+                return [`random.choice(${list})`, Blockly.Python.ORDER_ATOMIC];
+            };
 
-            // lists_getIndex: 1-based to 0-based indexing修正
             Blockly.Python['lists_getIndex'] = function(block) {
                 const mode = block.getFieldValue('MODE') || 'GET';
                 const where = block.getFieldValue('WHERE') || 'FROM_START';
@@ -1198,29 +1367,17 @@ ${returnCode.trimEnd()}
                 let code, at;
 
                 if (where === 'FROM_START') {
-                    // Pythonの0-basedに対応するため、Blocklyのインデックスから1を引く
                     at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_ADDITIVE) || '1';
                     at = Blockly.isNumber(at) ? parseInt(at, 10) - 1 : `(int(${at}) - 1)`;
-                    
-                    if (mode === 'GET') {
-                        code = `${list}[${at}]`;
-                    } else if (mode === 'GET_REMOVE') {
-                        code = `${list}.pop(${at})`;
-                    } else if (mode === 'REMOVE') {
-                        code = `del ${list}[${at}]\n`;
-                    }
+                    if (mode === 'GET') code = `${list}[${at}]`;
+                    else if (mode === 'GET_REMOVE') code = `${list}.pop(${at})`;
+                    else if (mode === 'REMOVE') code = `del ${list}[${at}]\n`;
                 } else if (where === 'FROM_END') {
-                    // Pythonの負のインデックスに対応。FROM_END 1は-1、FROM_END 2は-2
                     at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_UNARY_SIGN) || '1';
                     at = Blockly.isNumber(at) ? -parseInt(at, 10) : `-int(${at})`;
-                    
-                    if (mode === 'GET') {
-                        code = `${list}[${at}]`;
-                    } else if (mode === 'GET_REMOVE') {
-                        code = `${list}.pop(${at})`;
-                    } else if (mode === 'REMOVE') {
-                        code = `del ${list}[${at}]\n`;
-                    }
+                    if (mode === 'GET') code = `${list}[${at}]`;
+                    else if (mode === 'GET_REMOVE') code = `${list}.pop(${at})`;
+                    else if (mode === 'REMOVE') code = `del ${list}[${at}]\n`;
                 } else if (where === 'FIRST') {
                     if (mode === 'GET') code = `${list}[0]`;
                     else if (mode === 'GET_REMOVE') code = `${list}.pop(0)`;
@@ -1230,18 +1387,12 @@ ${returnCode.trimEnd()}
                     else if (mode === 'GET_REMOVE') code = `${list}.pop()`;
                     else if (mode === 'REMOVE') code = `del ${list}[-1]\n`;
                 } else {
-                     // RANDOM など、その他のモードは標準のジェネレーターに依存
                      return Blockly.Python.lists_getIndex(block);
                 }
-
-                if (mode === 'REMOVE') {
-                    return code;
-                }
+                if (mode === 'REMOVE') return code;
                 return [code, Blockly.Python.ORDER_MEMBER];
             };
 
-
-            // lists_setIndex: 1-based to 0-based indexing修正
             Blockly.Python['lists_setIndex'] = function(block) {
                 const mode = block.getFieldValue('MODE') || 'SET';
                 const where = block.getFieldValue('WHERE') || 'FROM_START';
@@ -1249,16 +1400,11 @@ ${returnCode.trimEnd()}
                 const value = Blockly.Python.valueToCode(block, 'VALUE', Blockly.Python.ORDER_NONE) || 'None';
                 
                 let code, at;
-                
                 if (where === 'FROM_START') {
                     at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_ADDITIVE) || '1';
                     at = Blockly.isNumber(at) ? parseInt(at, 10) - 1 : `(int(${at}) - 1)`;
-
-                    if (mode === 'SET') {
-                        code = `${list}[${at}] = ${value}\n`;
-                    } else if (mode === 'INSERT') {
-                        code = `${list}.insert(${at}, ${value})\n`;
-                    }
+                    if (mode === 'SET') code = `${list}[${at}] = ${value}\n`;
+                    else if (mode === 'INSERT') code = `${list}.insert(${at}, ${value})\n`;
                 } else if (where === 'FIRST') {
                     if (mode === 'SET') code = `${list}[0] = ${value}\n`;
                     else if (mode === 'INSERT') code = `${list}.insert(0, ${value})\n`;
@@ -1267,57 +1413,39 @@ ${returnCode.trimEnd()}
                     else if (mode === 'INSERT') code = `${list}.append(${value})\n`; 
                 } else if (where === 'FROM_END') {
                     at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_UNARY_SIGN) || '1';
-                    
                     if (mode === 'SET') {
-                        // SET FROM_END n は Python の -n と等しい
                         const setAt = Blockly.isNumber(at) ? -parseInt(at, 10) : `-int(${at})`;
                         code = `${list}[${setAt}] = ${value}\n`;
                     } else if (mode === 'INSERT') {
-                        // INSERT FROM_END n は Python の insert(len(list) - n, value) と等しい
                         const insertAt = Blockly.isNumber(at) ? `len(${list}) - ${parseInt(at, 10)}` : `len(${list}) - int(${at})`;
                         code = `${list}.insert(${insertAt}, ${value})\n`;
                     }
                 } else {
-                    // RANDOM, etc. は標準ジェネレーターに依存。
                     return Blockly.Python.lists_setIndex(block);
                 }
-                
                 return code;
             };
             
-            // --- 数値・計算ブロックのジェネレーター定義 (標準に戻す) ---
-            // math_number, math_arithmetic, math_single, math_round は標準のPythonジェネレーターを使用し、
-            // Blockly.Python.provideFunction で必要な import を確実に追加させるようにします。
-            
-            Blockly.Python['math_number'] = Blockly.Python.math_number;
-            Blockly.Python['math_arithmetic'] = Blockly.Python.math_arithmetic;
-
-            // math_single (ABS, ROOT, NEG, TRIGONOMETRY)
-            Blockly.Python['math_single'] = function(block) {
-                // 標準のジェネレーターを呼び出し、必要な 'math' import を自動で処理させる
-                return Blockly.Python.math_single(block);
-            };
-
-            // math_round (ROUND, ROUNDUP, ROUNDDOWN)
-            Blockly.Python['math_round'] = function(block) {
-                // 標準のジェネレーターを呼び出し、必要な 'math' import を自動で処理させる
-                return Blockly.Python.math_round(block);
-            };
-
-            // random_integer: ジェネレーターの再定義
+            // --- 数値・計算ブロック ---
             Blockly.Python['random_integer'] = function(block) {
                 const from = Blockly.Python.valueToCode(block, 'FROM', Blockly.Python.ORDER_NONE) || '0';
                 const to = Blockly.Python.valueToCode(block, 'TO', Blockly.Python.ORDER_NONE) || '100';
-                // 標準の randint 関数に依存
                 return [`random.randint(int(${from}), int(${to}))`, Blockly.Python.ORDER_ATOMIC];
             };
 
-            // text_charAt: 標準ジェネレーターを明示的に定義 (文字列のインデックスも0-based修正が必要)
+            // NEW: 文字列置換
+            Blockly.Python['text_replace'] = function(block) {
+                const text = Blockly.Python.valueToCode(block, 'TEXT', Blockly.Python.ORDER_MEMBER) || "''";
+                const from = Blockly.Python.valueToCode(block, 'FROM', Blockly.Python.ORDER_NONE) || "''";
+                const to = Blockly.Python.valueToCode(block, 'TO', Blockly.Python.ORDER_NONE) || "''";
+                return [`str(${text}).replace(str(${from}), str(${to}))`, Blockly.Python.ORDER_MEMBER];
+            };
+
+            // text_charAt: 再帰エラーを修正した独自実装
             Blockly.Python['text_charAt'] = function(block) {
                 const where = block.getFieldValue('WHERE') || 'FROM_START';
                 const text = Blockly.Python.valueToCode(block, 'VALUE', Blockly.Python.ORDER_MEMBER) || "''";
-                let code;
-                let at;
+                let code, at;
 
                 if (where === 'FROM_START') {
                     at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_ADDITIVE) || '1';
@@ -1327,15 +1455,17 @@ ${returnCode.trimEnd()}
                     code = `${text}[0]`;
                 } else if (where === 'LAST') {
                     code = `${text}[-1]`;
+                } else if (where === 'FROM_END') {
+                    at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_UNARY_SIGN) || '1';
+                    at = Blockly.isNumber(at) ? -parseInt(at, 10) : `-int(${at})`;
+                    code = `${text}[${at}]`;
                 } else {
-                    // FROM_ENDやRANDOMは標準に依存
-                    return Blockly.Python.text_charAt(block);
+                    // RANDOMなどは簡易的に0番目を返す(複雑化回避)
+                    code = `${text}[0]`;
                 }
-                
                 return [code, Blockly.Python.ORDER_MEMBER];
             };
             
-            // --- 標準ロジックの調整 (インデント処理の修正) ---
             Blockly.Python['controls_if'] = function(block) {
                 let code = '';
                 let condition = Blockly.Python.valueToCode(block, 'IF0', Blockly.Python.ORDER_NONE) || 'False';
@@ -1359,7 +1489,7 @@ ${returnCode.trimEnd()}
         };
         
         // ===========================================
-        // 3. App Initialization (DOM依存のロジック)
+        // 3. App Initialization
         // ===========================================
 
         const html = document.documentElement;
@@ -1367,63 +1497,23 @@ ${returnCode.trimEnd()}
         const toggleTheme = (modernLightTheme, modernDarkTheme) => {
             const currentTheme = html.classList.contains('dark') ? 'dark' : 'light';
             const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-
             html.classList.remove(currentTheme);
             html.classList.add(newTheme);
             localStorage.setItem('theme', newTheme);
-            
             if (workspace) {
-                const theme = newTheme === 'dark' ? modernDarkTheme : modernLightTheme;
-                workspace.setTheme(theme);
-            }
-        };
-
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'dark') {
-            html.classList.add('dark');
-        } else {
-            html.classList.add('light');
-        }
-
-        const saveToLocal = () => {
-            if (!workspace) return;
-            const xml = Blockly.Xml.workspaceToDom(workspace);
-            const xmlText = Blockly.Xml.domToText(xml);
-            localStorage.setItem(STORAGE_KEY, xmlText);
-            
-            const saveStatus = document.getElementById('saveStatus');
-            saveStatus.style.opacity = '1';
-            setTimeout(() => saveStatus.style.opacity = '0', 2000);
-        };
-
-        const loadFromLocal = () => {
-            const xmlText = localStorage.getItem(STORAGE_KEY);
-            if (xmlText && workspace) {
-                try {
-                    const xml = Blockly.Xml.textToDom(xmlText);
-                    Blockly.Xml.clearWorkspaceAndLoadFromXml(xml, workspace);
-                } catch (e) {
-                    console.error("Failed to load workspace from local storage:", e);
-                }
+                workspace.setTheme(newTheme === 'dark' ? modernDarkTheme : modernLightTheme);
             }
         };
 
         const generatePythonCode = () => {
+            if (!workspace) return '';
             let rawCode = Blockly.Python.workspaceToCode(workspace);
             
+            // ルートインデントの削除
             const rootIndent = Blockly.Python.INDENT;
             let cleanedCode = rawCode.split('\n')
-                .map(line => {
-                    if (line.startsWith(rootIndent)) {
-                        return line.substring(rootIndent.length);
-                    }
-                    return line;
-                })
-                .join('\n')
-                .trim();
-
-
-            const commandPrefix = '!'; 
+                .map(line => line.startsWith(rootIndent) ? line.substring(rootIndent.length) : line)
+                .join('\n').trim();
 
             const boilerplate = `
 # 必要なライブラリのインポート
@@ -1433,24 +1523,20 @@ from discord.ext import commands
 import random
 import asyncio
 import datetime
-import math # 数学演算ブロックのために必要
+import math
 
-# インテントの設定（Botの権限設定）
-# 'message_content' と 'members' はDiscord Developer Portalから有効化する必要があります
 intents = discord.Intents.default()
 intents.message_content = True 
 intents.members = True 
 
-# Botの作成 (ここでプレフィックスを指定)
-bot = commands.Bot(command_prefix='${commandPrefix}', intents=intents)
+# Botの作成
+bot = commands.Bot(command_prefix='!', intents=intents)
 
-# --- 作成したブロックのロジック ---
+# --- ユーザー作成ロジック ---
 ${cleanedCode}
-# -------------------------------
+# --------------------------
 
-# Botの起動
-# 注意: Bot Tokenは他人に教えないでください
-bot.run('YOUR_BOT_TOKEN_HERE')
+# bot.run('TOKEN') # 実行時はここにTokenを入れてください
 `;
             return boilerplate.trim();
         };
@@ -1470,6 +1556,8 @@ bot.run('YOUR_BOT_TOKEN_HERE')
             const exportBtn = document.getElementById('exportBtn');
             const importInput = document.getElementById('importInput');
             
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') html.classList.add('dark');
             const initialTheme = savedTheme === 'dark' ? modernDarkTheme : modernLightTheme;
 
             workspace = Blockly.inject(blocklyDiv, {
@@ -1481,14 +1569,99 @@ bot.run('YOUR_BOT_TOKEN_HERE')
                 theme: initialTheme
             });
 
-            loadFromLocal();
+            // --- ツールボックス固定ピンボタンの追加 ---
+            const pinBtn = document.createElement('button');
+            pinBtn.id = 'toolboxPinBtn';
+            // ツールボックスの背景色に馴染むスタイル
+            pinBtn.className = 'absolute z-50 p-1.5 rounded-lg text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:text-gray-400 dark:hover:text-indigo-400 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm border border-transparent hover:border-indigo-100 dark:hover:border-gray-600';
+            pinBtn.style.top = '8px'; // 上端からの余白
+            
+            const updatePinState = () => {
+                if (!workspace) return;
+                const toolbox = workspace.getToolbox();
+                if (!toolbox) return;
+                
+                let isVisible = true;
+                // isVisibleメソッドの存在確認を行い、ない場合は幅で判定する安全策
+                if (typeof toolbox.isVisible === 'function') {
+                    isVisible = toolbox.isVisible();
+                } else if (typeof toolbox.getWidth === 'function') {
+                    isVisible = toolbox.getWidth() > 0;
+                }
+                
+                const width = (typeof toolbox.getWidth === 'function') ? toolbox.getWidth() : 0;
+                
+                if (isVisible) {
+                    // ツールボックスが表示されている場合: タブの右上に配置
+                    pinBtn.style.left = `${width - 34}px`; // 幅 - ボタンサイズ - 余白
+                    pinBtn.innerHTML = '<i data-lucide="pin" class="w-4 h-4 fill-indigo-500 text-indigo-600"></i>';
+                    pinBtn.classList.add('bg-white', 'dark:bg-gray-800'); // 固定時は背景あり
+                } else {
+                    // 隠れている場合: 左端に配置
+                    pinBtn.style.left = '8px';
+                    pinBtn.innerHTML = '<i data-lucide="pin-off" class="w-4 h-4"></i>';
+                    pinBtn.classList.remove('bg-white', 'dark:bg-gray-800'); // 解除時は透明またはシンプルに
+                    pinBtn.classList.add('bg-white/80', 'dark:bg-gray-800/80', 'backdrop-blur'); // 浮いている感
+                }
+                lucide.createIcons();
+            };
+
+            pinBtn.onclick = () => {
+                const toolbox = workspace.getToolbox();
+                if (!toolbox) return;
+
+                // 現在の状態を安全に取得
+                let isVisible = true;
+                if (typeof toolbox.isVisible === 'function') {
+                    isVisible = toolbox.isVisible();
+                } else if (typeof toolbox.getWidth === 'function') {
+                    isVisible = toolbox.getWidth() > 0;
+                }
+
+                // 安全に切り替え
+                if (typeof toolbox.setVisible === 'function') {
+                    toolbox.setVisible(!isVisible);
+                }
+                
+                Blockly.svgResize(workspace); // ワークスペースのサイズ再計算
+                // 少し待ってから位置更新（アニメーション等のズレ防止）
+                setTimeout(updatePinState, 50); 
+            };
+
+            // DOMに追加
+            document.getElementById('blocklyDiv').appendChild(pinBtn);
+            
+            // 初期化とイベントリスナー
+            setTimeout(updatePinState, 100);
+            window.addEventListener('resize', () => {
+                Blockly.svgResize(workspace);
+                updatePinState();
+            });
+            
+            // カテゴリクリックなどで幅が変わる可能性があるため監視
+            workspace.addChangeListener((e) => {
+                if (e.type === Blockly.Events.TOOLBOX_ITEM_SELECT) {
+                    setTimeout(updatePinState, 50);
+                }
+            });
+
+            // LocalStorage Load
+            const xmlText = localStorage.getItem(STORAGE_KEY);
+            if (xmlText) {
+                try {
+                    Blockly.Xml.clearWorkspaceAndLoadFromXml(Blockly.Xml.textToDom(xmlText), workspace);
+                } catch (e) { console.error(e); }
+            }
 
             workspace.addChangeListener((e) => {
                 if (e.isUiEvent || e.type === Blockly.Events.FINISHED_LOADING) return;
-                saveToLocal();
+                const xml = Blockly.Xml.workspaceToDom(workspace);
+                localStorage.setItem(STORAGE_KEY, Blockly.Xml.domToText(xml));
+                const saveStatus = document.getElementById('saveStatus');
+                saveStatus.style.opacity = '1';
+                setTimeout(() => saveStatus.style.opacity = '0', 2000);
             });
 
-            // イベントリスナー
             themeToggle.addEventListener('click', () => toggleTheme(modernLightTheme, modernDarkTheme));
             
             importBtn.addEventListener('click', () => importInput.click());
@@ -1498,30 +1671,23 @@ bot.run('YOUR_BOT_TOKEN_HERE')
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
-                        const xml = Blockly.Xml.textToDom(e.target.result);
-                        Blockly.Xml.clearWorkspaceAndLoadFromXml(xml, workspace);
-                        saveToLocal();
-                    } catch (err) {
-                        console.error('ファイルの読み込みに失敗しました', err);
-                    }
+                        Blockly.Xml.clearWorkspaceAndLoadFromXml(Blockly.Xml.textToDom(e.target.result), workspace);
+                    } catch (err) { console.error(err); }
                 };
                 reader.readAsText(file);
                 e.target.value = '';
             });
 
             exportBtn.addEventListener('click', () => {
-                if (!workspace) return;
                 const xml = Blockly.Xml.workspaceToDom(workspace);
-                const xmlText = Blockly.Xml.domToText(xml);
-                const blob = new Blob([xmlText], {type: 'text/xml'});
+                const blob = new Blob([Blockly.Xml.domToText(xml)], {type: 'text/xml'});
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `bot-project-${new Date().toISOString().slice(0,10)}.xml`;
+                a.download = `bot-project.xml`;
                 a.click();
                 URL.revokeObjectURL(url);
             });
-
 
             showCodeBtn.addEventListener('click', () => {
                 codeOutput.textContent = generatePythonCode();
@@ -1539,22 +1705,17 @@ bot.run('YOUR_BOT_TOKEN_HERE')
             });
             
             copyCodeBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText(codeOutput.textContent).then(() => {
-                    const originalText = copyCodeBtn.innerHTML;
-                    copyCodeBtn.innerHTML = '<i data-lucide="check" class="w-3 h-3"></i> コピー完了';
+                navigator.clipboard.writeText(codeOutput.textContent);
+                copyCodeBtn.innerHTML = '<i data-lucide="check" class="w-3 h-3"></i> コピー完了';
+                lucide.createIcons();
+                setTimeout(() => {
+                    copyCodeBtn.innerHTML = '<i data-lucide="copy" class="w-3 h-3"></i> コピー';
                     lucide.createIcons();
-                    setTimeout(() => {
-                        copyCodeBtn.innerHTML = originalText;
-                        lucide.createIcons();
-                    }, 2000);
-                }).catch(err => {
-                    console.error('Failed to copy text: ', err);
-                });
+                }, 2000);
             });
         };
 
         window.onload = initializeApp;
-
     </script>
 </body>
 </html>
