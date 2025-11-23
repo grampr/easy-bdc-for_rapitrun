@@ -1557,6 +1557,9 @@ ${returnCode.trimEnd()}
             let rawCode = Blockly.Python.workspaceToCode(workspace);
             
             const boilerplate = `
+# Easy Discord Bot Builderによって作成されました！ 製作：@himais0giiiin
+# Created with Easy Discord Bot Builder! created by @himais0giiiin!
+
 # 必要なライブラリのインポート
 import discord
 from discord import app_commands
@@ -1598,7 +1601,7 @@ def _save_json_data(filename, data):
 ${rawCode}
 # --------------------------
 
-# bot.run('TOKEN') # 実行時はここにTokenを入れてください
+bot.run('TOKEN') # 実行時はTOKENにBotのトークンを入れてください
 `;
             return boilerplate.trim();
         };
