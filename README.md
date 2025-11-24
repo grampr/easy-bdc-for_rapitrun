@@ -1,7 +1,7 @@
-# Easy Discord Bot Builder (Easy BDC)
+# Easy Discord Bot Builder (EDBB)
 
-![Discord](https://badgen.net/discord/members/CmEGugrsje)
-![MIT](https://badgen.net/static/license/MIT/blue)
+![Discord](https://badgen.net/discord/members/CmEGugrsje)  
+![MIT](https://badgen.net/static/license/MIT/blue)  
 Easy Discord Bot Builder は、ブラウザ上でブロックを組み合わせて、誰でも簡単に Discord Bot を作成できるビジュアルプログラミングツールです。
 
 ## 🚀 概要
