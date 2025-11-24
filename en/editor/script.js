@@ -7,7 +7,7 @@ const STORAGE_KEY = 'discord_bot_builder_workspace_v5';
 // --- Custom Block Definition (Pythonコード直接記述) ---
 Blockly.Blocks['custom_python_code'] = {
   init: function () {
-    this.appendDummyInput().appendField('🐍 Pythonコード実行');
+    this.appendDummyInput().appendField('🐍 eval Python code');
     this.appendDummyInput().appendField(
       new Blockly.FieldMultilineInput("print('Hello World')"),
       'CODE',
@@ -15,7 +15,7 @@ Blockly.Blocks['custom_python_code'] = {
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(60);
-    this.setTooltip('任意のPythonコードをここに記述して実行させます。');
+    this.setTooltip('Write and execute arbitrary Python code here.');
   },
 };
 
@@ -82,7 +82,7 @@ const generatePythonCode = () => {
 
   // --- Optimized Boilerplate ---
   const boilerplate = `
-# Easy Discord Bot Builderによって作成されました！ 製作：@himais0giiiin
+# Easy Discord Bot Builderによって作成されました! 製作：@himais0giiiin
 # Created with Easy Discord Bot Builder! created by @himais0giiiin!
 # Optimized Version
 
@@ -97,29 +97,28 @@ import json
 import os
 import logging
 
-# ロギング設定 (Logging Setup)
-# INFOレベル以上のログをコンソールに出力します
+# Logging Setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 intents = discord.Intents.default()
 intents.message_content = True 
 intents.members = True 
 
-# Botの作成
+# Bot creation
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# グローバルエラーハンドラー
+# Global error handler
 @bot.event
 async def on_command_error(ctx, error):
-    # コマンドが見つからないエラーは無視する (他のBotと競合しないように)
+    # Ignore command not found errors to avoid conflicts with other bots
     if isinstance(error, commands.CommandNotFound):
         return
-    # その他のエラーはログに出力
+    # Log other errors
     logging.error(f"Command Error: {error}")
-    # 開発用にメッセージを返すことも可能です (運用時はコメントアウト推奨)
-    # await ctx.send(f"⚠️ エラーが発生しました: {error}")
+    # You can also send a message for development purposes (comment out in production)
+    # await ctx.send(f"⚠️ An error occurred: {error}")
 
-# ---JSON操作---
+# ---JSON Operations---
 def _load_json_data(filename):
     if not os.path.exists(filename):
         return {}
@@ -138,14 +137,67 @@ def _save_json_data(filename, data):
         logging.error(f"JSON Save Error: {e}")
 # ----------------------------
 
-# --- ユーザー作成部分 ---
+# --- User-Created Section ---
 ${rawCode}
 # --------------------------
 
 if __name__ == "__main__":
     # Token check
-    # bot.run('TOKEN') # 実行時はここにTokenを入れてください!
+    # bot.run('TOKEN') # Please enter your token here when running!
     pass
+`;
+  return boilerplate.trim();
+};
+
+const generateJSCode = () => {
+  if (!workspace) return '';
+  let rawCode = Blockly.JavaScript.workspaceToCode(workspace);
+
+  const boilerplate = `
+// Easy Discord Bot Builderによって作成されました！ 製作：@himais0giiiin, @aiubrew!
+// Created with Easy Discord Bot Builder! created by @himais0giiiin, @aiubrew!
+
+const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const fs = require('fs');
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
+  ],
+  partials: [Partials.Channel],
+});
+
+// ---JSON Operations---
+function _load_json_data(filename) {
+    if (!fs.existsSync(filename)) {
+        return {};
+    }
+    try {
+        const data = fs.readFileSync(filename, 'utf-8');
+        return JSON.parse(data);
+    } catch (e) {
+        console.error(\`JSON Load Error: \${e}\`);
+        return {};
+    }
+}
+
+function _save_json_data(filename, data) {
+    try {
+        fs.writeFileSync(filename, JSON.stringify(data, null, 4), 'utf-8');
+    } catch (e) {
+        console.error(\`JSON Save Error: \${e}\`);
+    }
+}
+// ----------------------------
+
+// --- User Operations ---
+${rawCode}
+// --------------------------
+
+client.login('TOKEN'); // Please enter your token here when running!
 `;
   return boilerplate.trim();
 };
@@ -176,11 +228,14 @@ const initializeApp = () => {
   const themeToggle = document.getElementById('themeToggle');
   // ヘッダーのコード生成ボタン
   const showCodeBtn = document.getElementById('showCodeBtn');
+  const showJsCodeBtn = document.getElementById('showJsCodeBtn');
   // モーダル関連
   const codeModal = document.getElementById('codeModal');
   const closeModalBtn = document.getElementById('closeModalBtn');
   const codeOutput = document.getElementById('codeOutput');
   const copyCodeBtn = document.getElementById('copyCodeBtn');
+  const shareTwitterBtn = document.getElementById('shareTwitterBtn');
+  const saveFileBtn = document.getElementById('saveFileBtn');
 
   const importBtn = document.getElementById('importBtn');
   const exportBtn = document.getElementById('exportBtn');
@@ -380,6 +435,23 @@ const initializeApp = () => {
     codeModal.classList.add('show-modal');
   });
 
+  showJsCodeBtn.addEventListener('click', () => {
+    showJsCodeBtn.blur();
+    if (workspace) Blockly.hideChaff();
+    const code = generateJSCode();
+    document.getElementById('codeOutput').textContent = code;
+    document.querySelector('#codeModal h2').textContent = 'Bot Code (JavaScript)';
+    document.querySelector('#codeModal ol').innerHTML = `
+      <li>Save the following code as <code class="px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-mono">bot.js</code>.</li>
+      <li>Run <code class="px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-mono select-all">npm install discord.js</code> in the terminal.</li>
+      <li>Run <code class="px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-mono select-all">node bot.js</code> to start the bot.</li>
+    `;
+    codeModal.classList.remove('hidden');
+    codeModal.classList.add('flex');
+    void codeModal.offsetWidth;
+    codeModal.classList.add('show-modal');
+  });
+
   closeModalBtn.addEventListener('click', () => {
     codeModal.classList.remove('show-modal');
     setTimeout(() => {
@@ -391,7 +463,7 @@ const initializeApp = () => {
   copyCodeBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(codeOutput.textContent);
     const originalHtml = copyCodeBtn.innerHTML;
-    copyCodeBtn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i> コピー完了';
+    copyCodeBtn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i> Copied';
     copyCodeBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500');
     copyCodeBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-500', 'border-emerald-400');
     lucide.createIcons();
@@ -402,6 +474,27 @@ const initializeApp = () => {
       copyCodeBtn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500', 'border-emerald-400');
       lucide.createIcons();
     }, 2000);
+  });
+
+  shareTwitterBtn.addEventListener('click', () => {
+    const code = codeOutput.textContent;
+    const shortCode = code.length > 200 ? code.substring(0, 200) + '...' : code;
+    const tweetText = `EDBB generated Discord Bot code! #EDBB \n\n${shortCode}`;
+    const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
+    window.open(tweetUrl, '_blank');
+  });
+
+  saveFileBtn.addEventListener('click', () => {
+    const code = codeOutput.textContent;
+    const isJs = document.querySelector('#codeModal h2').textContent.includes('JavaScript');
+    const filename = isJs ? 'bot.js' : 'bot.py';
+    const blob = new Blob([code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   });
 };
 
