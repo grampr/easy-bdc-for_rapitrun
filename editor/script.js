@@ -235,6 +235,8 @@ const initializeApp = () => {
   const closeModalBtn = document.getElementById('closeModalBtn');
   const codeOutput = document.getElementById('codeOutput');
   const copyCodeBtn = document.getElementById('copyCodeBtn');
+  const shareTwitterBtn = document.getElementById('shareTwitterBtn');
+  const saveFileBtn = document.getElementById('saveFileBtn');
 
   const importBtn = document.getElementById('importBtn');
   const exportBtn = document.getElementById('exportBtn');
@@ -473,6 +475,27 @@ const initializeApp = () => {
       copyCodeBtn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500', 'border-emerald-400');
       lucide.createIcons();
     }, 2000);
+  });
+
+  shareTwitterBtn.addEventListener('click', () => {
+    const code = codeOutput.textContent;
+    const shortCode = code.length > 200 ? code.substring(0, 200) + '...' : code;
+    const tweetText = `Easy BDCでDiscord Botのコードを生成しました！ #easybdc\n\n${shortCode}`;
+    const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
+    window.open(tweetUrl, '_blank');
+  });
+
+  saveFileBtn.addEventListener('click', () => {
+    const code = codeOutput.textContent;
+    const isJs = document.querySelector('#codeModal h2').textContent.includes('JavaScript');
+    const filename = isJs ? 'bot.js' : 'bot.py';
+    const blob = new Blob([code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   });
 };
 

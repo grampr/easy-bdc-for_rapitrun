@@ -327,9 +327,15 @@
                 </div>
 
                 <div class="relative group rounded-xl overflow-hidden shadow-lg border border-slate-200 dark:border-slate-800">
-                    <div class="absolute top-3 right-3 z-10 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    <div class="absolute top-3 right-3 z-10 opacity-0 transition-opacity duration-200 group-hover:opacity-100 flex items-center gap-2">
                         <button id="copyCodeBtn" class="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-lg shadow-lg bg-indigo-600 hover:bg-indigo-500 border border-indigo-400 backdrop-blur-sm transition-all active:scale-95">
                             <i data-lucide="copy" class="w-3.5 h-3.5"></i> コピー
+                        </button>
+                        <button id="shareTwitterBtn" class="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-lg shadow-lg bg-black hover:bg-gray-800 border border-gray-600 backdrop-blur-sm transition-all active:scale-95">
+                            <i data-lucide="twitter" class="w-3.5 h-3.5"></i> シェア
+                        </button>
+                        <button id="saveFileBtn" class="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-lg shadow-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-400 backdrop-blur-sm transition-all active:scale-95">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i> 保存
                         </button>
                     </div>
                     <pre id="codeOutput" class="p-5 text-sm font-mono tab-4 bg-[#0f172a] text-[#e2e8f0] overflow-x-auto min-h-[300px]"></pre>
