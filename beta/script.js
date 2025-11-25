@@ -102,6 +102,9 @@ async def on_interaction(interaction):
         ${modalEvents}
 
 ${rawCode}
+# ユーザー操作
+if __name__ == "__main__":
+    bot.run('TOKEN') # 実行時はここにTokenを入れてください!
 `;
 
   return code.replace(/\n{3,}/g, "\n").trim();
@@ -137,6 +140,7 @@ const initializeApp = (Blocks) => {
   const closeModalBtn = document.getElementById("closeModalBtn");
   const codeOutput = document.getElementById("codeOutput");
   const copyCodeBtn = document.getElementById("copyCodeBtn");
+  const downloadCodeBtn = document.getElementById("downloadCodeBtn");
   const importBtn = document.getElementById("importBtn");
   const exportBtn = document.getElementById("exportBtn");
   const importInput = document.getElementById("importInput");
@@ -362,6 +366,16 @@ const initializeApp = (Blocks) => {
       lucide.createIcons();
     }, 2000);
   });
+  downloadCodeBtn.addEventListener("click", () => {
+    const blob = new Blob([codeOutput.textContent], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bot-project.py`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
 };
 
 window.onload = async () => {
