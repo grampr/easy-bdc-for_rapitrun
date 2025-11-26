@@ -80,6 +80,8 @@ const generatePythonCode = () => {
 import discord, random, asyncio, datetime, json, os
 from discord.ext import commands
 import os
+from dotenv import load_dotenv
+load_dotenv()
 intents = discord.Intents.default()
 intents.message_content = intents.members = intents.voice_states = True
 

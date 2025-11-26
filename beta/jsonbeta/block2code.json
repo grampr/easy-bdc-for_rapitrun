@@ -941,6 +941,14 @@
     "return": "multiline",
     "placeholders": [],
     "template": "pass\n"
+  },
+  "create_role": {
+    "description": "ロールを新規作成",
+    "category": "server",
+    "return": "multiline",
+    "placeholders": ["NAME"],
+    "template": "\nif 'ctx' in locals():\n        if isinstance(ctx, discord.Interaction):\n            if ctx.response.is_done():\n                await ctx.followup.send(content={{NAME}}+'を新規作成しました。', ephemeral=True)\n            else:\n                await ctx.response.send_message(content={{NAME}}+'を新規作成しました。', ephemeral=True)\n        elif isinstance(ctx, commands.Context):\n            await ctx.send(content={{NAME}}+'を新規作成しました。')\n        elif isinstance(ctx, discord.Message):\n            await ctx.reply(content={{NAME}}+'を新規作成しました。')"
+
   }
 }
 
