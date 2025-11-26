@@ -1,71 +1,35 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Easy Discord Bot Builder v5.3.3</title>
-    
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='16' fill='%236366f1' /%3E%3Cpath d='M20 42 Q32 52 44 42' stroke='white' stroke-width='4' fill='none' stroke-linecap='round' /%3E%3Ccircle cx='22' cy='26' r='6' fill='white' /%3E%3Ccircle cx='42' cy='26' r='6' fill='white' /%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='16' fill='%236366f1' /%3E%3Cpath d='M20 42 Q32 52 44 42' stroke='white' stroke-width='4' fill='none' stroke-linecap='round' /%3E%3Ccircle cx='22' cy='26' r='6' fill='white' /%3E%3Ccircle cx='42' cy='26' r='6' fill='white' /%3C/svg%3E">
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        slate: {
-                            750: '#2d3748',
-                            850: '#1a202c',
-                            950: '#020617',
-                        },
-                        indigo: {
-                            450: '#818cf8',
-                            550: '#6366f1',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],
-                    },
-                    boxShadow: {
-                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-                        'glow': '0 0 15px rgba(99, 102, 241, 0.3)',
-                    }
-                }
-            }
-        }
-    </script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="../assets/tailwind.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark-reasonable.min.css">
+    <link rel="stylesheet" href="style.css">
+
     <!-- Blockly -->
     <script src="https://unpkg.com/blockly@9.0.0/blockly.min.js"></script>
     <script src="https://unpkg.com/blockly@9.0.0/python_compressed.js"></script>
-    <script src="https://unpkg.com/blockly@9.0.0/javascript_compressed.js"></script>
     <script src="https://unpkg.com/blockly@9.0.0/msg/ja.js"></script>
-    
+
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <!-- Syntax Highlight -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark-reasonable.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/python.min.js"></script>
-
-    <link rel="stylesheet" href="style.css">
-    <!-- OGP -->
-    <meta property="og:title" content="Easy Discord Bot Builder (EDBB)">
-    <meta property="og:site_name" content="Easy Discord Bot Builder(EDBB)">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://himais0giiiin.com/editor/">
-    <meta property="og:description" content="ブラウザ上でブロックを組み合わせて、誰でも簡単に Discord Bot を作成できるビジュアルプログラミングツール。全て無料。">
-    <meta property="og:image" content="https://himais0giiiin.com/img.svg">
-
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200 flex flex-col h-screen overflow-hidden transition-colors duration-500">
 
     <!-- Header -->
-    <header class="glass-header shadow-soft border-b border-slate-200/50 dark:border-slate-800/50 px-6 py-3 flex justify-between items-center z-30 shrink-0 h-18 relative">
+    <header class="glass-header shadow-soft border-b border-slate-200/50 dark:border-slate-800/50 px-6 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 z-30 shrink-0 relative">
         <div class="flex items-center gap-4">
             <div class="relative group">
                 <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-200"></div>
@@ -75,75 +39,104 @@
             </div>
             <div class="flex flex-col">
                 <h1 class="text-xl font-bold text-slate-900 dark:text-white leading-tight tracking-tight flex items-center gap-3">
-                    Easy Discord Bot Builder 
+                    Easy Discord Bot Builder
                     <span class="text-[10px] px-2 py-0.5 rounded-full bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-mono font-bold">v5.3.3</span>
                 </h1>
                 <p class="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1">
-                    Create by himais0giiiin!
+                    ブラウザで完結する Discord Bot ビルダー
                 </p>
             </div>
         </div>
 
-        <div class="flex items-center gap-3">
-            <div id="saveStatus" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold opacity-0 transition-all duration-500 transform translate-y-2 data-[show=true]:translate-y-0 data-[show=true]:opacity-100">
-                <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
-                <span>Saved</span>
+        <div class="flex flex-col gap-3 w-full lg:w-auto">
+            <div class="flex flex-wrap items-center justify-end gap-3">
+                <div id="saveStatus" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold opacity-0 transition-all duration-500 transform translate-y-2 data-[show=true]:translate-y-0 data-[show=true]:opacity-100">
+                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                    <span>保存済み</span>
+                </div>
+
+                <div class="hidden md:flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <button id="layoutBlockBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all shadow-sm bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400" title="ブロックのみ表示">
+                        <i data-lucide="blocks" class="w-3.5 h-3.5"></i><span>Blocks</span>
+                    </button>
+                    <button id="layoutSplitBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" title="リアルタイムコード表示">
+                        <i data-lucide="columns" class="w-3.5 h-3.5"></i><span>Split</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-lg p-1 border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <button id="importBtn" class="p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors rounded-md hover:bg-slate-50 dark:hover:bg-slate-800" title="XML を読み込む">
+                        <i data-lucide="upload" class="w-4.5 h-4.5"></i>
+                    </button>
+                    <button id="exportBtn" class="p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors rounded-md hover:bg-slate-50 dark:hover:bg-slate-800" title="XML を保存">
+                        <i data-lucide="download" class="w-4.5 h-4.5"></i>
+                    </button>
+
+                    <a href="https://github.com/himais0giiiin/easy-bdc/wiki/Docs" target="_blank" rel="noopener noreferrer" class="p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors rounded-md hover:bg-slate-50 dark:hover:bg-slate-800" title="ドキュメント">
+                        <i data-lucide="book-open" class="w-4.5 h-4.5"></i>
+                    </a>
+
+                    <div class="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                    <button id="themeToggle" class="p-2 text-slate-500 hover:text-amber-500 dark:text-slate-400 dark:hover:text-amber-400 transition-colors rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
+                        <i data-lucide="moon" class="hidden w-4.5 h-4.5 dark:block"></i>
+                        <i data-lucide="sun" class="block w-4.5 h-4.5 dark:hidden"></i>
+                    </button>
+                </div>
+                <input type="file" id="importInput" accept=".xml" class="hidden">
             </div>
 
-            <div class="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden md:block"></div>
-
-            <!-- Layout Switcher -->
-            <div class="hidden md:flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
-                <button id="layoutBlockBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all shadow-sm bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400" title="ブロックのみ表示">
-                    <i data-lucide="blocks" class="w-3.5 h-3.5"></i><span>Blocks</span>
+            <div class="flex flex-wrap items-center justify-end gap-2 border border-slate-200 dark:border-slate-800 rounded-2xl px-3 py-2 bg-white/80 dark:bg-slate-900/80">
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                        <i data-lucide="key" class="w-4 h-4"></i>
+                    </div>
+                    <input type="password" id="botTokenInput" placeholder="Discord Bot Token" class="pl-9 pr-3 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-xs w-52 focus:ring-2 focus:ring-indigo-500 transition-all text-slate-600 dark:text-slate-300 font-mono" />
+                </div>
+                <div class="flex items-center gap-1">
+                    <button id="tokenSaveBtn" class="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-500/10 hover:bg-emerald-100/90 dark:hover:bg-emerald-500/20 transition-colors">
+                        <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                        <span>保存</span>
+                    </button>
+                    <button id="tokenLoadBtn" class="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold rounded-lg border border-indigo-500/30 text-indigo-600 dark:text-indigo-300 bg-indigo-50/70 dark:bg-indigo-500/10 hover:bg-indigo-100/90 dark:hover:bg-indigo-500/20 transition-colors">
+                        <i data-lucide="unlock" class="w-3.5 h-3.5"></i>
+                        <span>復号</span>
+                    </button>
+                </div>
+                <button id="runBotBtn" class="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
+                    <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                    <span>Run</span>
                 </button>
-                <button id="layoutSplitBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" title="リアルタイムコード表示">
-                    <i data-lucide="columns" class="w-3.5 h-3.5"></i><span>Split</span>
+                <button id="stopBotBtn" class="hidden flex items-center gap-1.5 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-red-500/20 active:scale-95">
+                    <i data-lucide="square" class="w-3.5 h-3.5"></i>
+                    <span>Stop</span>
+                </button>
+                <div id="serverStatus" class="hidden flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Server Connected</span>
+                </div>
+                <button id="openConsoleBtn" class="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-200 bg-white/70 dark:bg-slate-900/70 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
+                    <span>ログ</span>
                 </button>
             </div>
 
-            <!-- Actions -->
-            <div class="flex items-center gap-1 bg-white dark:bg-slate-900 rounded-lg p-1 border border-slate-200 dark:border-slate-800 shadow-sm">
-                <button id="importBtn" class="p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors rounded-md hover:bg-slate-50 dark:hover:bg-slate-800" title="Load XML">
-                    <i data-lucide="upload" class="w-4.5 h-4.5"></i>
+            <div class="flex flex-wrap items-center justify-end gap-2">
+                <button id="showCodeBtn" class="group relative inline-flex items-center justify-center gap-2 px-5 py-2.5 font-semibold text-white transition-all duration-200 bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 active:scale-95 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40">
+                    <i data-lucide="code-2" class="w-4 h-4 transition-transform group-hover:rotate-6"></i>
+                    <span class="hidden sm:inline">Pyコード生成</span>
                 </button>
-                <button id="exportBtn" class="p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors rounded-md hover:bg-slate-50 dark:hover:bg-slate-800" title="Save XML">
-                    <i data-lucide="download" class="w-4.5 h-4.5"></i>
-                </button>
-                
-                <!-- Documentation Button -->
-                <a href="https://github.com/himais0giiiin/easy-bdc/wiki/Docs" target="_blank" rel="noopener noreferrer" class="p-2 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors rounded-md hover:bg-slate-50 dark:hover:bg-slate-800" title="Documentation">
-                    <i data-lucide="book-open" class="w-4.5 h-4.5"></i>
-                </a>
-
-                <div class="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
-                <button id="themeToggle" class="p-2 text-slate-500 hover:text-amber-500 dark:text-slate-400 dark:hover:text-amber-400 transition-colors rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
-                    <i data-lucide="moon" class="hidden w-4.5 h-4.5 dark:block"></i>
-                    <i data-lucide="sun" class="block w-4.5 h-4.5 dark:hidden"></i>
+                <button id="showJsCodeBtn" class="group relative inline-flex items-center justify-center gap-2 px-5 py-2.5 font-semibold text-white transition-all duration-200 bg-purple-600 rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-600 active:scale-95 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40">
+                    <i data-lucide="code-2" class="w-4 h-4 transition-transform group-hover:rotate-6"></i>
+                    <span class="hidden sm:inline">JSコード生成</span>
                 </button>
             </div>
-            
-            <input type="file" id="importInput" accept=".xml" class="hidden">
-
-            <!-- Generate Code Button -->
-            <button id="showCodeBtn" class="ml-2 group relative inline-flex items-center justify-center gap-2 px-5 py-2.5 font-semibold text-white transition-all duration-200 bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 active:scale-95 shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40">
-                <i data-lucide="code-2" class="w-4 h-4 transition-transform group-hover:rotate-6"></i>
-                <span class="hidden sm:inline">Pyコード生成</span>
-            </button>
-            <button id="showJsCodeBtn" class="ml-2 group relative inline-flex items-center justify-center gap-2 px-5 py-2.5 font-semibold text-white transition-all duration-200 bg-purple-600 rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-600 active:scale-95 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40">
-                <i data-lucide="code-2" class="w-4 h-4 transition-transform group-hover:rotate-6"></i>
-                <span class="hidden sm:inline">JSコード生成</span>
-            </button>
         </div>
     </header>
 
     <!-- Main Workspace -->
     <main class="relative w-full h-full overflow-hidden flex-grow flex">
         <div id="workspace-container">
-            <!-- Block Editor -->
             <div id="blocklyDiv"></div>
-            
-            <!-- Live Code Preview (Split Mode Only) -->
             <div id="liveCodeArea">
                 <div class="flex items-center justify-between px-4 py-3 bg-[#0f172a] border-b border-slate-700/50 shrink-0">
                     <div class="flex items-center gap-3">
@@ -166,7 +159,6 @@
             </div>
         </div>
 
-        <!-- Toolbox Definition -->
         <xml id="toolbox" style="display: none">
             <category name="イベント" colour="#e67e22">
                 <block type="on_ready"></block>
@@ -176,7 +168,7 @@
                 <block type="get_message_content"></block>
                 <block type="get_command_arg"></block>
             </category>
-            
+
             <category name="ボタン・フォーム" colour="#d63031">
                 <block type="send_button_message"></block>
                 <block type="on_button_click"></block>
@@ -189,7 +181,7 @@
                 <block type="on_reaction_add"></block>
                 <block type="add_reaction"></block>
             </category>
-            
+
             <category name="情報取得" colour="#8e44ad">
                 <block type="get_user_info"></block>
                 <block type="get_member_detail"></block>
@@ -210,7 +202,7 @@
                 <block type="pin_message"></block>
                 <block type="create_thread"></block>
             </category>
-            
+
             <category name="高度な操作" colour="#535c68">
                 <block type="custom_python_code"></block>
                 <block type="wait_for_message"></block>
@@ -237,7 +229,7 @@
                 <block type="wait_seconds"></block>
             </category>
 
-            <category name="管理機能" colour="#e74c3c">
+            <category name="管理" colour="#e74c3c">
                 <block type="timeout_user"></block>
                 <block type="kick_user"></block>
                 <block type="ban_user"></block>
@@ -246,7 +238,7 @@
                 <block type="create_role"></block>
                 <block type="change_nickname"></block>
             </category>
-            
+
             <category name="埋め込み (Embed)" colour="#2ecc71">
                 <block type="create_embed"></block>
                 <block type="set_embed_property"></block>
@@ -254,7 +246,7 @@
             </category>
 
             <sep></sep>
-            
+
             <category name="変数" colour="#a55b6a" custom="VARIABLE"></category>
 
             <category name="データ構造" colour="#a55b80">
@@ -265,7 +257,7 @@
                 <block type="lists_append_to"></block>
                 <block type="random_choice"></block>
             </category>
-            
+
             <category name="関数" colour="#7b5ba5" custom="PROCEDURE"></category>
 
             <sep></sep>
@@ -305,7 +297,6 @@
     <!-- Code Generation Modal -->
     <div id="codeModal" class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
         <div class="flex flex-col w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl bg-white dark:bg-slate-900 modal-content border border-white/20 dark:border-slate-700/50 ring-1 ring-black/5">
-            <!-- Modal Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md sticky top-0 z-10">
                 <div class="flex items-center gap-3">
                     <div class="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
@@ -313,33 +304,32 @@
                     </div>
                     <div>
                         <h2 class="text-lg font-bold text-slate-800 dark:text-white">Botコード (Python)</h2>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">Generate your discord bot code</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Discord Bot の実行コードを生成</p>
                     </div>
                 </div>
                 <button id="closeModalBtn" class="p-2 transition-all rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
-            
-            <!-- Modal Body -->
+
             <div class="flex-grow p-6 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/50">
                 <div class="mb-6 p-5 rounded-xl border border-indigo-100 dark:border-indigo-900/50 bg-white dark:bg-slate-900 shadow-sm">
                     <h3 class="flex items-center gap-2 font-bold text-indigo-900 dark:text-indigo-300 mb-3">
-                        <i data-lucide="info" class="w-4 h-4"></i> 実行方法
+                        <i data-lucide="info" class="w-4 h-4"></i> 実行手順
                     </h3>
                     <ol class="space-y-2 text-sm text-slate-600 dark:text-slate-400 list-decimal list-inside font-medium">
-                        <li>以下のコードを <code class="px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-mono">bot.py</code> という名前で保存します。</li>
-                        <li>ターミナルで <code class="px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-mono select-all">pip install discord.py</code> を実行します。</li>
-                        <li><code class="px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-mono select-all">python bot.py</code> を実行してBotを起動します。</li>
+                        <li>下のコードを <code class="px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-mono">bot.py</code> として保存します。</li>
+                        <li><code class="px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-mono select-all">pip install discord.py</code> を実行します。</li>
+                        <li><code class="px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-mono select-all">python bot.py</code> で Bot を起動します。</li>
                     </ol>
                 </div>
 
                 <div class="relative group rounded-xl overflow-hidden shadow-lg border border-slate-200 dark:border-slate-800">
-                    <div class="absolute top-3 right-3 z-10 opacity-0 transition-opacity duration-200 group-hover:opacity-100 flex items-center gap-2">
+                    <div class="absolute top-3 right-3 z-10 flex items-center gap-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                         <button id="copyCodeBtn" class="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-lg shadow-lg bg-indigo-600 hover:bg-indigo-500 border border-indigo-400 backdrop-blur-sm transition-all active:scale-95">
                             <i data-lucide="copy" class="w-3.5 h-3.5"></i> コピー
                         </button>
-                        <button id="shareTwitterBtn" class="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-lg shadow-lg bg-black hover:bg-gray-800 border border-gray-600 backdrop-blur-sm transition-all active:scale-95">
+                        <button id="shareTwitterBtn" class="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-lg shadow-lg bg-black hover:bg-gray-800 border border-gray-700 backdrop-blur-sm transition-all active:scale-95">
                             <i data-lucide="twitter" class="w-3.5 h-3.5"></i> シェア
                         </button>
                         <button id="saveFileBtn" class="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-lg shadow-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-400 backdrop-blur-sm transition-all active:scale-95">
@@ -349,15 +339,37 @@
                     <pre id="codeOutput" class="p-5 text-sm font-mono tab-4 bg-[#0f172a] text-[#e2e8f0] overflow-x-auto min-h-[300px]"></pre>
                 </div>
             </div>
-            
-            <!-- Modal Footer -->
+
             <div class="flex items-center justify-center gap-2 p-4 text-xs font-medium text-center text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-900/10 border-t border-amber-100 dark:border-amber-900/20">
                 <i data-lucide="shield-alert" class="w-4 h-4"></i>
-                <span>TokenはDiscord Developer Portalから取得し、他人には絶対に教えないでください。</span>
+                <span>Discord Developer Portal から取得したトークンは他人と共有しないでください。</span>
             </div>
         </div>
     </div>
 
     <script type="module" src="script.js"></script>
+
+    <div id="consoleOverlay" class="console-dock console-collapsed fixed bottom-6 right-6 w-[min(420px,calc(100vw-2rem))] max-h-[65vh] bg-slate-900 text-slate-100 rounded-2xl shadow-2xl border border-slate-700/70 overflow-hidden z-50">
+        <div class="console-header flex items-center justify-between px-4 py-2 border-b border-slate-700 bg-slate-900/90 backdrop-blur">
+            <div>
+                <p class="text-xs font-semibold tracking-wide uppercase text-slate-300">実行ログ</p>
+                <p id="consoleStatus" class="text-[11px] text-slate-400 mt-0.5">待機中</p>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <button id="toggleConsoleFollow" class="px-2.5 py-1 text-[11px] font-bold rounded-md bg-emerald-600 text-white hover:bg-emerald-500 transition-colors">
+                    Follow ON
+                </button>
+                <button id="clearConsoleBtn" class="px-2.5 py-1 text-[11px] font-bold rounded-md bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors">
+                    Clear
+                </button>
+                <button id="closeConsoleBtn" class="console-toggle p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+                    <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+        <div id="botConsole" class="console-body bg-slate-950/90 h-[45vh] overflow-y-auto text-[12px] font-mono">
+            <div id="botConsoleOutput" class="px-4 py-3 space-y-1"></div>
+        </div>
+    </div>
 </body>
 </html>

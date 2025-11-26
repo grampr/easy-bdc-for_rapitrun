@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="./img.svg">
     <title>Easy Discord Bot Builder (Easy BDC)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./assets/tailwind.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         @keyframes float {
@@ -37,50 +37,46 @@
     <meta property="og:site_name" content="Easy Discord Bot Builder(EDBB)">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://himais0giiiin.com">
-    <meta property="og:description" content="ブラウザ上でブロックを組み合わせて、誰でも簡単に Discord Bot を作成できるビジュアルプログラミングツール。全て無料。">
+    <meta property="og:description" content="ブロックを組み合わせるだけで誰でも簡単に Discord Bot を作れるビジュアルプログラミングツール。すべてブラウザで完結。">
     <meta property="og:image" content="https://himais0giiiin.com/img.svg">
-
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans antialiased overflow-x-hidden">
 
     <!-- Hero Section -->
     <header class="relative bg-gray-900 border-b border-gray-800 overflow-hidden">
-        <!-- Background Effect -->
         <div class="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none"></div>
         <div class="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
         <div class="absolute bottom-0 left-0 -mb-20 -ml-20 w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style="animation-delay: 1s;"></div>
 
         <div class="container mx-auto px-6 py-24 relative z-10 text-center">
             <div class="inline-block mb-4 px-4 py-1 bg-blue-900/50 text-blue-300 rounded-full text-sm font-semibold border border-blue-700/50 fade-in-up">
-                <span class="version">v5.3.3</span> Now Available
+                <span class="version">v5.3.3</span> リリース中
             </div>
             <h1 class="text-5xl md:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-6 fade-in-up" style="transition-delay: 0.1s;">
                 Easy Discord Bot Builder
             </h1>
             <p class="text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto mb-10 fade-in-up" style="transition-delay: 0.2s;">
-                ブラウザ上でブロックを組み合わせて、<br class="hidden md:inline">誰でも簡単に Discord Bot を作成できるビジュアルプログラミングツール
+                ブロックを組み合わせるだけで、誰でも簡単に Discord Bot を作れるビジュアルプログラミングツール。コードを書かずにアイデアを形にしましょう。
             </p>
             <div class="flex flex-col md:flex-row justify-center items-center gap-4 fade-in-up" style="transition-delay: 0.3s;">
                 <a href="./editor/index.html" class="group relative bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-xl transition duration-300 shadow-lg hover:shadow-blue-500/50 flex items-center overflow-hidden">
                     <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-                    <i class="fas fa-play mr-3 group-hover:scale-110 transition-transform"></i> 
-                    <span>今すぐエディタを開く</span>
+                    <i class="fas fa-play mr-3 group-hover:scale-110 transition-transform"></i>
+                    <span>エディタを開く</span>
                 </a>
-                <a href="./beta/index.html" class="group relative bg-purple-600 hover:bg-purple-500 text-white font-bold py-4 px-8 rounded-xl transition duration-300 shadow-lg hover:shadow-blue-500/50 flex items-center overflow-hidden">
+                <a href="./beta/index.html" class="group relative bg-purple-600 hover:bg-purple-500 text-white font-bold py-4 px-8 rounded-xl transition duration-300 shadow-lg hover:shadow-purple-500/50 flex items-center overflow-hidden">
                     <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
-                    <i class="fas fa-play mr-3 group-hover:scale-110 transition-transform"></i> 
-                    <span>ベータ版を開く</span>
+                    <i class="fas fa-bezier-curve mr-3 group-hover:scale-110 transition-transform"></i>
+                    <span>ベータ版を体験</span>
                 </a>
                 <a href="https://github.com/yuz-mc/easy-bdc-forked" target="_blank" class="bg-gray-800 hover:bg-gray-700 text-white font-bold py-4 px-8 rounded-xl transition duration-300 border border-gray-700 hover:border-gray-600 flex items-center">
-                    <i class="fab fa-github mr-3 text-xl"></i> GitHubを見る
+                    <i class="fab fa-github mr-3 text-xl"></i> GitHub を見る
                 </a>
             </div>
-            
-            <!-- Hero Image / Preview Placeholder -->
+
             <div class="mt-16 relative max-w-5xl mx-auto fade-in-up" style="transition-delay: 0.4s;">
                 <div class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur opacity-30"></div>
                 <div class="relative bg-gray-800 rounded-xl border border-gray-700 shadow-2xl overflow-hidden aspect-video flex items-center justify-center group">
-                    <!-- Placeholder for a screenshot -->
                     <video src="./out.mp4" autoplay muted loop></video>
                 </div>
             </div>
@@ -89,23 +85,18 @@
 
     <!-- Main Content -->
     <main class="container mx-auto px-6 py-20">
-
-        <!-- Overview -->
         <section class="mb-32 fade-in-up">
             <div class="text-center max-w-3xl mx-auto">
                 <h2 class="text-3xl md:text-4xl font-bold text-white mb-8">
-                    <span class="underline decoration-blue-500">プログラミング不要</span>で、<br>あなたのアイデアを形に。
+                    コード不要。アイデアをドラッグ&ドロップで形に。
                 </h2>
                 <p class="text-lg text-gray-300 leading-relaxed">
-                    「Botを作ってみたいけど、コードが書けない...」<br>
-                    そんな悩みはもう不要です。パズルのようにブロックを繋ぎ合わせるだけで、<br>
-                    あなただけのオリジナルBotが完成します。<br>
-                    生成されたコードはPython標準のライブラリを使用しているため、学習用としても最適です。
+                    「Botを作りたいけど難しそう…」という悩みはもう不要。<br>
+                    ブロックをパズルのように組み合わせるだけで、Python 対応の Discord Bot コードがリアルタイムで生成されます。
                 </p>
             </div>
         </section>
 
-        <!-- Features -->
         <section class="mb-32">
             <h2 class="text-3xl md:text-4xl font-bold text-white mb-12 text-center fade-in-up">✨ 主な特徴</h2>
             <div class="grid md:grid-cols-2 gap-8">
@@ -114,19 +105,19 @@
                         <i class="fas fa-shapes text-2xl text-green-400"></i>
                     </div>
                     <h3 class="text-2xl font-bold text-white mb-4">ビジュアルプログラミング</h3>
-                    <p class="text-gray-400 leading-relaxed">直感的なドラッグ＆ドロップ操作で開発可能。複雑な構文を覚える必要はなく、ロジックの構築に集中できます。</p>
+                    <p class="text-gray-400 leading-relaxed">直感的なドラッグ&ドロップ操作でロジックを組み立てられます。複雑な構文は一切不要。</p>
                 </div>
-                
+
                 <div class="bg-gray-800 p-8 rounded-2xl shadow-lg border border-gray-700 hover:border-purple-500/50 transition duration-300 group fade-in-up" style="transition-delay: 0.1s;">
                     <div class="w-14 h-14 bg-purple-900/30 rounded-lg flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                         <i class="fas fa-cubes text-2xl text-purple-400"></i>
                     </div>
-                    <h3 class="text-2xl font-bold text-white mb-4">豊富な機能ブロック</h3>
+                    <h3 class="text-2xl font-bold text-white mb-4">豊富なブロック</h3>
                     <ul class="space-y-2 text-gray-400">
-                        <li class="flex items-center"><i class="fas fa-check text-purple-500 mr-2"></i> メッセージ受信時の応答</li>
-                        <li class="flex items-center"><i class="fas fa-check text-purple-500 mr-2"></i> スラッシュコマンド (/command)</li>
-                        <li class="flex items-center"><i class="fas fa-check text-purple-500 mr-2"></i> 埋め込みメッセージ (Embed)</li>
-                        <li class="flex items-center"><i class="fas fa-check text-purple-500 mr-2"></i> プレフィックスコマンド (!ping)</li>
+                        <li class="flex items-center"><i class="fas fa-check text-purple-500 mr-2"></i> メッセージ / スラッシュコマンド</li>
+                        <li class="flex items-center"><i class="fas fa-check text-purple-500 mr-2"></i> ボタン・モーダル・リアクション</li>
+                        <li class="flex items-center"><i class="fas fa-check text-purple-500 mr-2"></i> 埋め込みメッセージやJSONデータ操作</li>
+                        <li class="flex items-center"><i class="fas fa-check text-purple-500 mr-2"></i> 管理・ロール操作までサポート</li>
                     </ul>
                 </div>
 
@@ -135,7 +126,7 @@
                         <i class="fab fa-python text-2xl text-yellow-400"></i>
                     </div>
                     <h3 class="text-2xl font-bold text-white mb-4">Python コード生成</h3>
-                    <p class="text-gray-400 leading-relaxed">業界標準の <code>discord.py</code> ライブラリに対応したコードを自動生成。生成されたコードはそのまま実行可能です。</p>
+                    <p class="text-gray-400 leading-relaxed">`discord.py` に対応した最適化済みのコードをワンクリックで取得。学習教材としても最適です。</p>
                 </div>
 
                 <div class="bg-gray-800 p-8 rounded-2xl shadow-lg border border-gray-700 hover:border-pink-500/50 transition duration-300 group fade-in-up" style="transition-delay: 0.3s;">
@@ -143,67 +134,58 @@
                         <i class="fas fa-palette text-2xl text-pink-400"></i>
                     </div>
                     <h3 class="text-2xl font-bold text-white mb-4">モダンな UI</h3>
-                    <p class="text-gray-400 leading-relaxed">Tailwind CSS による洗練されたデザインと、目に優しいダークモード対応で、快適な開発体験を提供します。</p>
+                    <p class="text-gray-400 leading-relaxed">Tailwind CSS をベースにした洗練されたダークテーマ。長時間の作業でも快適です。</p>
                 </div>
             </div>
         </section>
 
-        <!-- Usage -->
         <section class="mb-32">
-            <h2 class="text-3xl md:text-4xl font-bold text-white mb-12 text-center fade-in-up">🛠️ 使い方</h2>
+            <h2 class="text-3xl md:text-4xl font-bold text-white mb-12 text-center fade-in-up">🛠 使い方はとてもシンプル</h2>
             <div class="relative">
-                <!-- Connecting Line (Desktop) -->
                 <div class="hidden md:block absolute left-1/2 transform -translate-x-1/2 h-full w-1 bg-gray-800"></div>
-
                 <div class="space-y-12">
-                    <!-- Step 1 -->
                     <div class="relative flex flex-col md:flex-row items-center fade-in-up">
                         <div class="md:w-1/2 md:pr-12 md:text-right order-2 md:order-1">
-                            <h3 class="text-2xl font-bold text-white mb-2">1. ロジックを組む</h3>
-                            <p class="text-gray-400">左側のメニューからブロックを選び、ワークスペースに配置します。</p>
+                            <h3 class="text-2xl font-bold text-white mb-2">1. ブロックを配置</h3>
+                            <p class="text-gray-400">カテゴリから必要なブロックを選び、ワークスペースへドラッグ。</p>
                         </div>
-                        <div class="relative md:absolute md:left-1/2 md:transform md:-translate-x-1/2 w-10 h-10 bg-blue-600 rounded-full border-4 border-gray-900 flex items-center justify-center font-bold text-white z-10 order-1 md:order-2 mb-4 md:mb-0 mx-auto md:mx-0">1</div>
+                        <div class="relative md:absolute md:left-1/2 md:transform md:-translate-x-1/2 w-10 h-10 bg-blue-600 rounded-full border-4 border-gray-900 flex items-center justify-center font-bold text-white z-10 order-1 md:order-2 mb-4 md:mb-0">1</div>
                         <div class="md:w-1/2 md:pl-12 order-3"></div>
                     </div>
 
-                    <!-- Step 2 -->
                     <div class="relative flex flex-col md:flex-row items-center fade-in-up">
                         <div class="md:w-1/2 md:pr-12 md:text-right order-2 md:order-1"></div>
-                        <div class="relative md:absolute md:left-1/2 md:transform md:-translate-x-1/2 w-10 h-10 bg-blue-600 rounded-full border-4 border-gray-900 flex items-center justify-center font-bold text-white z-10 order-1 md:order-2 mb-4 md:mb-0 mx-auto md:mx-0">2</div>
+                        <div class="relative md:absolute md:left-1/2 md:transform md:-translate-x-1/2 w-10 h-10 bg-blue-600 rounded-full border-4 border-gray-900 flex items-center justify-center font-bold text-white z-10 order-1 md:order-2 mb-4 md:mb-0">2</div>
                         <div class="md:w-1/2 md:pl-12 order-3">
-                            <h3 class="text-2xl font-bold text-white mb-2">2. イベントを設定</h3>
-                            <p class="text-gray-400">「Bot が起動したとき」などのイベントブロックを配置し、処理を繋げます。</p>
+                            <h3 class="text-2xl font-bold text-white mb-2">2. イベントや条件をつなぐ</h3>
+                            <p class="text-gray-400">「Botが起動したとき」などのイベントに処理ブロックを連結するだけ。</p>
                         </div>
                     </div>
 
-                    <!-- Step 3 -->
                     <div class="relative flex flex-col md:flex-row items-center fade-in-up">
                         <div class="md:w-1/2 md:pr-12 md:text-right order-2 md:order-1">
-                            <h3 class="text-2xl font-bold text-white mb-2">3. コードを確認</h3>
-                            <p class="text-gray-400">リアルタイムで生成される Python コードを確認・コピーします。</p>
+                            <h3 class="text-2xl font-bold text-white mb-2">3. 生成コードを確認</h3>
+                            <p class="text-gray-400">リアルタイムで Python コードを確認し、コピーして保存。</p>
                         </div>
-                        <div class="relative md:absolute md:left-1/2 md:transform md:-translate-x-1/2 w-10 h-10 bg-blue-600 rounded-full border-4 border-gray-900 flex items-center justify-center font-bold text-white z-10 order-1 md:order-2 mb-4 md:mb-0 mx-auto md:mx-0">3</div>
+                        <div class="relative md:absolute md:left-1/2 md:transform md:-translate-x-1/2 w-10 h-10 bg-blue-600 rounded-full border-4 border-gray-900 flex items-center justify-center font-bold text-white z-10 order-1 md:order-2 mb-4 md:mb-0">3</div>
                         <div class="md:w-1/2 md:pl-12 order-3"></div>
                     </div>
 
-                    <!-- Step 4 -->
                     <div class="relative flex flex-col md:flex-row items-center fade-in-up">
                         <div class="md:w-1/2 md:pr-12 md:text-right order-2 md:order-1"></div>
-                        <div class="relative md:absolute md:left-1/2 md:transform md:-translate-x-1/2 w-10 h-10 bg-blue-600 rounded-full border-4 border-gray-900 flex items-center justify-center font-bold text-white z-10 order-1 md:order-2 mb-4 md:mb-0 mx-auto md:mx-0">4</div>
+                        <div class="relative md:absolute md:left-1/2 md:transform md:-translate-x-1/2 w-10 h-10 bg-blue-600 rounded-full border-4 border-gray-900 flex items-center justify-center font-bold text-white z-10 order-1 md:order-2 mb-4 md:mb-0">4</div>
                         <div class="md:w-1/2 md:pl-12 order-3">
-                            <h3 class="text-2xl font-bold text-white mb-2">4. Bot を動かす</h3>
-                            <p class="text-gray-400">コピーしたコードを実行し、あなたの Bot を世界に公開しましょう！</p>
+                            <h3 class="text-2xl font-bold text-white mb-2">4. Bot を実行</h3>
+                            <p class="text-gray-400">生成したコードにトークンを設定して実行すれば、すぐに Bot が動き出します。</p>
                         </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Tech Stack -->
         <section class="mb-20 fade-in-up">
             <h2 class="text-2xl font-bold text-gray-500 mb-8 text-center uppercase tracking-widest">Powered By</h2>
             <div class="flex flex-wrap justify-center gap-8 opacity-70 grayscale hover:grayscale-0 transition-all duration-500">
-                <!-- Tech items with simple text/icon representation -->
                 <div class="flex items-center space-x-2 bg-gray-800 px-4 py-2 rounded-full">
                     <i class="fab fa-html5 text-orange-500 text-xl"></i>
                     <span class="font-bold text-gray-300">HTML5</span>
@@ -223,18 +205,15 @@
             </div>
         </section>
 
-        <!-- CTA -->
         <section class="text-center py-20 bg-gradient-to-b from-gray-900 to-gray-800 rounded-3xl border border-gray-800 fade-in-up">
-            <h2 class="text-4xl font-bold text-white mb-6">さあ、開発を始めよう</h2>
-            <p class="text-xl text-gray-400 mb-10">インストール不要。ブラウザですぐに始められます。</p>
+            <h2 class="text-4xl font-bold text-white mb-6">いますぐ開発を始めよう</h2>
+            <p class="text-xl text-gray-400 mb-10">インストール不要。ブラウザからすぐにブロック編集を開始できます。</p>
             <a href="./editor/index.html" class="inline-block bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-12 rounded-full transition duration-300 shadow-lg hover:shadow-blue-500/50 transform hover:-translate-y-1">
-                <i class="fas fa-rocket mr-2"></i> エディタを起動する
+                <i class="fas fa-rocket mr-2"></i> エディタを起動
             </a>
         </section>
-
     </main>
 
-    <!-- Footer -->
     <footer class="bg-gray-900 border-t border-gray-800 py-12 mt-12">
         <div class="container mx-auto px-6 text-center">
             <p class="text-gray-500 mb-4">&copy; 2025 Easy Discord Bot Builder.</p>
@@ -246,25 +225,17 @@
     </footer>
 
     <script>
-        // Simple Intersection Observer for fade-in animations
         document.addEventListener('DOMContentLoaded', () => {
-            const observerOptions = {
-                root: null,
-                rootMargin: '0px',
-                threshold: 0.1
-            };
-
+            const observerOptions = { root: null, rootMargin: '0px', threshold: 0.1 };
             const observer = new IntersectionObserver((entries, observer) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) {
                         entry.target.classList.add('visible');
-                        observer.unobserve(entry.target); // Only animate once
+                        observer.unobserve(entry.target);
                     }
                 });
             }, observerOptions);
-
-            const elements = document.querySelectorAll('.fade-in-up');
-            elements.forEach(el => observer.observe(el));
+            document.querySelectorAll('.fade-in-up').forEach(el => observer.observe(el));
         });
     </script>
 </body>

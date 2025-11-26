@@ -1,0 +1,24 @@
+{
+  "name": "easy-bdc-forked",
+  "version": "1.0.0",
+  "description": "![Discord](https://badgen.net/discord/members/CmEGugrsje)  \r ![MIT](https://badgen.net/static/license/MIT/blue)  \r Easy Discord Bot Builder は、ブラウザ上でブロックを組み合わせて、誰でも簡単に Discord Bot を作成できるビジュアルプログラミングツールです。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuz-mc/easy-bdc-forked.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/yuz-mc/easy-bdc-forked/issues"
+  },
+  "homepage": "https://github.com/yuz-mc/easy-bdc-forked#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.14"
+  }
+}

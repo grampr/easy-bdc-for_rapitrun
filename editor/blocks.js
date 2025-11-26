@@ -1,3 +1,7 @@
+Blockly.Python['custom_python_code'] = function (block) {
+  const code = block.getFieldValue('CODE');
+  return code + '\n';
+};
 Blockly.Blocks['on_ready'] = {
   init: function () {
     this.appendDummyInput().appendField('🏁 Botが起動したとき');
@@ -14,6 +18,25 @@ Blockly.Blocks['on_message_create'] = {
     this.setTooltip('誰かがメッセージを送信した時に実行されます。');
   },
 };
+// --- NEW EVENTS ---
+Blockly.Blocks['on_member_join'] = {
+  init: function () {
+    this.appendDummyInput().appendField('👤 メンバーが参加したとき');
+    this.appendStatementInput('DO').setCheck(null).appendField('実行する処理');
+    this.setColour(30);
+    this.setTooltip('新しいメンバーがサーバーに参加した時に実行されます。');
+  },
+};
+Blockly.Blocks['on_member_remove'] = {
+  init: function () {
+    this.appendDummyInput().appendField('👋 メンバーが退出したとき');
+    this.appendStatementInput('DO').setCheck(null).appendField('実行する処理');
+    this.setColour(30);
+    this.setTooltip('メンバーがサーバーから退出（またはKick/Ban）された時に実行されます。');
+  },
+};
+// ------------------
+
 Blockly.Blocks['get_message_content'] = {
   init: function () {
     this.appendDummyInput().appendField('受信したメッセージの内容');
@@ -54,7 +77,7 @@ Blockly.Blocks['get_command_arg'] = {
 Blockly.Blocks['get_user_info'] = {
   init: function () {
     this.appendDummyInput()
-      .appendField('👤 実行者の')
+      .appendField('👤 実行者(対象)の')
       .appendField(
         new Blockly.FieldDropdown([
           ['ユーザーID', 'id'],
@@ -71,7 +94,7 @@ Blockly.Blocks['get_user_info'] = {
 Blockly.Blocks['get_member_detail'] = {
   init: function () {
     this.appendDummyInput()
-      .appendField('👤 実行者の詳細:')
+      .appendField('👤 実行者(対象)の詳細:')
       .appendField(
         new Blockly.FieldDropdown([
           ['アバターURL', 'avatar.url'],
@@ -144,6 +167,17 @@ Blockly.Blocks['reply_message'] = {
     this.setColour(160);
   },
 };
+// --- NEW DM BLOCK ---
+Blockly.Blocks['send_dm'] = {
+  init: function () {
+    this.appendValueInput('USER_ID').setCheck('String').appendField('📩 DMを送信 (ユーザーID');
+    this.appendValueInput('MESSAGE').setCheck(['String', 'Embed']).appendField(') 内容');
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(160);
+  },
+};
+// --------------------
 Blockly.Blocks['defer_reply'] = {
   init: function () {
     this.appendDummyInput()
@@ -293,6 +327,18 @@ Blockly.Blocks['join_voice_channel'] = {
     this.setColour(340);
   },
 };
+// --- NEW AUDIO PLAY BLOCK ---
+Blockly.Blocks['play_audio_file'] = {
+  init: function () {
+    this.appendValueInput('FILEPATH').setCheck('String').appendField('🔊 音楽ファイルを再生');
+    this.appendDummyInput().appendField('(パス)');
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(340);
+    this.setTooltip('VC内で音楽を再生します。FFmpegが必要です。');
+  },
+};
+// ----------------------------
 Blockly.Blocks['leave_voice_channel'] = {
   init: function () {
     this.appendDummyInput().appendField('🔇 ボイスチャンネルから切断');
@@ -492,15 +538,99 @@ Blockly.Blocks['text_replace'] = {
     this.setColour(160);
   },
 };
+
+// New Blocks
+Blockly.Blocks['on_reaction_add'] = {
+  init: function () {
+    this.appendDummyInput().appendField('⭐ リアクションが付いたとき');
+    this.appendDummyInput()
+      .appendField('メッセージID(任意):')
+      .appendField(new Blockly.FieldTextInput(''), 'MESSAGE_ID');
+    this.appendDummyInput()
+      .appendField('絵文字(任意):')
+      .appendField(new Blockly.FieldTextInput(''), 'EMOJI');
+    this.appendStatementInput('DO').setCheck(null).appendField('実行する処理');
+    this.setColour(30);
+  },
+};
+Blockly.Blocks['send_button_message'] = {
+  init: function () {
+    this.appendValueInput('MESSAGE').setCheck('String').appendField('🔘 ボタン付きメッセージ送信');
+    this.appendDummyInput()
+      .appendField('ボタン名')
+      .appendField(new Blockly.FieldTextInput('Click Me'), 'LABEL');
+    this.appendDummyInput()
+      .appendField('ボタンID')
+      .appendField(new Blockly.FieldTextInput('button_1'), 'CUSTOM_ID');
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(350);
+  },
+};
+Blockly.Blocks['on_button_click'] = {
+  init: function () {
+    this.appendDummyInput().appendField('🖱️ ボタンがクリックされたとき');
+    this.appendDummyInput()
+      .appendField('ボタンID:')
+      .appendField(new Blockly.FieldTextInput('button_1'), 'CUSTOM_ID');
+    this.appendStatementInput('DO').setCheck(null).appendField('実行する処理');
+    this.setColour(350);
+  },
+};
+Blockly.Blocks['show_modal'] = {
+  init: function () {
+    this.appendDummyInput().appendField('📝 モーダル(入力フォーム)を表示');
+    this.appendDummyInput()
+      .appendField('タイトル:')
+      .appendField(new Blockly.FieldTextInput('My Form'), 'TITLE');
+    this.appendDummyInput()
+      .appendField('フォームID:')
+      .appendField(new Blockly.FieldTextInput('modal_1'), 'CUSTOM_ID');
+    this.appendDummyInput()
+      .appendField('入力項目1:')
+      .appendField(new Blockly.FieldTextInput('Name'), 'LABEL1');
+    this.appendDummyInput()
+      .appendField('入力項目2(任意):')
+      .appendField(new Blockly.FieldTextInput(''), 'LABEL2');
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(350);
+  },
+};
+Blockly.Blocks['on_modal_submit'] = {
+  init: function () {
+    this.appendDummyInput().appendField('📩 モーダルが送信されたとき');
+    this.appendDummyInput()
+      .appendField('フォームID:')
+      .appendField(new Blockly.FieldTextInput('modal_1'), 'CUSTOM_ID');
+    this.appendStatementInput('DO').setCheck(null).appendField('実行する処理');
+    this.setColour(350);
+  },
+};
+Blockly.Blocks['get_input_value'] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField('入力項目')
+      .appendField(
+        new Blockly.FieldDropdown([
+          ['1つ目', '0'],
+          ['2つ目', '1'],
+        ]),
+        'INDEX',
+      )
+      .appendField('の値');
+    this.setOutput(true, 'String');
+    this.setColour(350);
+  },
+};
+
+// Code Generators (Include previous ones)
 const getBranchCode = (block, name) => {
   let code = Blockly.Python.statementToCode(block, name);
   if (!code || code.trim() === '') return Blockly.Python.INDENT + 'pass\n';
   return code;
 };
-Blockly.Python['custom_python_code'] = function (block) {
-  const code = block.getFieldValue('CODE');
-  return code + '\n';
-};
+
 Blockly.Python['on_ready'] = function (block) {
   const branch = getBranchCode(block, 'DO');
   return `\n@bot.event\nasync def on_ready():\n    print(f'Logged in as {bot.user}')\n    try:\n        synced = await bot.tree.sync()\n        print(f"Synced {len(synced)} command(s)")\n    except Exception as e:\n        print(e)\n${branch.trimEnd()}\n`;
@@ -509,6 +639,18 @@ Blockly.Python['on_message_create'] = function (block) {
   const branch = getBranchCode(block, 'DO');
   return `\n@bot.event\nasync def on_message(message):\n    if message.author == bot.user:\n        return\n    ctx = message\n    user = message.author\n${branch.trimEnd()}\n    await bot.process_commands(message)\n`;
 };
+
+// --- Generators for New Events ---
+Blockly.Python['on_member_join'] = function (block) {
+  const branch = getBranchCode(block, 'DO');
+  return `\n@bot.event\nasync def on_member_join(member):\n    user = member\n    ctx = member\n${branch.trimEnd()}\n`;
+};
+Blockly.Python['on_member_remove'] = function (block) {
+  const branch = getBranchCode(block, 'DO');
+  return `\n@bot.event\nasync def on_member_remove(member):\n    user = member\n    ctx = member\n${branch.trimEnd()}\n`;
+};
+// ---------------------------------
+
 Blockly.Python['get_message_content'] = function (block) {
   return [
     '(ctx.content if "ctx" in locals() and hasattr(ctx, "content") else "")',
@@ -549,6 +691,7 @@ Blockly.Python['get_member_detail'] = function (block) {
 Blockly.Python['get_channel_info'] = function (block) {
   const type = block.getFieldValue('TYPE');
   let code = `ctx.channel.${type}`;
+  // For member events (ctx=member), use member.guild.system_channel or similar if needed, but usually channel info is for messages
   return [
     `(${code} if "ctx" in locals() and hasattr(ctx, "channel") else "Unknown")`,
     Blockly.Python.ORDER_ATOMIC,
@@ -558,7 +701,7 @@ Blockly.Python['get_server_info'] = function (block) {
   const type = block.getFieldValue('TYPE');
   let code = `ctx.guild.${type}`;
   return [
-    `(${code} if "ctx" in locals() and ctx.guild else "Unknown")`,
+    `(${code} if "ctx" in locals() and hasattr(ctx, "guild") and ctx.guild else "Unknown")`,
     Blockly.Python.ORDER_ATOMIC,
   ];
 };
@@ -577,6 +720,15 @@ Blockly.Python['reply_message'] = function (block) {
   let contentCode = msg.startsWith('discord.Embed') ? `embed=${msg}` : `content=${msg}`;
   return `\nif 'ctx' in locals():\n    if isinstance(ctx, discord.Interaction):\n        if ctx.response.is_done():\n            await ctx.followup.send(${contentCode}, ephemeral=${ephemeral})\n        else:\n            await ctx.response.send_message(${contentCode}, ephemeral=${ephemeral})\n    elif isinstance(ctx, commands.Context):\n        await ctx.send(${contentCode})\n    elif isinstance(ctx, discord.Message):\n        await ctx.reply(${contentCode})\n`;
 };
+// --- NEW DM GENERATOR ---
+Blockly.Python['send_dm'] = function (block) {
+  const userId = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
+  const msg = Blockly.Python.valueToCode(block, 'MESSAGE', Blockly.Python.ORDER_NONE) || '""';
+  const contentCode = msg.startsWith('discord.Embed') ? `embed=${msg}` : `content=${msg}`;
+  return `\n_u_dm = bot.get_user(int(${userId})) or await bot.fetch_user(int(${userId}))\nif _u_dm:\n    await _u_dm.send(${contentCode})\n`;
+};
+// ------------------------
+
 Blockly.Python['defer_reply'] = function (block) {
   const ephemeral = block.getFieldValue('EPHEMERAL') === 'TRUE' ? 'True' : 'False';
   return `\nif 'ctx' in locals():\n    if isinstance(ctx, discord.Interaction):\n        await ctx.response.defer(ephemeral=${ephemeral})\n    elif isinstance(ctx, commands.Context):\n        async with ctx.typing(): pass\n`;
@@ -633,6 +785,12 @@ Blockly.Python['print_to_console'] = function (block) {
 Blockly.Python['join_voice_channel'] = function (block) {
   return `\nif 'user' in locals() and user.voice:\n    await user.voice.channel.connect()\n`;
 };
+// --- NEW AUDIO PLAY GENERATOR ---
+Blockly.Python['play_audio_file'] = function (block) {
+  const path = Blockly.Python.valueToCode(block, 'FILEPATH', Blockly.Python.ORDER_NONE) || '""';
+  return `\nif 'ctx' in locals() and ctx.guild.voice_client:\n    if not ctx.guild.voice_client.is_playing():\n        ctx.guild.voice_client.play(discord.FFmpegPCMAudio(${path}))\n`;
+};
+// --------------------------------
 Blockly.Python['leave_voice_channel'] = function (block) {
   return `\nif 'ctx' in locals() and ctx.guild.voice_client:\n    await ctx.guild.voice_client.disconnect()\n`;
 };
@@ -905,30 +1063,44 @@ Blockly.Python['controls_if'] = function (block) {
   }
   return code;
 };
-Blockly.Python['json_load'] = function (block) {
-  const filename =
-    Blockly.Python.valueToCode(block, 'FILENAME', Blockly.Python.ORDER_NONE) || '"data.json"';
-  return [`_load_json_data(${filename})`, Blockly.Python.ORDER_FUNCTION_CALL];
+Blockly.Python['on_reaction_add'] = function (block) {
+  const msgId = block.getFieldValue('MESSAGE_ID');
+  const emoji = block.getFieldValue('EMOJI');
+  const branch = getBranchCode(block, 'DO');
+  return `\n@bot.event\nasync def on_raw_reaction_add(payload):\n    if payload.user_id == bot.user.id:\n        return\n    if '${msgId}' and str(payload.message_id) != '${msgId}':\n        return\n    if '${emoji}' and str(payload.emoji) != '${emoji}':\n        return\n    channel = bot.get_channel(payload.channel_id)\n    message = await channel.fetch_message(payload.message_id)\n    user = payload.member or bot.get_user(payload.user_id)\n    ctx = message\n${branch.trimEnd()}\n`;
 };
-Blockly.Python['json_save'] = function (block) {
-  const data = Blockly.Python.valueToCode(block, 'DATA', Blockly.Python.ORDER_NONE) || '{}';
-  const filename =
-    Blockly.Python.valueToCode(block, 'FILENAME', Blockly.Python.ORDER_NONE) || '"data.json"';
-  return `_save_json_data(${filename}, ${data})\n`;
+Blockly.Python['send_button_message'] = function (block) {
+  const msg = Blockly.Python.valueToCode(block, 'MESSAGE', Blockly.Python.ORDER_NONE) || '""';
+  const label = block.getFieldValue('LABEL');
+  const customId = block.getFieldValue('CUSTOM_ID');
+  return `\nview = discord.ui.View()\nview.add_item(discord.ui.Button(label="${label}", custom_id="${customId}"))\nif 'ctx' in locals():\n    if isinstance(ctx, discord.Interaction):\n        await ctx.response.send_message(content=${msg}, view=view)\n    else:\n        await ctx.send(content=${msg}, view=view)\n`;
 };
-Blockly.Python['dict_create'] = function (block) {
-  return ['{}', Blockly.Python.ORDER_ATOMIC];
+Blockly.Python['on_button_click'] = function (block) {
+  const customId = block.getFieldValue('CUSTOM_ID');
+  const branch = getBranchCode(block, 'DO');
+  return `\n# BUTTON_EVENT:${customId}\nasync def on_button_${customId}(interaction):\n    ctx = interaction\n    user = interaction.user\n    await interaction.response.defer()\n${branch.trimEnd()}\n`;
 };
-Blockly.Python['dict_get'] = function (block) {
-  const dict = Blockly.Python.valueToCode(block, 'DICT', Blockly.Python.ORDER_MEMBER) || '{}';
-  const key = Blockly.Python.valueToCode(block, 'KEY', Blockly.Python.ORDER_NONE) || '""';
-  return [`${dict}.get(${key})`, Blockly.Python.ORDER_FUNCTION_CALL];
+Blockly.Python['show_modal'] = function (block) {
+  const title = block.getFieldValue('TITLE');
+  const customId = block.getFieldValue('CUSTOM_ID');
+  const label1 = block.getFieldValue('LABEL1');
+  const label2 = block.getFieldValue('LABEL2');
+  let inputs = `[{"label": "${label1}", "id": "input_0"}]`;
+  if (label2)
+    inputs = `[{"label": "${label1}", "id": "input_0"}, {"label": "${label2}", "id": "input_1"}]`;
+  return `\nif isinstance(ctx, discord.Interaction):\n    await ctx.response.send_modal(EasyModal(title="${title}", custom_id="${customId}", inputs=${inputs}))\n`;
 };
-Blockly.Python['dict_set'] = function (block) {
-  const dict = Blockly.Python.valueToCode(block, 'DICT', Blockly.Python.ORDER_MEMBER) || 'data';
-  const key = Blockly.Python.valueToCode(block, 'KEY', Blockly.Python.ORDER_NONE) || '""';
-  const value = Blockly.Python.valueToCode(block, 'VALUE', Blockly.Python.ORDER_NONE) || 'None';
-  return `${dict}[${key}] = ${value}\n`;
+Blockly.Python['on_modal_submit'] = function (block) {
+  const customId = block.getFieldValue('CUSTOM_ID');
+  const branch = getBranchCode(block, 'DO');
+  return `\n# MODAL_EVENT:${customId}\nasync def on_modal_${customId}(interaction):\n    ctx = interaction\n    user = interaction.user\n    await interaction.response.defer()\n${branch.trimEnd()}\n`;
+};
+Blockly.Python['get_input_value'] = function (block) {
+  const idx = block.getFieldValue('INDEX');
+  return [
+    `interaction.data['components'][0]['components'][${idx}]['value']`,
+    Blockly.Python.ORDER_ATOMIC,
+  ];
 };
 
 export default Blockly;
