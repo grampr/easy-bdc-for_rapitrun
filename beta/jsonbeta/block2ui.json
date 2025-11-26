@@ -578,11 +578,15 @@
   },
 
   "add_user_role": {
+    "version":2,
     "title": "➕ ロール付与",
     "type": "statement",
-    "inputs": [
-      { "name": "USER_ID", "check": "String" },
-      { "name": "ROLE_ID", "check": "String" }
+    "fields" : [
+      {"kind" : "label", "text":"(ユーザーID"},
+      {"kind" : "value","name":"USER_ID", "check":"String"},
+      {"kind" : "label", "text":"、ロールID"},
+      {"kind" : "value","name":"ROLE_ID", "check":"String"},
+      {"kind" : "label", "text":")"}
     ],
     "previous": true,
     "next": true,
@@ -590,11 +594,15 @@
   },
 
   "remove_user_role": {
+    "version":2,
     "title": "➖ ロール剥奪",
     "type": "statement",
-    "inputs": [
-      { "name": "USER_ID", "check": "String" },
-      { "name": "ROLE_ID", "check": "String" }
+    "fields" : [
+      {"kind" : "label", "text":"(ユーザーID"},
+      {"kind" : "value","name":"USER_ID", "check":"String"},
+      {"kind" : "label", "text":"、ロールID"},
+      {"kind" : "value","name":"ROLE_ID", "check":"String"},
+      {"kind" : "label", "text":")"}
     ],
     "previous": true,
     "next": true,
