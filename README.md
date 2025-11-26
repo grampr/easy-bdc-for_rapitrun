@@ -32,12 +32,34 @@
 - **モダンな UI**: Tailwind CSS による洗練されたデザインと、ダークモード対応。
 - **拡張性**: 任意の Python コードを直接記述できるブロックも搭載。
 
-## 🛠️ 使い方
 
-1. **ロジックを組む**: 左側のメニューからブロックを選び、ワークスペースに配置します。
-2. **イベントを設定**: 「Bot が起動したとき」や「メッセージを受信したとき」などのイベントブロックを配置し、その中に処理ブロックを繋げます。
-3. **コードを確認**: 生成された Python コードを確認・コピーします。
-4. **Bot を動かす**: コピーしたコードを Python 環境で実行し、Discord Bot として動作させます。
+  ## 🛠️ 使い方
+
+  1. **環境構築**
+     ```bash
+     python -m venv .venv
+     .\.venv\Scripts\activate
+     pip install -r requirements.txt
+
+  依存: flask, flask-cors, discord.py
+
+  2. サーバー起動
+
+     python server.py
+     起動後、ブラウザで http://localhost:5000/editor/index.html を開く。
+     起動後、ブラウザで http://localhost:5000/editor/index.html を開く。
+  3. トークン保存 (必須)
+      - トークン欄に Discord Bot トークンを入力し、保存 ボタンを押す。
+      - 好きなパスフレーズを2回入力すると、トークンが AES-GCM で暗号化されてブラウザに保存される。
+      - パスフレーズを忘れると復号できないのでメモ必須。
+  4. トークン復号 → Run
+      - 復号 ボタンでパスフレーズを入力するとトークンが入力欄に戻る。
+      - Run を押すとコードが生成されて Bot が起動し、ログは右下パネルに流れる。
+      - Stop で Bot プロセス停止。
+  5. 注意点
+      - bot_run.py は Run 時に再生成される一時ファイルなので Git 管理に含めない。
+      - このサーバーは認証がなく、任意コード実行が可能なので公開運用は不可。個人環境でのみ使用すること。
+      - ブラウザに保存されるのは暗号化済みトークンだけだが、パスフレーズ管理は自己責任。忘れた場合は再保存が必要。
 
 ### 技術スタック
 
@@ -45,7 +67,7 @@
 - **Core Library**: [Google Blockly](https://developers.google.com/blockly)
 - **Icons**: [Lucide](https://lucide.dev/)
 - **Hosting**: Cloudflare Workers / Pages
-
+- **backend**: [flask]
 ### ローカルでの実行
 
 リポジトリをクローンし、`index.html` をブラウザで開くだけで基本的な機能を利用できます。
