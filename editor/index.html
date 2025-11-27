@@ -67,6 +67,14 @@
     <meta property="og:image" content="https://himais0giiiin.com/static/img.svg">
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200 flex flex-col h-screen overflow-hidden transition-colors duration-500">
+    <div id="saveStatus" class="fixed top-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100 text-xs font-bold opacity-0 transition-all duration-500 transform -translate-y-1 data-[show=true]:translate-y-0 data-[show=true]:opacity-100 pointer-events-none z-[135]">
+        <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+        <span>Saved</span>
+    </div>
+    <div id="shareStatus" class="fixed top-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100 text-xs font-bold opacity-0 transition-all duration-500 transform -translate-y-1 data-[show=true]:translate-y-0 data-[show=true]:opacity-100 pointer-events-none z-[140]" data-state="info">
+        <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+        <span id="shareStatusText">共有リンクをコピーしました</span>
+    </div>
 
     <!-- Header -->
     <header class="glass-header shadow-soft border-b border-slate-200/50 dark:border-slate-800/50 px-6 py-3 flex justify-between items-center z-30 shrink-0 h-18 relative">
@@ -89,15 +97,6 @@
         </div>
 
         <div class="flex items-center gap-3">
-            <div id="saveStatus" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold opacity-0 transition-all duration-500 transform translate-y-2 data-[show=true]:translate-y-0 data-[show=true]:opacity-100">
-                <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
-                <span>Saved</span>
-            </div>
-            <div id="shareStatus" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-100 opacity-0 translate-y-2 transition-all duration-500 data-[show=true]:opacity-100 data-[show=true]:translate-y-0 data-[state=success]:bg-emerald-500/10 data-[state=success]:text-emerald-700 data-[state=error]:bg-rose-500/10 data-[state=error]:text-rose-600 relative z-50" data-show="false" data-state="info">
-                <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
-                <span id="shareStatusText">共有リンクをコピーしました</span>
-            </div>
-
             <div class="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden md:block"></div>
 
             <!-- Layout Switcher -->
