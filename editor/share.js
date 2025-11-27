@@ -40,6 +40,11 @@ export const initShareFeature = ({
   const shareModalCopyBtn = document.getElementById('shareModalCopyBtn');
   const shareModalXBtn = document.getElementById('shareModalXBtn');
   const shareModalClose = document.getElementById('shareModalClose');
+  const shareThumbnailWrapper = document.getElementById('shareThumbnailWrapper');
+  const shareThumbnailImage = document.getElementById('shareThumbnailImage');
+  const shareThumbnailMessage = document.getElementById('shareThumbnailMessage');
+  const shareThumbnailCopyBtn = document.getElementById('shareThumbnailCopyBtn');
+  let shareThumbnailDataUrl = '';
 
   let shareStatusTimer;
   // モーダル内のテキストボックスでURLの先頭(https...)が常に見えるようにする小技
@@ -66,6 +71,114 @@ export const initShareFeature = ({
     }, SHARE_STATUS_SHOW_MS);
   };
 
+  const toBase64Svg = (svgString) =>
+    `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svgString)))}`;
+
+  const setShareThumbnailState = (state, dataUrl = '') => {
+    if (!shareThumbnailImage || !shareThumbnailMessage || !shareThumbnailWrapper) return;
+    if (state === 'ready' && dataUrl) {
+      shareThumbnailImage.src = dataUrl;
+      shareThumbnailImage.classList.remove('hidden');
+      shareThumbnailMessage.classList.add('hidden');
+      shareThumbnailWrapper.classList.remove('opacity-70');
+      shareThumbnailDataUrl = dataUrl;
+      if (shareThumbnailCopyBtn) shareThumbnailCopyBtn.disabled = false;
+      return;
+    }
+    shareThumbnailImage.classList.add('hidden');
+    shareThumbnailWrapper.classList.toggle('opacity-70', state !== 'hidden');
+    shareThumbnailMessage.classList.toggle('hidden', state === 'hidden');
+    shareThumbnailDataUrl = '';
+    if (shareThumbnailCopyBtn) shareThumbnailCopyBtn.disabled = true;
+    if (state === 'loading') {
+      shareThumbnailMessage.textContent = 'ワークスペースを撮影しています...';
+    } else if (state === 'error') {
+      shareThumbnailMessage.textContent = 'サムネイルの生成に失敗しました。再試行してください。';
+    } else {
+      shareThumbnailMessage.textContent = '';
+    }
+  };
+
+  const captureWorkspaceThumbnail = async () => {
+    if (!workspace) throw new Error('WORKSPACE_NOT_READY');
+    const canvasSvg =
+      typeof workspace.getCanvas === 'function'
+        ? workspace.getCanvas()
+        : workspace.svgBlockCanvas_;
+    if (!canvasSvg) throw new Error('CANVAS_NOT_FOUND');
+
+    const clonedCanvas = canvasSvg.cloneNode(true);
+    clonedCanvas.removeAttribute('width');
+    clonedCanvas.removeAttribute('height');
+    clonedCanvas.removeAttribute('transform');
+
+    const styleElem = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    const cssPayload = Array.isArray(window.Blockly?.Css?.CONTENT)
+      ? window.Blockly.Css.CONTENT.join('')
+      : '';
+    styleElem.textContent =
+      cssPayload +
+      ".blocklyToolboxDiv {background: rgba(0, 0, 0, 0.05);} .blocklyMainBackground {stroke:none !important;} .blocklyTreeLabel, .blocklyText, .blocklyHtmlInput {font-family:'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace !important;} .blocklyText { font-size:1rem !important;} .rtl .blocklyText {text-align:right;} .blocklyTreeLabel { font-size:1.25rem !important;} .blocklyCheckbox {fill: #ff3030 !important;text-shadow: 0px 0px 6px #f00;font-size: 17pt !important;}";
+    clonedCanvas.insertBefore(styleElem, clonedCanvas.firstChild);
+
+    let bbox;
+    try {
+      bbox = canvasSvg.getBBox();
+    } catch (error) {
+      bbox = { x: 0, y: 0, width: 0, height: 0 };
+    }
+    const hasBlocks = workspace.getAllBlocks(false).length > 0;
+    const padding = 32;
+    const minDimension = 64;
+    const bboxWidth = hasBlocks ? bbox.width : 480;
+    const bboxHeight = hasBlocks ? bbox.height : 320;
+    const viewWidth = Math.max(minDimension, Math.ceil(bboxWidth + padding * 2));
+    const viewHeight = Math.max(minDimension, Math.ceil(bboxHeight + padding * 2));
+    const viewX = hasBlocks ? bbox.x - padding : -padding;
+    const viewY = hasBlocks ? bbox.y - padding : -padding;
+
+    const serializer = new XMLSerializer();
+    const xml = serializer.serializeToString(clonedCanvas);
+    const svg = `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${viewWidth}" height="${viewHeight}" viewBox="${viewX} ${viewY} ${viewWidth} ${viewHeight}"><rect width="100%" height="100%" fill="white"></rect>${xml}</svg>`;
+    const svgDataUrl = toBase64Svg(svg);
+    const scaleFactor = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+
+    return await new Promise((resolve, reject) => {
+      const img = document.createElement('img');
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(viewWidth * scaleFactor);
+        canvas.height = Math.ceil(viewHeight * scaleFactor);
+        const ctx = canvas.getContext('2d');
+        ctx.scale(scaleFactor, scaleFactor);
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = (error) => reject(error);
+      img.src = svgDataUrl;
+    });
+  };
+
+  const refreshShareThumbnail = async () => {
+    if (!shareModal || shareModal.classList.contains('hidden')) return null;
+    setShareThumbnailState('loading');
+    try {
+      const dataUrl = await captureWorkspaceThumbnail();
+      if (dataUrl) {
+        setShareThumbnailState('ready', dataUrl);
+      } else {
+        setShareThumbnailState('error');
+      }
+      return dataUrl;
+    } catch (error) {
+      console.error('Failed to capture workspace thumbnail', error);
+      setShareThumbnailState('error');
+      return null;
+    } finally {
+      // no manual refresh button to toggle
+    }
+  };
+
   // 共有モーダルの開閉制御
   // Code Modalのアニメーションを参考に、hidden/flex + show-modalクラスで開閉を統一
   const toggleShareModal = (isOpen, url = '') => {
@@ -80,6 +193,8 @@ export const initShareFeature = ({
       setTimeout(() => {
         shareModalInput.focus();
         ensureUrlVisible();
+        setShareThumbnailState('loading');
+        refreshShareThumbnail();
       }, 0);
     } else {
       shareModal.classList.remove('show-modal');
@@ -88,6 +203,7 @@ export const initShareFeature = ({
         shareModal.classList.add('hidden');
       }, 300);
       shareModalInput.value = '';
+      setShareThumbnailState('hidden');
     }
   };
 
@@ -170,6 +286,28 @@ export const initShareFeature = ({
   if (shareModalInput) {
     shareModalInput.addEventListener('focus', ensureUrlVisible);
     shareModalInput.addEventListener('click', ensureUrlVisible);
+  }
+
+  if (shareThumbnailCopyBtn) {
+    shareThumbnailCopyBtn.addEventListener('click', async () => {
+      if (!shareThumbnailDataUrl) return;
+      if (
+        !navigator.clipboard ||
+        typeof navigator.clipboard.write !== 'function' ||
+        typeof window.ClipboardItem !== 'function'
+      ) {
+        showShareStatus('クリップボードに画像をコピーできません', 'error');
+        return;
+      }
+      try {
+        const blob = await (await fetch(shareThumbnailDataUrl)).blob();
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        showShareStatus('プレビュー画像をコピーしました！', 'success');
+      } catch (error) {
+        console.error('Failed to copy thumbnail', error);
+        showShareStatus('画像のコピーに失敗しました', 'error');
+      }
+    });
   }
   // 手動で「リンクをコピー」ボタンを押した場合の処理
   // 自動コピーに失敗した環境でもここで再チャレンジできる

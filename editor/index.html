@@ -368,7 +368,7 @@
 
     <!-- 共有モーダル -->
     <div id="shareModal" class="modal-backdrop hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" aria-hidden="true">
-        <div class="flex flex-col w-full max-w-2xl max-h-[80vh] overflow-hidden rounded-2xl shadow-2xl bg-white dark:bg-slate-900 modal-content border border-white/20 dark:border-slate-800 ring-1 ring-black/5">
+        <div class="flex flex-col w-full max-w-4xl max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl bg-white dark:bg-slate-900 modal-content border border-white/20 dark:border-slate-800 ring-1 ring-black/5">
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm sticky top-0 z-10">
                 <div class="flex items-center gap-3">
                     <div class="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
@@ -376,24 +376,42 @@
                     </div>
                     <div>
                         <h2 class="text-lg font-bold text-slate-900 dark:text-white">ブロックを共有</h2>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">コピーして他のユーザーに渡せます</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">コピーして他のユーザーにブロックを共有できます</p>
                     </div>
                 </div>
                 <button id="shareModalClose" class="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:text-slate-500 dark:hover:text-slate-100/80 dark:hover:bg-slate-800 transition-colors">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
-            <div class="flex flex-col gap-4 p-6 bg-slate-50/60 dark:bg-slate-950/40 flex-grow">
+            <div class="flex flex-col gap-4 p-6 bg-slate-50/60 dark:bg-slate-950/40 flex-grow overflow-y-auto">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <label class="text-xs font-semibold uppercase tracking-widest text-indigo-400">Workspace Preview</label>
+                        <button id="shareThumbnailCopyBtn" type="button" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg border border-indigo-200 dark:border-indigo-700 text-indigo-600 dark:text-indigo-300 hover:text-white hover:bg-indigo-600 dark:hover:bg-indigo-500 transition-colors disabled:opacity-60" disabled>
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            <span>プレビュー画像をコピー</span>
+                        </button>
+                    </div>
+                    <div id="shareThumbnailWrapper" class="relative w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center h-[260px] overflow-hidden opacity-70 transition-opacity duration-200">
+                        <div id="shareThumbnailMessage" class="text-sm text-slate-500 dark:text-slate-400 text-center px-6">共有を開始するとここにプレビューが表示されます</div>
+                        <img id="shareThumbnailImage" alt="Workspace preview" class="hidden w-full h-full object-contain">
+                    </div>
+                </div>
                 <div>
                     <label for="shareModalInput" class="text-xs font-semibold uppercase tracking-widest text-indigo-400">Share URL</label>
                     <input id="shareModalInput" type="text" readonly dir="ltr" class="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-base text-slate-700 dark:text-slate-200 tracking-tight focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
-                <div class="flex flex-wrap gap-3 justify-center">
-                    <button id="shareModalCopyBtn" class="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white rounded-xl bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors active:scale-95">
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-white/80 dark:bg-slate-900/80 border-t border-slate-100 dark:border-slate-800">
+                <div class="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    <span class="block">共有リンクとプレビュー画像をコピーして、友達に送ってみましょう。</span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button id="shareModalCopyBtn" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-lg bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
                         <i data-lucide="copy" class="w-4 h-4"></i>
                         <span>リンクをコピー</span>
                     </button>
-                    <button id="shareModalXBtn" class="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white rounded-xl bg-black hover:bg-slate-900 focus:ring-2 focus:ring-offset-2 focus:ring-black transition-colors active:scale-95">
+                    <button id="shareModalXBtn" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white rounded-lg bg-black hover:bg-slate-900 focus:ring-2 focus:ring-offset-2 focus:ring-black transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1227" class="w-4 h-4 fill-current">
                             <path d="M714.163 519.284L1160.89 0H1058.54L667.137 450.887L358.112 0H0L468.234 681.821L0 1226.37H102.347L518.83 753.682L851.888 1226.37H1200L714.137 519.284H714.163ZM573.39 690.246L524.713 619.942L139.408 80.0047H306.615L614.536 523.433L663.213 593.737L1058.57 1146.86H891.365L573.39 690.272V690.246Z"/>
                         </svg>
