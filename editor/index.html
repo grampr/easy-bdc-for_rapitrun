@@ -389,14 +389,18 @@
                     <label for="shareModalInput" class="text-xs font-semibold uppercase tracking-widest text-indigo-400">Share URL</label>
                     <input id="shareModalInput" type="text" readonly dir="ltr" class="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 font-mono text-base text-slate-700 dark:text-slate-200 tracking-tight focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
-                <button id="shareModalCopyBtn" class="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white rounded-xl bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors active:scale-95">
-                    <i data-lucide="copy" class="w-4 h-4"></i>
-                    <span>リンクをコピー</span>
-                </button>
-            </div>
-            <div class="flex items-center justify-center gap-2 p-4 text-xs font-medium text-center text-slate-400 dark:text-slate-500 bg-white/70 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-800">
-                <i data-lucide="info" class="w-4 h-4"></i>
-                <span>共有リンクは現在のブロック配置をURLに埋め込んでいます。</span>
+                <div class="flex flex-wrap gap-3 justify-center">
+                    <button id="shareModalCopyBtn" class="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white rounded-xl bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors active:scale-95">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                        <span>リンクをコピー</span>
+                    </button>
+                    <button id="shareModalXBtn" class="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white rounded-xl bg-black hover:bg-slate-900 focus:ring-2 focus:ring-offset-2 focus:ring-black transition-colors active:scale-95">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1227" class="w-4 h-4 fill-current">
+                            <path d="M714.163 519.284L1160.89 0H1058.54L667.137 450.887L358.112 0H0L468.234 681.821L0 1226.37H102.347L518.83 753.682L851.888 1226.37H1200L714.137 519.284H714.163ZM573.39 690.246L524.713 619.942L139.408 80.0047H306.615L614.536 523.433L663.213 593.737L1058.57 1146.86H891.365L573.39 690.272V690.246Z"/>
+                        </svg>
+                        <span>Xでポスト</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>

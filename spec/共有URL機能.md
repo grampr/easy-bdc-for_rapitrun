@@ -24,6 +24,7 @@
    - Code Generation Modal と同じクラス構成（`modal-backdrop` ＋ `modal-content`）で、モバイルでも崩れない。
    - `shareModalInput` にリンクを表示し、常に `https...` の冒頭が見えるよう `dir="ltr"` ＋ フォーカス時の全選択を実装。
    - `shareModalCopyBtn` を押すとクリップボードへ再コピーできる。モーダルはコピー後も閉じない。
+   - `shareModalXBtn` を押すと `https://twitter.com/intent/tweet` を別タブで開き、事前に「EDBBで作ったレイアウトをシェアします！」＋URLを埋め込む。
 3. **ステータスピル**  
    - `shareStatus` は `saveStatus` と同じ Tailwind の data 属性トランジション（`data-show` / `data-state`）を使い、成功/失敗を色で示す。
 
@@ -49,6 +50,7 @@
 - 新規ロジックは `share.js` に分離し、`initShareFeature()` を呼び出して `applySharedLayoutFromQuery` を受け取る。
 - `shareBtn` → `generateShareUrl()` → `toggleShareModal(true, url)` → `tryCopyToClipboard(url)` → `showShareStatus(...)` の順で動作。
 - 共有モーダルでは `ensureUrlVisible()` を共通化し、フォーカス/クリック/コピー時に冒頭文字列が常に見えるようにする。
+- `shareModalXBtn` は `window.open('https://twitter.com/intent/tweet?...')` を呼び、共有メッセージに URL を付与した状態で X のポスト画面を表示する。
 
 ## 7. HTML / CSS 変更（`beta/jsonbeta/index.html`, `beta/jsonbeta/style.css`）
 - `shareStatus` は純粋に Tailwind の data 属性トランジションを使用するため、CSS は不要。

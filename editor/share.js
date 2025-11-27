@@ -38,6 +38,7 @@ export const initShareFeature = ({
   const shareModal = document.getElementById('shareModal');
   const shareModalInput = document.getElementById('shareModalInput');
   const shareModalCopyBtn = document.getElementById('shareModalCopyBtn');
+  const shareModalXBtn = document.getElementById('shareModalXBtn');
   const shareModalClose = document.getElementById('shareModalClose');
 
   let shareStatusTimer;
@@ -182,6 +183,17 @@ export const initShareFeature = ({
       } else {
         showShareStatus('クリップボードにアクセスできません', 'error');
       }
+    });
+  }
+  // Xへ直接ポストするためのボタン。別タブで intent を開く。
+  if (shareModalXBtn) {
+    shareModalXBtn.addEventListener('click', () => {
+      if (!shareModalInput || !shareModalInput.value) return;
+      const baseText = encodeURIComponent('Easy Discord Bot BuilderでDiscord BOTを作成しました！ #EDBB');
+      const encodedUrl = encodeURIComponent(shareModalInput.value);
+      const intentUrl = `https://x.com/intent/tweet?text=${baseText}%0A${encodedUrl}`;
+      window.open(intentUrl, '_blank', 'noopener,noreferrer');
+      showShareStatus('Xのポスト画面を開きました', 'info');
     });
   }
   // モーダルを開いたままEscを押した場合でも閉じられるようにグローバルで監視
