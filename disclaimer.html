@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='16' fill='%236366f1' /%3E%3Cpath d='M20 42 Q32 52 44 42' stroke='white' stroke-width='4' fill='none' stroke-linecap='round' /%3E%3Ccircle cx='22' cy='26' r='6' fill='white' /%3E%3Ccircle cx='42' cy='26' r='6' fill='white' /%3E%3C/svg%3E">
+    <title>免責事項 - Easy Discord Bot Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .fade-in-up {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+        .fade-in-up.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .bg-grid-pattern {
+            background-image: linear-gradient(to right, #374151 1px, transparent 1px),
+                              linear-gradient(to bottom, #374151 1px, transparent 1px);
+            background-size: 40px 40px;
+            mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans antialiased overflow-x-hidden">
+
+    <!-- Header -->
+    <header class="relative bg-gray-900 border-b border-gray-800 overflow-hidden">
+        <!-- Background Effect -->
+        <div class="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none"></div>
+        
+        <div class="container mx-auto px-6 py-8 relative z-10 flex justify-between items-center">
+            <a href="index.html" class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 hover:opacity-80 transition">
+                Easy Discord Bot Builder
+            </a>
+            <a href="index.html" class="text-gray-400 hover:text-white transition flex items-center">
+                <i class="fas fa-arrow-left mr-2"></i> トップへ戻る
+            </a>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-12 max-w-4xl">
+        
+        <div class="text-center mb-12 fade-in-up">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">免責事項</h1>
+            <p class="text-gray-400">Easy Discord Bot Builder (EDBB) のご利用にあたって</p>
+        </div>
+
+        <div class="bg-gray-800 rounded-2xl p-8 md:p-12 shadow-xl border border-gray-700 fade-in-up" style="transition-delay: 0.1s;">
+            
+            <!-- 第 1 条 -->
+            <section class="mb-10">
+                <h2 class="text-2xl font-bold text-white mb-4 border-b border-gray-700 pb-2">第 1 条 (本サービスの性質)</h2>
+                <p class="text-gray-300 leading-relaxed mb-4">
+                    本プロジェクト(以下「EDBB」)はオープンソースソフトウェア(以下「OSS」)であり、ソースコード・ウェブサイト・生成物は全て「現状のまま（AS IS）」かつ無保証で提供されます。
+                    EDBB のいかなる開発者・貢献者も、本ソフトウェアの使用に関連して生じた結果について、法的な責任を負うものではありません。
+                </p>
+                <p class="text-gray-300 leading-relaxed">
+                    また、EDBB は Discord 社とは一切関係のない独立したプロジェクトです。
+                    Discord 社は EDBB の内容・機能・安全性について何ら保証せず、
+                    EDBB に起因して発生した問題について責任を負いません。
+                </p>
+            </section>
+
+            <!-- 第 2 条 -->
+            <section class="mb-10">
+                <h2 class="text-2xl font-bold text-white mb-4 border-b border-gray-700 pb-2">第 2 条 (ライセンス)</h2>
+                <p class="text-gray-300 leading-relaxed">
+                    EDBB のソースコードは、MIT ライセンス (<a href="https://himais0giiiin.com/LICENSE" class="text-blue-400 hover:underline" target="_blank">https://himais0giiiin.com/LICENSE</a>) に基づいて提供されます。
+                    利用者は、ライセンス条件を遵守する限り、自由に使用・複製・改変・再配布できます。
+                </p>
+            </section>
+
+            <!-- 第 3 条 -->
+            <section class="mb-10">
+                <h2 class="text-2xl font-bold text-white mb-4 border-b border-gray-700 pb-2">第 3 条 (無保証)</h2>
+                <p class="text-gray-300 leading-relaxed mb-4">
+                    EDBB の開発者・貢献者は、明示または黙示を問わず、以下の事項を含むいかなる保証も行いません。
+                </p>
+                <ul class="list-disc list-inside text-gray-300 ml-4 space-y-2 bg-gray-900/50 p-4 rounded-lg">
+                    <li>動作の正確性および完全性</li>
+                    <li>バグ、エラー、欠陥の不存在</li>
+                    <li>特定目的への適合性</li>
+                    <li>第三者の権利侵害の不存在</li>
+                    <li>セキュリティ上の安全性</li>
+                </ul>
+            </section>
+
+            <!-- 第 4 条 -->
+            <section class="mb-10">
+                <h2 class="text-2xl font-bold text-white mb-4 border-b border-gray-700 pb-2">第 4 条 (免責)</h2>
+                <p class="text-gray-300 leading-relaxed mb-4">
+                    利用者が EDBB を使用、または使用不能となったことにより発生したあらゆる損害（直接的、間接的、偶発的、特別、懲罰的、または結果的な損害を含む）について、開発者・貢献者・管理者のいずれも、契約、不法行為、またはその他の法的根拠に関わらず、一切の責任を負いません。
+                    これには以下が含まれますが、これらに限定されません。
+                </p>
+                <ul class="list-disc list-inside text-gray-300 ml-4 space-y-2 bg-gray-900/50 p-4 rounded-lg">
+                    <li>プログラムの誤作動や不具合</li>
+                    <li>生成されたコードに起因する問題</li>
+                    <li>セキュリティ事故や脆弱性</li>
+                    <li>データ損失または破損</li>
+                    <li>Discord アカウントの停止（BAN）や制限</li>
+                    <li>サーバー・システム・設備などへの損害</li>
+                </ul>
+            </section>
+
+            <!-- 第 5 条 -->
+            <section class="mb-10">
+                <h2 class="text-2xl font-bold text-white mb-4 border-b border-gray-700 pb-2">第 5 条 (利用者の責任)</h2>
+                <p class="text-gray-300 leading-relaxed mb-4">
+                    EDBB を使用して作成・生成されたプログラムや Bot の運用は、すべて利用者自身の単独の責任となります。
+                    利用者は、以下の規約を含む、適用されるあらゆる法律・規約を遵守する義務を負います。
+                </p>
+                <ul class="list-disc list-inside text-gray-300 ml-4 space-y-2 bg-gray-900/50 p-4 rounded-lg">
+                    <li>Discord 利用規約 (Terms of Service)</li>
+                    <li>Discord Developer Policy (開発者ポリシー)</li>
+                    <li>その他関連するサードパーティの規約全般</li>
+                </ul>
+            </section>
+
+            <!-- 第 6 条 -->
+            <section class="mb-10">
+                <h2 class="text-2xl font-bold text-white mb-4 border-b border-gray-700 pb-2">第 6 条 (プロジェクトの変更・停止)</h2>
+                <p class="text-gray-300 leading-relaxed">
+                    OSS である EDBB は、予告なく変更・改修・停止・削除されることがあります。
+                    これにより利用者に損害が生じても、開発者・貢献者は責任を負いません。
+                </p>
+            </section>
+
+            <!-- 第 7 条 -->
+            <section class="mb-10">
+                <h2 class="text-2xl font-bold text-white mb-4 border-b border-gray-700 pb-2">第 7 条 (準拠ライセンス文との関係)</h2>
+                <p class="text-gray-300 leading-relaxed">
+                    本免責事項に記載のない事項は、採用している MIT ライセンスの条文が適用されます。
+                    本免責事項とライセンスの文言が矛盾する場合、 MIT ライセンスの条文が優先されます。
+                </p>
+            </section>
+
+            <!-- 第 8 条 -->
+            <section>
+                <h2 class="text-2xl font-bold text-white mb-4 border-b border-gray-700 pb-2">第 8 条 (免責事項の変更)</h2>
+                <p class="text-gray-300 leading-relaxed">
+                    本免責事項は必要に応じて改訂されることがあります。
+                    最新版は常にプロジェクトのリポジトリに掲載されるものとし、
+                    利用者は継続利用により改訂後の免責事項に同意したものとみなされます。
+                </p>
+            </section>
+
+        </div>
+
+        <div class="mt-12 text-center fade-in-up" style="transition-delay: 0.2s;">
+            <a href="index.html" class="inline-block bg-gray-800 hover:bg-gray-700 text-white font-bold py-3 px-8 rounded-xl transition duration-300 border border-gray-700 hover:border-gray-600">
+                <i class="fas fa-arrow-left mr-2"></i> トップページに戻る
+            </a>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 border-t border-gray-800 py-12 mt-12">
+        <div class="container mx-auto px-6 text-center">
+            <p class="text-gray-500 mb-4">&copy; 2025 Easy Discord Bot Builder.</p>
+            <div class="flex justify-center space-x-6">
+                <a href="https://x.com/himais0giiiin" class="text-gray-600 hover:text-white transition"><i class="fab fa-twitter text-xl"></i></a>
+                <a href="https://github.com/himais0giiiin/easy-bdc" class="text-gray-600 hover:text-white transition"><i class="fab fa-github text-xl"></i></a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.1
+            };
+
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, observerOptions);
+
+            const elements = document.querySelectorAll('.fade-in-up');
+            elements.forEach(el => observer.observe(el));
+        });
+    </script>
+</body>
+</html>
