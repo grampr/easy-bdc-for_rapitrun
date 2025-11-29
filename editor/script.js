@@ -1,5 +1,6 @@
 import Blocks from './blocks.js';
 import WorkspaceStorage from './storage.js';
+import { initShareFeature } from "./share.js";
 
 let workspace;
 let storage;
@@ -266,6 +267,12 @@ const initializeApp = () => {
   // --- ワークスペース保存クラスの初期化 ---
   storage = new WorkspaceStorage(workspace);
 
+  // --- Blocklyのブロック定義 ---
+  const shareFeature = initShareFeature({
+    workspace,
+    storage,
+  });
+
   // --- パレット（フライアウト）の固定設定 ---
   if (workspace.getToolbox()) {
     const flyout = workspace.getToolbox().getFlyout();
@@ -330,7 +337,11 @@ const initializeApp = () => {
     }
 
     // Auto Save
-    if (!e.isUiEvent && e.type !== Blockly.Events.FINISHED_LOADING) {
+    if (
+      !shareFeature.isShareViewMode() &&
+      !e.isUiEvent &&
+      e.type !== Blockly.Events.FINISHED_LOADING
+    ) {
       storage?.save();
       const saveStatus = document.getElementById('saveStatus');
       saveStatus.setAttribute('data-show', 'true');
@@ -383,6 +394,19 @@ const initializeApp = () => {
     setTimeout(updatePinState, 50);
   };
   document.getElementById('blocklyDiv').appendChild(pinBtn);
+  // ピン留めボタンの表示/非表示切り替え
+  const syncPinVisibility = (isViewOnly = shareFeature.isShareViewMode()) => {
+    pinBtn.classList.toggle('hidden', isViewOnly);
+    pinBtn.setAttribute('aria-hidden', isViewOnly ? 'true' : 'false');
+  };
+  // 共有リンクの閲覧モードではユーザーにツールボックス表示切替を触らせない
+  shareFeature.onShareViewModeChange((isViewOnly) => {
+    syncPinVisibility(isViewOnly);
+    if (!isViewOnly) {
+      setTimeout(updatePinState, 50);
+    }
+  });
+  syncPinVisibility();
   setTimeout(updatePinState, 100);
   window.addEventListener('resize', () => {
     Blockly.svgResize(workspace);
@@ -393,7 +417,10 @@ const initializeApp = () => {
   });
 
   // --- Load Saved Data ---
-  storage?.load();
+  const sharedApplied = shareFeature.applySharedLayoutFromQuery();
+  if (!sharedApplied) {
+    storage?.load();
+  }
 
   themeToggle.addEventListener('click', () => toggleTheme(modernLightTheme, modernDarkTheme));
 
