@@ -1,6 +1,7 @@
 // 共有用のクエリキーとステータス表示時間
 const SHARE_QUERY_KEY = 'share';
 const SHARE_STATUS_SHOW_MS = 2500;
+const SHARE_SHORTENER_ENDPOINT = 'https://share.himais0giiiin.com/share/create';
 const BLOCKLY_CAPTURE_EXTRA_CSS = [
   // 通常CSSでは対応しきれないBlocklyキャプチャ用の追加スタイル (SVGはfillで指定する必要があるため、ここで上書き)
   ".blocklyText { fill:#fff !important; }",
@@ -205,12 +206,35 @@ export const initShareFeature = ({
     }
   };
 
-  // ワークスペースをURI安全な文字列にして共有URLを返却
-  const generateShareUrl = () => {
+  // 短縮URL生成APIへポストして短縮URLを取得
+  const createShortShareUrl = async (encoded) => {
+    const response = await fetch(SHARE_SHORTENER_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ share: encoded }),
+    });
+    if (!response.ok) {
+      throw new Error(`SHORTENER_HTTP_${response.status}`);
+    }
+    const data = await response.json();
+    if (!data?.url) {
+      throw new Error('SHORTENER_RESPONSE_INVALID');
+    }
+    return data.url;
+  };
+
+  // ワークスペースを短縮URL付きで共有できる文字列に変換
+  const generateShareUrl = async () => {
     if (!workspace || !storage) throw new Error('WORKSPACE_NOT_READY');
     const encoded = storage.exportMinified();
     if (!encoded) throw new Error('ENCODE_FAILED');
-    return `${getBaseShareUrl()}?${SHARE_QUERY_KEY}=${encoded}`;
+    try {
+      return await createShortShareUrl(encoded);
+    } catch (error) {
+      console.error('Failed to create short share url', error);
+      showShareStatus('短縮URLの生成に失敗したため通常リンクを表示します', 'error');
+      return `${getBaseShareUrl()}?${SHARE_QUERY_KEY}=${encoded}`;
+    }
   };
 
   // URLクエリに埋め込まれた共有データを適用
@@ -247,7 +271,7 @@ export const initShareFeature = ({
       shareBtn.disabled = true;
       shareBtn.setAttribute('aria-busy', 'true');
       try {
-        const shareUrl = generateShareUrl();
+        const shareUrl = await generateShareUrl();
         toggleShareModal(true, shareUrl);
       } catch (error) {
         console.error('Failed to generate share url', error);
