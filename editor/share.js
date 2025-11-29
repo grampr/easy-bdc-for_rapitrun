@@ -1,194 +1,248 @@
-// 共有用のクエリキーとステータス表示時間
+// 共有機能全体で使う定数を定義
 const SHARE_QUERY_KEY = 'share';
 const SHARE_STATUS_SHOW_MS = 2500;
 const SHARE_SHORTENER_ENDPOINT = 'https://share.himais0giiiin.com/share/create';
 const SHARE_IMPORT_SKIP_KEY = 'share_import_dialog_skip';
-
-// 共有インポート確認ダイアログの表示設定を取得・保存
-const getShareImportSkipPreference = () => {
-  try {
-    return window.localStorage?.getItem(SHARE_IMPORT_SKIP_KEY) === '1';
-  } catch (error) {
-    return false;
-  }
-};
-
-const setShareImportSkipPreference = (shouldSkip) => {
-  try {
-    if (shouldSkip) {
-      window.localStorage?.setItem(SHARE_IMPORT_SKIP_KEY, '1');
-    } else {
-      window.localStorage?.removeItem(SHARE_IMPORT_SKIP_KEY);
-    }
-  } catch (error) {
-    // localStorage may be unavailable (private mode等)
-  }
-};
 const BLOCKLY_CAPTURE_EXTRA_CSS = [
-  // 通常CSSでは対応しきれないBlocklyキャプチャ用の追加スタイル (SVGはfillで指定する必要があるため、ここで上書き)
-  ".blocklyText { fill:#fff !important; }",
-  ".blocklyEditableText { fill: #fff !important; }",
-  ".blocklyEditableText .blocklyText:not(.blocklyDropdownText) { fill:#000 !important; }",
+  '.blocklyText { fill:#fff !important; }',
+  '.blocklyEditableText { fill: #fff !important; }',
+  '.blocklyEditableText .blocklyText:not(.blocklyDropdownText) { fill:#000 !important; }',
 ].join('');
-let blocklyOverrideCssCache = '';
+const SHARE_THUMBNAIL_PADDING = 32;
+const SHARE_THUMBNAIL_MIN_DIMENSION = 64;
 
-// クエリやハッシュを除いた共有用URLを生成
-// origin/pathname を組み立て直して「今開いているページの土台」を必ず使う
-const getBaseShareUrl = () => {
-  if (window.location.origin && window.location.origin !== 'null') {
-    return `${window.location.origin}${window.location.pathname}`;
+// ローカルストレージを使った共有設定の永続化を行うクラス
+class SharePreferenceManager {
+  // コンストラクタでキー名を保持
+  constructor() {
+    this.skipKey = SHARE_IMPORT_SKIP_KEY;
   }
-  return window.location.href.split('?')[0].split('#')[0];
-};
 
-// クリップボード書き込みを試し、結果だけを返す
-// ブラウザや権限によって失敗する可能性があるので例外は握りつぶしてハンドラ側で処理
-const tryCopyToClipboard = async (text) => {
-  if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
-    return false;
-  }
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (error) {
-    console.warn('Clipboard copy failed', error);
-    return false;
-  }
-};
-
-export const initShareFeature = ({
-  workspace,
-  storage,
-}) => {
-  // 何度も触るDOM要素はここでキャッシュ
-  // Modal関連はCode Modalと同じ挙動にしたいので同じクラス構成に揃えている
-  const shareBtn = document.getElementById('shareBtn');
-  const shareStatus = document.getElementById('shareStatus');
-  const shareStatusText = document.getElementById('shareStatusText');
-  const shareModal = document.getElementById('shareModal');
-  const shareModalInput = document.getElementById('shareModalInput');
-  const shareModalCopyBtn = document.getElementById('shareModalCopyBtn');
-  const shareModalXBtn = document.getElementById('shareModalXBtn');
-  const shareModalClose = document.getElementById('shareModalClose');
-  const shareImportModal = document.getElementById('shareImportModal');
-  const shareImportModalClose = document.getElementById('shareImportModalClose');
-  const shareImportDownloadBtn = document.getElementById('shareImportDownloadBtn');
-  const shareImportConfirmBtn = document.getElementById('shareImportConfirmBtn');
-  const shareImportCancelBtn = document.getElementById('shareImportCancelBtn');
-  const shareImportSkipCheckbox = document.getElementById('shareImportSkipCheckbox');
-  const shareViewOverlay = document.getElementById('shareViewOverlay');
-  const shareViewStartEditingBtn = document.getElementById('shareViewStartEditingBtn');
-  const shareThumbnailWrapper = document.getElementById('shareThumbnailWrapper');
-  const shareThumbnailImage = document.getElementById('shareThumbnailImage');
-  const shareThumbnailMessage = document.getElementById('shareThumbnailMessage');
-  const shareThumbnailCopyBtn = document.getElementById('shareThumbnailCopyBtn');
-  let shareThumbnailDataUrl = '';
-
-  let shareStatusTimer;
-  let pendingShareEncoded = '';
-  let shareViewMode = false;
-  const shareViewModeListeners = new Set();
-  // モーダル内のテキストボックスでURLの先頭(https...)が常に見えるようにする小技
-  // setSelectionRangeを使えるブラウザでは0~lengthを選択して即座にコピーできる状態にする
-  const ensureUrlVisible = () => {
-    if (!shareModalInput) return;
-    shareModalInput.select();
-    if (typeof shareModalInput.setSelectionRange === 'function') {
-      shareModalInput.setSelectionRange(0, shareModalInput.value.length);
+  // 共有インポート確認ダイアログをスキップすべきか判定
+  shouldSkipImportDialog() {
+    try {
+      return window.localStorage?.getItem(this.skipKey) === '1';
+    } catch (error) {
+      return false;
     }
-    shareModalInput.scrollLeft = 0;
-  };
+  }
 
-  // 共有状態を伝えるピル状トースト
-  // 「Saved」と同じ挙動になるように、data-show属性のON/OFFとCSSトランジションを使う
-  const showShareStatus = (message, state = 'info') => {
-    if (!shareStatus || !shareStatusText) return;
-    shareStatusText.textContent = message;
-    shareStatus.dataset.state = state;
-    shareStatus.setAttribute('data-show', 'true');
-    if (shareStatusTimer) clearTimeout(shareStatusTimer);
-    shareStatusTimer = setTimeout(() => {
-      shareStatus.setAttribute('data-show', 'false');
+  // 共有インポート確認ダイアログのスキップ設定を保存
+  setSkipImportDialog(shouldSkip) {
+    try {
+      if (shouldSkip) {
+        window.localStorage?.setItem(this.skipKey, '1');
+      } else {
+        window.localStorage?.removeItem(this.skipKey);
+      }
+    } catch (error) {
+      // localStorageが無い環境では握りつぶし
+    }
+  }
+}
+
+// ステータストーストの表示/非表示を制御するクラス
+class ShareStatusNotifier {
+  // コンストラクタでステータス要素をハードコード取得
+  constructor() {
+    this.statusEl = document.getElementById('shareStatus');
+    this.statusTextEl = document.getElementById('shareStatusText');
+    this.timer = null;
+  }
+
+  // メッセージと状態を受け取りトーストを表示
+  show(message, state = 'info') {
+    if (!this.statusEl || !this.statusTextEl) return;
+    this.statusTextEl.textContent = message;
+    this.statusEl.dataset.state = state;
+    this.statusEl.setAttribute('data-show', 'true');
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      this.statusEl?.setAttribute('data-show', 'false');
     }, SHARE_STATUS_SHOW_MS);
-  };
+  }
+}
 
-  const applyShareViewUiState = () => {
-    if (shareViewOverlay) {
-      shareViewOverlay.classList.toggle('hidden', !shareViewMode);
+// 共有閲覧モード時のUIロックを担うクラス
+class ShareViewStateController {
+  // コンストラクタでワークスペースとオーバーレイ要素を保持
+  constructor(workspace) {
+    this.workspace = workspace;
+    this.overlayEl = document.getElementById('shareViewOverlay');
+    this.shareViewMode = false;
+    this.listeners = new Set();
+    this.applyUiState();
+  }
+
+  // 閲覧モードのON/OFFを切り替え
+  setMode(enabled) {
+    this.shareViewMode = enabled;
+    this.applyUiState();
+    this.emit();
+  }
+
+  // 現在閲覧モードかどうかを返却
+  isEnabled() {
+    return this.shareViewMode;
+  }
+
+  // リスナーを登録して状態変化を通知
+  onChange(listener) {
+    if (typeof listener !== 'function') return () => {};
+    this.listeners.add(listener);
+    try {
+      listener(this.shareViewMode);
+    } catch (error) {
+      console.error('share view mode listener failed', error);
     }
-    if (!workspace) return;
-    const toolbox = workspace.getToolbox?.();
+    return () => this.listeners.delete(listener);
+  }
+
+  // UIを現在の閲覧モードに合わせて更新
+  applyUiState() {
+    if (this.overlayEl) {
+      this.overlayEl.classList.toggle('hidden', !this.shareViewMode);
+    }
+    if (!this.workspace) return;
+    const toolbox = this.workspace.getToolbox?.();
     if (toolbox && typeof toolbox.setVisible === 'function') {
-      toolbox.setVisible(!shareViewMode);
+      toolbox.setVisible(!this.shareViewMode);
     }
-    const blocks = workspace.getAllBlocks?.(false) ?? [];
+    const blocks = this.workspace.getAllBlocks?.(false) ?? [];
     blocks.forEach((block) => {
-      if (typeof block.setMovable === 'function') block.setMovable(!shareViewMode);
-      if (typeof block.setEditable === 'function') block.setEditable(!shareViewMode);
-      if (typeof block.setDeletable === 'function') block.setDeletable(!shareViewMode);
+      if (typeof block.setMovable === 'function') block.setMovable(!this.shareViewMode);
+      if (typeof block.setEditable === 'function') block.setEditable(!this.shareViewMode);
+      if (typeof block.setDeletable === 'function') block.setDeletable(!this.shareViewMode);
     });
-  };
+  }
 
-  const setShareViewMode = (enabled) => {
-    shareViewMode = enabled;
-    applyShareViewUiState();
-    shareViewModeListeners.forEach((listener) => {
+  // 登録済みリスナーへイベントを発火
+  emit() {
+    this.listeners.forEach((listener) => {
       try {
-        listener(shareViewMode);
+        listener(this.shareViewMode);
       } catch (error) {
         console.error('share view mode listener failed', error);
       }
     });
-  };
+  }
+}
 
-  const toBase64Svg = (svgString) =>
-    `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svgString)))}`;
+// BlocklyキャプチャとサムネイルUI制御をまとめたクラス
+class ShareThumbnailManager {
+  // コンストラクタでDOMをハードコード取得し初期状態を設定
+  constructor(workspace, statusNotifier) {
+    this.workspace = workspace;
+    this.statusNotifier = statusNotifier;
+    this.modalEl = document.getElementById('shareModal');
+    this.wrapperEl = document.getElementById('shareThumbnailWrapper');
+    this.imageEl = document.getElementById('shareThumbnailImage');
+    this.messageEl = document.getElementById('shareThumbnailMessage');
+    this.copyBtn = document.getElementById('shareThumbnailCopyBtn');
+    this.thumbnailDataUrl = '';
+    this.registerCopyHandler();
+    this.setState('hidden');
+  }
 
-  const setShareThumbnailState = (state, dataUrl = '') => {
-    if (!shareThumbnailImage || !shareThumbnailMessage || !shareThumbnailWrapper) return;
+  // コピー用ボタンのクリックイベントを定義
+  registerCopyHandler() {
+    if (!this.copyBtn) return;
+    this.copyBtn.addEventListener('click', async () => {
+      if (!this.thumbnailDataUrl) return;
+      if (
+        !navigator.clipboard ||
+        typeof navigator.clipboard.write !== 'function' ||
+        typeof window.ClipboardItem !== 'function'
+      ) {
+        this.statusNotifier?.show('クリップボードに画像をコピーできません', 'error');
+        return;
+      }
+      try {
+        const blob = await (await fetch(this.thumbnailDataUrl)).blob();
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        this.statusNotifier?.show('プレビュー画像をコピーしました！', 'success');
+      } catch (error) {
+        console.error('Failed to copy thumbnail', error);
+        this.statusNotifier?.show('画像のコピーに失敗しました', 'error');
+      }
+    });
+  }
+
+  // モーダルが開いた際の処理
+  handleModalOpened() {
+    this.setState('loading');
+    this.refresh();
+  }
+
+  // モーダルが閉じた際の処理
+  handleModalClosed() {
+    this.setState('hidden');
+  }
+
+  // サムネイルUIの状態を更新
+  setState(state, dataUrl = '') {
+    if (!this.imageEl || !this.messageEl || !this.wrapperEl) return;
     if (state === 'ready' && dataUrl) {
-      shareThumbnailImage.src = dataUrl;
-      shareThumbnailImage.classList.remove('hidden');
-      shareThumbnailMessage.classList.add('hidden');
-      shareThumbnailWrapper.classList.remove('opacity-70');
-      shareThumbnailDataUrl = dataUrl;
-      if (shareThumbnailCopyBtn) shareThumbnailCopyBtn.disabled = false;
+      this.imageEl.src = dataUrl;
+      this.imageEl.classList.remove('hidden');
+      this.messageEl.classList.add('hidden');
+      this.wrapperEl.classList.remove('opacity-70');
+      this.thumbnailDataUrl = dataUrl;
+      if (this.copyBtn) this.copyBtn.disabled = false;
       return;
     }
-    shareThumbnailImage.classList.add('hidden');
-    shareThumbnailWrapper.classList.toggle('opacity-70', state !== 'hidden');
-    shareThumbnailMessage.classList.toggle('hidden', state === 'hidden');
-    shareThumbnailDataUrl = '';
-    if (shareThumbnailCopyBtn) shareThumbnailCopyBtn.disabled = true;
+    this.imageEl.classList.add('hidden');
+    this.wrapperEl.classList.toggle('opacity-70', state !== 'hidden');
+    this.messageEl.classList.toggle('hidden', state === 'hidden');
+    this.thumbnailDataUrl = '';
+    if (this.copyBtn) this.copyBtn.disabled = true;
     if (state === 'loading') {
-      shareThumbnailMessage.textContent = 'ブロックエリアを撮影しています...';
+      this.messageEl.textContent = 'ブロックエリアを撮影しています...';
     } else if (state === 'error') {
-      shareThumbnailMessage.textContent = 'サムネイルの生成に失敗しました。再試行してください。';
+      this.messageEl.textContent = 'サムネイルの生成に失敗しました。再試行してください。';
     } else {
-      shareThumbnailMessage.textContent = '';
+      this.messageEl.textContent = '';
     }
-  };
+  }
 
-  const captureWorkspaceThumbnail = async () => {
-    if (!workspace) throw new Error('WORKSPACE_NOT_READY');
+  // サムネイルの再キャプチャを試みる
+  async refresh() {
+    if (!this.modalEl || this.modalEl.classList.contains('hidden')) return null;
+    this.setState('loading');
+    try {
+      const dataUrl = await this.captureWorkspaceThumbnail();
+      if (dataUrl) {
+        this.setState('ready', dataUrl);
+      } else {
+        this.setState('error');
+      }
+      return dataUrl;
+    } catch (error) {
+      console.error('Failed to capture workspace thumbnail', error);
+      this.setState('error');
+      return null;
+    }
+  }
 
-    const canvasSvg = workspace.getCanvas?.() ?? workspace.svgBlockCanvas_;
+  // BlocklyキャンバスをSVG/PNG化
+  async captureWorkspaceThumbnail() {
+    if (!this.workspace) throw new Error('WORKSPACE_NOT_READY');
+
+    const canvasSvg = this.workspace.getCanvas?.() ?? this.workspace.svgBlockCanvas_;
     if (!canvasSvg) throw new Error('CANVAS_NOT_FOUND');
 
-    const blocks = workspace.getAllBlocks(false);
+    const blocks = this.workspace.getAllBlocks(false);
     if (!blocks.length) throw new Error('NO_BLOCKS_FOUND');
 
     const clonedCanvas = canvasSvg.cloneNode(true);
-    ['width', 'height', 'transform'].forEach((attr) =>
-      clonedCanvas.removeAttribute(attr)
-    );
+    ['width', 'height', 'transform'].forEach((attr) => clonedCanvas.removeAttribute(attr));
 
     const cssPayload = (window.Blockly?.Css?.CONTENT || []).join('') + BLOCKLY_CAPTURE_EXTRA_CSS;
     clonedCanvas.insertAdjacentHTML('afterbegin', `<style>${cssPayload}</style>`);
 
     const bbox = canvasSvg.getBBox();
-    const padding = 32;
-    const minDimension = 64;
+    const padding = SHARE_THUMBNAIL_PADDING;
+    const minDimension = SHARE_THUMBNAIL_MIN_DIMENSION;
     const viewWidth = Math.max(minDimension, Math.ceil(bbox.width + padding * 2));
     const viewHeight = Math.max(minDimension, Math.ceil(bbox.height + padding * 2));
     const viewX = bbox.x - padding;
@@ -197,10 +251,7 @@ export const initShareFeature = ({
     const xml = new XMLSerializer().serializeToString(clonedCanvas);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${viewWidth}" height="${viewHeight}" viewBox="${viewX} ${viewY} ${viewWidth} ${viewHeight}">${xml}</svg>`;
 
-    // // DEBUG: コメントアウト解除して直接SVGを表示 (デバッグ用)
-    // shareThumbnailWrapper.innerHTML = svg;
-
-    const svgDataUrl = toBase64Svg(svg);
+    const svgDataUrl = this.toBase64Svg(svg);
     const scaleFactor = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
 
     return await new Promise((resolve, reject) => {
@@ -218,113 +269,143 @@ export const initShareFeature = ({
       img.onerror = reject;
       img.src = svgDataUrl;
     });
-  };
+  }
 
-  const refreshShareThumbnail = async () => {
-    if (!shareModal || shareModal.classList.contains('hidden')) return null;
-    setShareThumbnailState('loading');
-    try {
-      const dataUrl = await captureWorkspaceThumbnail();
-      if (dataUrl) {
-        setShareThumbnailState('ready', dataUrl);
-      } else {
-        setShareThumbnailState('error');
-      }
-      return dataUrl;
-    } catch (error) {
-      console.error('Failed to capture workspace thumbnail', error);
-      setShareThumbnailState('error');
-      return null;
-    } finally {
-      // no manual refresh button to toggle
+  // SVG文字列をBase64 DataURLに変換
+  toBase64Svg(svgString) {
+    return `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svgString)))}`;
+  }
+}
+
+// 共有リンクモーダルの操作をまとめたクラス
+class ShareModalController {
+  // コンストラクタで依存を受け取りDOMを取得
+  constructor({ statusNotifier, thumbnailManager, exportSharePayload }) {
+    this.statusNotifier = statusNotifier;
+    this.thumbnailManager = thumbnailManager;
+    this.exportSharePayload = exportSharePayload;
+    this.shareBtn = document.getElementById('shareBtn');
+    this.modalEl = document.getElementById('shareModal');
+    this.modalInput = document.getElementById('shareModalInput');
+    this.closeBtn = document.getElementById('shareModalClose');
+    this.linkCopyBtn = document.getElementById('shareModalCopyBtn');
+    this.xBtn = document.getElementById('shareModalXBtn');
+    this.bindEvents();
+  }
+
+  // 各種DOMイベントをバインド
+  bindEvents() {
+    this.shareBtn?.addEventListener('click', () => this.handleShareButtonClick());
+    this.closeBtn?.addEventListener('click', () => this.toggle(false));
+    this.modalEl?.addEventListener('click', (event) => {
+      if (event.target === this.modalEl) this.toggle(false);
+    });
+    if (this.modalInput) {
+      this.modalInput.addEventListener('focus', () => this.ensureUrlVisible());
+      this.modalInput.addEventListener('click', () => this.ensureUrlVisible());
     }
-  };
+    this.linkCopyBtn?.addEventListener('click', () => this.handleCopyButton());
+    this.xBtn?.addEventListener('click', () => this.handleXButton());
+    this.boundEscHandler = (event) => {
+      if (event.key === 'Escape' && this.isModalOpen()) {
+        this.toggle(false);
+      }
+    };
+    document.addEventListener('keydown', this.boundEscHandler);
+  }
 
-  // 共有モーダルの開閉制御
-  // Code Modalのアニメーションを参考に、hidden/flex + show-modalクラスで開閉を統一
-  const toggleShareModal = (isOpen, url = '') => {
-    if (!shareModal || !shareModalInput) return;
-    shareModal.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+  // モーダルが開いているか判定
+  isModalOpen() {
+    return !!this.modalEl && !this.modalEl.classList.contains('hidden');
+  }
+
+  // モーダルの開閉を制御
+  toggle(isOpen, url = '') {
+    if (!this.modalEl || !this.modalInput) return;
+    this.modalEl.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
     if (isOpen) {
-      shareModalInput.value = url;
-      shareModal.classList.remove('hidden');
-      shareModal.classList.add('flex');
-      void shareModal.offsetWidth;
-      shareModal.classList.add('show-modal');
+      this.modalInput.value = url;
+      this.modalEl.classList.remove('hidden');
+      this.modalEl.classList.add('flex');
+      void this.modalEl.offsetWidth;
+      this.modalEl.classList.add('show-modal');
       setTimeout(() => {
-        shareModalInput.focus();
-        ensureUrlVisible();
-        setShareThumbnailState('loading');
-        refreshShareThumbnail();
+        this.modalInput?.focus();
+        this.ensureUrlVisible();
+        this.thumbnailManager?.handleModalOpened();
       }, 0);
     } else {
-      shareModal.classList.remove('show-modal');
+      this.modalEl.classList.remove('show-modal');
       setTimeout(() => {
-        shareModal.classList.remove('flex');
-        shareModal.classList.add('hidden');
+        this.modalEl?.classList.remove('flex');
+        this.modalEl?.classList.add('hidden');
       }, 300);
-      shareModalInput.value = '';
-      setShareThumbnailState('hidden');
+      this.modalInput.value = '';
+      this.thumbnailManager?.handleModalClosed();
     }
-  };
+  }
 
-  const cleanupShareQuery = () => {
-    if (typeof window.history.replaceState === 'function') {
-      window.history.replaceState({}, '', window.location.pathname);
+  // 入力欄のスクロールをリセットして先頭を見せる
+  ensureUrlVisible() {
+    if (!this.modalInput) return;
+    this.modalInput.select();
+    if (typeof this.modalInput.setSelectionRange === 'function') {
+      this.modalInput.setSelectionRange(0, this.modalInput.value.length);
     }
-  };
+    this.modalInput.scrollLeft = 0;
+  }
 
-  const showShareImportModal = () => {
-    if (!shareImportModal) return;
-    if (shareImportSkipCheckbox) {
-      shareImportSkipCheckbox.checked = getShareImportSkipPreference();
-    }
-    shareImportModal.setAttribute('aria-hidden', 'false');
-    shareImportModal.classList.remove('hidden');
-    shareImportModal.classList.add('flex');
-    void shareImportModal.offsetWidth;
-    shareImportModal.classList.add('show-modal');
-    setTimeout(() => {
-      shareImportConfirmBtn?.focus();
-    }, 0);
-  };
-
-  const hideShareImportModal = () => {
-    if (!shareImportModal) {
-      return Promise.resolve();
-    }
-    shareImportModal.setAttribute('aria-hidden', 'true');
-    shareImportModal.classList.remove('show-modal');
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        shareImportModal.classList.remove('flex');
-        shareImportModal.classList.add('hidden');
-        resolve();
-      }, 300);
-    });
-  };
-
-  const finalizeShareImport = (applied) => {
-    hideShareImportModal().then(() => {
-      if (applied) {
-        pendingShareEncoded = '';
-        setShareViewMode(false);
-        cleanupShareQuery();
+  // Shareボタン押下時の処理フロー
+  async handleShareButtonClick() {
+    if (!this.shareBtn || this.shareBtn.disabled) return;
+    this.shareBtn.disabled = true;
+    this.shareBtn.setAttribute('aria-busy', 'true');
+    try {
+      const { encoded, url } = this.exportSharePayload();
+      this.toggle(true, url);
+      try {
+        const shortUrl = await this.createShortShareUrl(encoded);
+        if (shortUrl && this.isModalOpen() && this.modalInput) {
+          this.modalInput.value = shortUrl;
+          this.ensureUrlVisible();
+        }
+      } catch (error) {
+        console.error('Failed to create short share url', error);
+        this.statusNotifier?.show('短縮URLの生成に失敗したため通常リンクを表示します', 'error');
       }
-    });
-  };
-
-  const isShareImportModalOpen = () =>
-    !!shareImportModal && !shareImportModal.classList.contains('hidden');
-
-  const importSharedLayoutPayload = (encoded) => {
-    if (!storage || !storage.importMinified(encoded)) {
-      throw new Error('LOAD_FAILED');
+    } catch (error) {
+      console.error('Failed to generate share url', error);
+      this.statusNotifier?.show('共有リンクの生成に失敗しました', 'error');
+    } finally {
+      this.shareBtn.disabled = false;
+      this.shareBtn.removeAttribute('aria-busy');
     }
-  };
+  }
 
-  // 短縮URL生成APIへポストして短縮URLを取得
-  const createShortShareUrl = async (encoded) => {
+  // 「リンクをコピー」ボタン実行時の処理
+  async handleCopyButton() {
+    if (!this.modalInput) return;
+    this.ensureUrlVisible();
+    const copied = await this.tryCopyToClipboard(this.modalInput.value);
+    if (copied) {
+      this.statusNotifier?.show('共有リンクをコピーしました！', 'success');
+    } else {
+      this.statusNotifier?.show('クリップボードにアクセスできません', 'error');
+    }
+  }
+
+  // Xボタン押下時にintentを展開
+  handleXButton() {
+    if (!this.modalInput || !this.modalInput.value) return;
+    const baseText = encodeURIComponent('Easy Discord Bot BuilderでDiscord BOTを作成しました！ #EDBB');
+    const encodedUrl = encodeURIComponent(this.modalInput.value);
+    const intentUrl = `https://x.com/intent/tweet?text=${baseText}%0A${encodedUrl}`;
+    window.open(intentUrl, '_blank', 'noopener,noreferrer');
+    this.statusNotifier?.show('Xのポスト画面を開きました', 'info');
+  }
+
+  // 短縮URLを生成する非同期処理
+  async createShortShareUrl(encoded) {
     const response = await fetch(SHARE_SHORTENER_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -338,239 +419,266 @@ export const initShareFeature = ({
       throw new Error('SHORTENER_RESPONSE_INVALID');
     }
     return data.url;
-  };
+  }
 
-  const buildShareUrl = (encoded) => `${getBaseShareUrl()}?${SHARE_QUERY_KEY}=${encoded}`;
+  // テキストのクリップボードコピーを試みる
+  async tryCopyToClipboard(text) {
+    if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+      return false;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (error) {
+      console.warn('Clipboard copy failed', error);
+      return false;
+    }
+  }
+}
 
-  const exportSharePayload = () => {
-    if (!workspace || !storage) throw new Error('WORKSPACE_NOT_READY');
-    const encoded = storage.exportMinified();
-    if (!encoded) throw new Error('ENCODE_FAILED');
-    return {
-      encoded,
-      url: buildShareUrl(encoded),
+// 共有インポート確認モーダルの挙動をまとめたクラス
+class ShareImportModalController {
+  // コンストラクタでDOMと依存を取得
+  constructor({ storage, statusNotifier, preferenceManager, viewStateController }) {
+    this.storage = storage;
+    this.statusNotifier = statusNotifier;
+    this.preferenceManager = preferenceManager;
+    this.viewStateController = viewStateController;
+    this.modalEl = document.getElementById('shareImportModal');
+    this.confirmBtn = document.getElementById('shareImportConfirmBtn');
+    this.cancelBtn = document.getElementById('shareImportCancelBtn');
+    this.closeBtn = document.getElementById('shareImportModalClose');
+    this.downloadBtn = document.getElementById('shareImportDownloadBtn');
+    this.skipCheckbox = document.getElementById('shareImportSkipCheckbox');
+    this.startEditingBtn = document.getElementById('shareViewStartEditingBtn');
+    this.pendingShareEncoded = '';
+    this.bindEvents();
+  }
+
+  // イベントやショートカットを登録
+  bindEvents() {
+    this.confirmBtn?.addEventListener('click', () => this.handleConfirm());
+    this.cancelBtn?.addEventListener('click', () => this.handleCancel());
+    this.closeBtn?.addEventListener('click', () => this.handleCancel());
+    this.downloadBtn?.addEventListener('click', () => {
+      this.storage?.exportFile();
+    });
+    this.modalEl?.addEventListener('click', (event) => {
+      if (event.target === this.modalEl) {
+        this.handleCancel();
+      }
+    });
+    if (this.skipCheckbox) {
+      this.skipCheckbox.addEventListener('change', (event) => {
+        this.preferenceManager?.setSkipImportDialog(Boolean(event.target?.checked));
+      });
+    }
+    this.startEditingBtn?.addEventListener('click', () => this.handleStartEditingRequest());
+    this.boundEscHandler = (event) => {
+      if (event.key === 'Escape' && this.isOpen()) {
+        this.handleCancel();
+      }
     };
-  };
+    document.addEventListener('keydown', this.boundEscHandler);
+  }
 
-  // URLクエリに埋め込まれた共有データを適用
-  // 成功したらlocalStorageにも反映し、その後クエリをクリーンアップして再読込で重複適用されないようにする
-  const applySharedLayoutFromQuery = () => {
+  // モーダルが表示中かどうかを判定
+  isOpen() {
+    return !!this.modalEl && !this.modalEl.classList.contains('hidden');
+  }
+
+  // モーダルを開く処理
+  showModal() {
+    if (!this.modalEl) return;
+    if (this.skipCheckbox && this.preferenceManager) {
+      this.skipCheckbox.checked = this.preferenceManager.shouldSkipImportDialog();
+    }
+    this.modalEl.setAttribute('aria-hidden', 'false');
+    this.modalEl.classList.remove('hidden');
+    this.modalEl.classList.add('flex');
+    void this.modalEl.offsetWidth;
+    this.modalEl.classList.add('show-modal');
+    setTimeout(() => {
+      this.confirmBtn?.focus();
+    }, 0);
+  }
+
+  // モーダルを閉じる処理
+  hideModal() {
+    if (!this.modalEl) return Promise.resolve();
+    this.modalEl.setAttribute('aria-hidden', 'true');
+    this.modalEl.classList.remove('show-modal');
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        this.modalEl?.classList.remove('flex');
+        this.modalEl?.classList.add('hidden');
+        resolve();
+      }, 300);
+    });
+  }
+
+  // 閉じた後の後処理 (閲覧モード解除など)
+  finalize(applied) {
+    return this.hideModal().then(() => {
+      if (applied) {
+        this.pendingShareEncoded = '';
+        this.viewStateController?.setMode(false);
+        this.cleanupShareQuery();
+      }
+    });
+  }
+
+  // 「編集開始」ボタンから呼び出される処理
+  handleStartEditingRequest() {
+    if (!this.viewStateController?.isEnabled()) return;
+    if (this.preferenceManager?.shouldSkipImportDialog()) {
+      this.handleConfirm();
+      return;
+    }
+    this.showModal();
+  }
+
+  // 確認ボタン押下時の処理
+  async handleConfirm() {
+    if (!this.pendingShareEncoded) {
+      this.finalize(false);
+      return;
+    }
+    if (this.confirmBtn) {
+      this.confirmBtn.disabled = true;
+      this.confirmBtn.setAttribute('aria-busy', 'true');
+    }
+    try {
+      this.tryImportEncodedPayload(this.pendingShareEncoded);
+      this.statusNotifier?.show('共有ブロックの編集を開始します', 'success');
+      await this.finalize(true);
+    } catch (error) {
+      console.warn('Failed to read shared layout', error);
+      this.statusNotifier?.show('共有データを適用できませんでした', 'error');
+      await this.finalize(false);
+    } finally {
+      if (this.confirmBtn) {
+        this.confirmBtn.disabled = false;
+        this.confirmBtn.removeAttribute('aria-busy');
+      }
+    }
+  }
+
+  // キャンセル系操作時の処理
+  handleCancel() {
+    if (!this.isOpen()) return;
+    this.statusNotifier?.show('共有ブロックの読み込みをキャンセルしました', 'info');
+    this.finalize(false);
+  }
+
+  // URLクエリに含まれる共有データを適用
+  applySharedLayoutFromQuery() {
     const params = new URLSearchParams(window.location.search);
     const encoded = params.get(SHARE_QUERY_KEY);
     if (!encoded) return false;
 
-    pendingShareEncoded = encoded;
+    this.pendingShareEncoded = encoded;
     try {
-      importSharedLayoutPayload(encoded);
-      setShareViewMode(true);
-      showShareStatus('共有ブロックを閲覧専用で開いています', 'info');
+      this.tryImportEncodedPayload(encoded);
+      this.viewStateController?.setMode(true);
+      this.statusNotifier?.show('共有ブロックを閲覧専用で開いています', 'info');
       return true;
     } catch (error) {
       console.warn('Failed to read shared layout', error);
-      showShareStatus('共有データを適用できませんでした', 'error');
-      pendingShareEncoded = '';
-      setShareViewMode(false);
-      if (typeof window.history.replaceState === 'function') {
-        window.history.replaceState({}, '', window.location.pathname);
-      }
+      this.statusNotifier?.show('共有データを適用できませんでした', 'error');
+      this.pendingShareEncoded = '';
+      this.viewStateController?.setMode(false);
+      this.cleanupShareQuery();
       return false;
     }
-  };
+  }
 
-  const handleShareImportConfirm = () => {
-    if (!pendingShareEncoded) {
-      finalizeShareImport(false);
-      return;
+  // クエリーパラメータからshareを削除
+  cleanupShareQuery() {
+    if (typeof window.history.replaceState === 'function') {
+      window.history.replaceState({}, '', window.location.pathname);
     }
-    if (shareImportConfirmBtn) {
-      shareImportConfirmBtn.disabled = true;
-      shareImportConfirmBtn.setAttribute('aria-busy', 'true');
+  }
+
+  // storageへ共有データを書き戻す (失敗時は例外)
+  tryImportEncodedPayload(encoded) {
+    if (!this.storage || !this.storage.importMinified(encoded)) {
+      throw new Error('LOAD_FAILED');
     }
-    try {
-      importSharedLayoutPayload(pendingShareEncoded);
-      showShareStatus('共有ブロックの編集を開始します', 'success');
-      finalizeShareImport(true);
-    } catch (error) {
-      console.warn('Failed to read shared layout', error);
-      showShareStatus('共有データを適用できませんでした', 'error');
-      finalizeShareImport(false);
-    } finally {
-      if (shareImportConfirmBtn) {
-        shareImportConfirmBtn.disabled = false;
-        shareImportConfirmBtn.removeAttribute('aria-busy');
-      }
-    }
-  };
+  }
+}
 
-  const handleShareImportCancel = () => {
-    if (!isShareImportModalOpen()) return;
-    showShareStatus('共有ブロックの読み込みをキャンセルしました', 'info');
-    finalizeShareImport(false);
-  };
-
-  // Shareボタンが押されたときのメイン処理
-  // URL生成→モーダル表示→自動コピーの順で動き、エラー時はトーストで告知
-  if (shareBtn) {
-    shareBtn.addEventListener('click', async () => {
-      if (shareBtn.disabled) return;
-      shareBtn.disabled = true;
-      shareBtn.setAttribute('aria-busy', 'true');
-      try {
-        const { encoded, url } = exportSharePayload();
-        toggleShareModal(true, url);
-        try {
-          const shortUrl = await createShortShareUrl(encoded);
-          if (
-            shortUrl &&
-            shareModalInput &&
-            shareModal &&
-            !shareModal.classList.contains('hidden')
-          ) {
-            shareModalInput.value = shortUrl;
-            ensureUrlVisible();
-          }
-        } catch (error) {
-          console.error('Failed to create short share url', error);
-          showShareStatus('短縮URLの生成に失敗したため通常リンクを表示します', 'error');
-        }
-      } catch (error) {
-        console.error('Failed to generate share url', error);
-        showShareStatus('共有リンクの生成に失敗しました', 'error');
-      } finally {
-        shareBtn.disabled = false;
-        shareBtn.removeAttribute('aria-busy');
-      }
+// 各コンポーネントをまとめ上げるエントリーポイントクラス
+class ShareFeature {
+  // コンストラクタで依存を受け取り必要なコントローラを生成
+  constructor({ workspace, storage }) {
+    this.workspace = workspace;
+    this.storage = storage;
+    this.statusNotifier = new ShareStatusNotifier();
+    this.preferenceManager = new SharePreferenceManager();
+    this.viewStateController = new ShareViewStateController(workspace);
+    this.thumbnailManager = new ShareThumbnailManager(workspace, this.statusNotifier);
+    this.shareModalController = new ShareModalController({
+      statusNotifier: this.statusNotifier,
+      thumbnailManager: this.thumbnailManager,
+      exportSharePayload: () => this.exportSharePayload(),
+    });
+    this.shareImportModalController = new ShareImportModalController({
+      storage,
+      statusNotifier: this.statusNotifier,
+      preferenceManager: this.preferenceManager,
+      viewStateController: this.viewStateController,
     });
   }
 
-  // モーダル内の閉じるボタンや背景クリック、Escキーでも閉じられるようにしてUXを揃える
-  if (shareModalClose) {
-    shareModalClose.addEventListener('click', () => toggleShareModal(false));
-  }
-  if (shareModal) {
-    shareModal.addEventListener('click', (event) => {
-      if (event.target === shareModal) toggleShareModal(false);
-    });
-  }
-  // 入力欄をクリック/フォーカスした際に常に全選択させてコピーしやすくする
-  if (shareModalInput) {
-    shareModalInput.addEventListener('focus', ensureUrlVisible);
-    shareModalInput.addEventListener('click', ensureUrlVisible);
+  // 共有URLを組み立て
+  buildShareUrl(encoded) {
+    const { origin, pathname } = window.location;
+    const base =
+      origin && origin !== 'null'
+        ? `${origin}${pathname}`
+        : window.location.href.split('?')[0].split('#')[0];
+    return `${base}?${SHARE_QUERY_KEY}=${encoded}`;
   }
 
-  if (shareThumbnailCopyBtn) {
-    shareThumbnailCopyBtn.addEventListener('click', async () => {
-      if (!shareThumbnailDataUrl) return;
-      if (
-        !navigator.clipboard ||
-        typeof navigator.clipboard.write !== 'function' ||
-        typeof window.ClipboardItem !== 'function'
-      ) {
-        showShareStatus('クリップボードに画像をコピーできません', 'error');
-        return;
-      }
-      try {
-        const blob = await (await fetch(shareThumbnailDataUrl)).blob();
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        showShareStatus('プレビュー画像をコピーしました！', 'success');
-      } catch (error) {
-        console.error('Failed to copy thumbnail', error);
-        showShareStatus('画像のコピーに失敗しました', 'error');
-      }
-    });
-  }
-  // 手動で「リンクをコピー」ボタンを押した場合の処理
-  // 自動コピーに失敗した環境でもここで再チャレンジできる
-  if (shareModalCopyBtn) {
-    shareModalCopyBtn.addEventListener('click', async () => {
-      if (!shareModalInput) return;
-      ensureUrlVisible();
-      const copied = await tryCopyToClipboard(shareModalInput.value);
-      if (copied) {
-        showShareStatus('共有リンクをコピーしました！', 'success');
-      } else {
-        showShareStatus('クリップボードにアクセスできません', 'error');
-      }
-    });
-  }
-  // Xへ直接ポストするためのボタン。別タブで intent を開く。
-  if (shareModalXBtn) {
-    shareModalXBtn.addEventListener('click', () => {
-      if (!shareModalInput || !shareModalInput.value) return;
-      const baseText = encodeURIComponent('Easy Discord Bot BuilderでDiscord BOTを作成しました！ #EDBB');
-      const encodedUrl = encodeURIComponent(shareModalInput.value);
-      const intentUrl = `https://x.com/intent/tweet?text=${baseText}%0A${encodedUrl}`;
-      window.open(intentUrl, '_blank', 'noopener,noreferrer');
-      showShareStatus('Xのポスト画面を開きました', 'info');
-    });
-  }
-  // モーダルを開いたままEscを押した場合でも閉じられるようにグローバルで監視
-  if (shareModal) {
-    document.addEventListener('keydown', (event) => {
-      if (
-        event.key === 'Escape' &&
-        !shareModal.classList.contains('hidden')
-      ) {
-        toggleShareModal(false);
-      }
-    });
+  // workspace+storageから共有ペイロードを生成
+  exportSharePayload() {
+    if (!this.workspace || !this.storage) throw new Error('WORKSPACE_NOT_READY');
+    const encoded = this.storage.exportMinified();
+    if (!encoded) throw new Error('ENCODE_FAILED');
+    return {
+      encoded,
+      url: this.buildShareUrl(encoded),
+    };
   }
 
-  if (shareViewStartEditingBtn) {
-    shareViewStartEditingBtn.addEventListener('click', () => {
-      if (!shareViewMode) return;
-      if (getShareImportSkipPreference()) {
-        handleShareImportConfirm();
-        return;
-      }
-      showShareImportModal();
-    });
+  // 共有クエリを強制適用させる
+  applySharedLayoutFromQuery() {
+    return this.shareImportModalController.applySharedLayoutFromQuery();
   }
 
-  if (shareImportDownloadBtn) {
-    shareImportDownloadBtn.addEventListener('click', () => {
-      storage?.exportFile();
-    });
-  }
-  if (shareImportConfirmBtn) {
-    shareImportConfirmBtn.addEventListener('click', handleShareImportConfirm);
-  }
-  if (shareImportCancelBtn) {
-    shareImportCancelBtn.addEventListener('click', handleShareImportCancel);
-  }
-  if (shareImportModalClose) {
-    shareImportModalClose.addEventListener('click', handleShareImportCancel);
-  }
-  if (shareImportSkipCheckbox) {
-    shareImportSkipCheckbox.addEventListener('change', (event) => {
-      setShareImportSkipPreference(Boolean(event.target.checked));
-    });
-  }
-  if (shareImportModal) {
-    shareImportModal.addEventListener('click', (event) => {
-      if (event.target === shareImportModal) {
-        handleShareImportCancel();
-      }
-    });
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && isShareImportModalOpen()) {
-        handleShareImportCancel();
-      }
-    });
+  // 閲覧モードの真偽を返す
+  isShareViewMode() {
+    return this.viewStateController.isEnabled();
   }
 
-  return {
-    applySharedLayoutFromQuery,
-    isShareViewMode: () => shareViewMode,
-    onShareViewModeChange: (listener) => {
-      if (typeof listener !== 'function') return () => {};
-      shareViewModeListeners.add(listener);
-      try {
-        listener(shareViewMode);
-      } catch (error) {
-        console.error('share view mode listener failed', error);
-      }
-      return () => shareViewModeListeners.delete(listener);
-    },
-  };
+  // 閲覧モードリスナー登録を仲介
+  onShareViewModeChange(listener) {
+    return this.viewStateController.onChange(listener);
+  }
+
+  // 外部へ公開するAPIを取得
+  getPublicApi() {
+    return {
+      applySharedLayoutFromQuery: () => this.applySharedLayoutFromQuery(),
+      isShareViewMode: () => this.isShareViewMode(),
+      onShareViewModeChange: (listener) => this.onShareViewModeChange(listener),
+    };
+  }
+}
+
+// 共有機能を初期化し、公開APIを返すエントリーポイント
+export const initShareFeature = ({ workspace, storage }) => {
+  const feature = new ShareFeature({ workspace, storage });
+  return feature.getPublicApi();
 };
