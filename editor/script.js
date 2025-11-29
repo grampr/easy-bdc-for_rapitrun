@@ -268,7 +268,7 @@ const initializeApp = () => {
   storage = new WorkspaceStorage(workspace);
 
   // --- Blocklyのブロック定義 ---
-  const { applySharedLayoutFromQuery } = initShareFeature({
+  const shareFeature = initShareFeature({
     workspace,
     storage,
   });
@@ -337,7 +337,11 @@ const initializeApp = () => {
     }
 
     // Auto Save
-    if (!e.isUiEvent && e.type !== Blockly.Events.FINISHED_LOADING) {
+    if (
+      !shareFeature.isShareViewMode() &&
+      !e.isUiEvent &&
+      e.type !== Blockly.Events.FINISHED_LOADING
+    ) {
       storage?.save();
       const saveStatus = document.getElementById('saveStatus');
       saveStatus.setAttribute('data-show', 'true');
@@ -400,7 +404,7 @@ const initializeApp = () => {
   });
 
   // --- Load Saved Data ---
-  const sharedApplied = applySharedLayoutFromQuery();
+  const sharedApplied = shareFeature.applySharedLayoutFromQuery();
   if (!sharedApplied) {
     storage?.load();
   }

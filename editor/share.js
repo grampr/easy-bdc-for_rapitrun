@@ -48,6 +48,13 @@ export const initShareFeature = ({
   const shareModalCopyBtn = document.getElementById('shareModalCopyBtn');
   const shareModalXBtn = document.getElementById('shareModalXBtn');
   const shareModalClose = document.getElementById('shareModalClose');
+  const shareImportModal = document.getElementById('shareImportModal');
+  const shareImportModalClose = document.getElementById('shareImportModalClose');
+  const shareImportDownloadBtn = document.getElementById('shareImportDownloadBtn');
+  const shareImportConfirmBtn = document.getElementById('shareImportConfirmBtn');
+  const shareImportCancelBtn = document.getElementById('shareImportCancelBtn');
+  const shareViewOverlay = document.getElementById('shareViewOverlay');
+  const shareViewStartEditingBtn = document.getElementById('shareViewStartEditingBtn');
   const shareThumbnailWrapper = document.getElementById('shareThumbnailWrapper');
   const shareThumbnailImage = document.getElementById('shareThumbnailImage');
   const shareThumbnailMessage = document.getElementById('shareThumbnailMessage');
@@ -55,6 +62,8 @@ export const initShareFeature = ({
   let shareThumbnailDataUrl = '';
 
   let shareStatusTimer;
+  let pendingShareEncoded = '';
+  let shareViewMode = false;
   // モーダル内のテキストボックスでURLの先頭(https...)が常に見えるようにする小技
   // setSelectionRangeを使えるブラウザでは0~lengthを選択して即座にコピーできる状態にする
   const ensureUrlVisible = () => {
@@ -77,6 +86,28 @@ export const initShareFeature = ({
     shareStatusTimer = setTimeout(() => {
       shareStatus.setAttribute('data-show', 'false');
     }, SHARE_STATUS_SHOW_MS);
+  };
+
+  const applyShareViewUiState = () => {
+    if (shareViewOverlay) {
+      shareViewOverlay.classList.toggle('hidden', !shareViewMode);
+    }
+    if (!workspace) return;
+    const toolbox = workspace.getToolbox?.();
+    if (toolbox && typeof toolbox.setVisible === 'function') {
+      toolbox.setVisible(!shareViewMode);
+    }
+    const blocks = workspace.getAllBlocks?.(false) ?? [];
+    blocks.forEach((block) => {
+      if (typeof block.setMovable === 'function') block.setMovable(!shareViewMode);
+      if (typeof block.setEditable === 'function') block.setEditable(!shareViewMode);
+      if (typeof block.setDeletable === 'function') block.setDeletable(!shareViewMode);
+    });
+  };
+
+  const setShareViewMode = (enabled) => {
+    shareViewMode = enabled;
+    applyShareViewUiState();
   };
 
   const toBase64Svg = (svgString) =>
@@ -206,6 +237,58 @@ export const initShareFeature = ({
     }
   };
 
+  const cleanupShareQuery = () => {
+    if (typeof window.history.replaceState === 'function') {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  };
+
+  const showShareImportModal = () => {
+    if (!shareImportModal) return;
+    shareImportModal.setAttribute('aria-hidden', 'false');
+    shareImportModal.classList.remove('hidden');
+    shareImportModal.classList.add('flex');
+    void shareImportModal.offsetWidth;
+    shareImportModal.classList.add('show-modal');
+    setTimeout(() => {
+      shareImportConfirmBtn?.focus();
+    }, 0);
+  };
+
+  const hideShareImportModal = () => {
+    if (!shareImportModal) {
+      return Promise.resolve();
+    }
+    shareImportModal.setAttribute('aria-hidden', 'true');
+    shareImportModal.classList.remove('show-modal');
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        shareImportModal.classList.remove('flex');
+        shareImportModal.classList.add('hidden');
+        resolve();
+      }, 300);
+    });
+  };
+
+  const finalizeShareImport = (applied) => {
+    hideShareImportModal().then(() => {
+      if (applied) {
+        pendingShareEncoded = '';
+        setShareViewMode(false);
+        cleanupShareQuery();
+      }
+    });
+  };
+
+  const isShareImportModalOpen = () =>
+    !!shareImportModal && !shareImportModal.classList.contains('hidden');
+
+  const importSharedLayoutPayload = (encoded) => {
+    if (!storage || !storage.importMinified(encoded)) {
+      throw new Error('LOAD_FAILED');
+    }
+  };
+
   // 短縮URL生成APIへポストして短縮URLを取得
   const createShortShareUrl = async (encoded) => {
     const response = await fetch(SHARE_SHORTENER_ENDPOINT, {
@@ -244,23 +327,55 @@ export const initShareFeature = ({
     const encoded = params.get(SHARE_QUERY_KEY);
     if (!encoded) return false;
 
+    pendingShareEncoded = encoded;
+    shareViewMode = true;
     try {
-      if (!storage || !storage.importMinified(encoded)) {
-        throw new Error('LOAD_FAILED');
-      }
-      showShareStatus('共有レイアウトを読み込みました', 'success');
-      if (typeof window.history.replaceState === 'function') {
-        window.history.replaceState({}, '', window.location.pathname);
-      }
+      importSharedLayoutPayload(encoded);
+      applyShareViewUiState();
+      showShareStatus('共有レイアウトを閲覧専用で開いています', 'info');
       return true;
     } catch (error) {
       console.warn('Failed to read shared layout', error);
       showShareStatus('共有データを適用できませんでした', 'error');
+      pendingShareEncoded = '';
+      shareViewMode = false;
+      applyShareViewUiState();
       if (typeof window.history.replaceState === 'function') {
         window.history.replaceState({}, '', window.location.pathname);
       }
       return false;
     }
+  };
+
+  const handleShareImportConfirm = () => {
+    if (!pendingShareEncoded) {
+      finalizeShareImport(false);
+      return;
+    }
+    if (shareImportConfirmBtn) {
+      shareImportConfirmBtn.disabled = true;
+      shareImportConfirmBtn.setAttribute('aria-busy', 'true');
+    }
+    try {
+      importSharedLayoutPayload(pendingShareEncoded);
+      showShareStatus('共有レイアウトの編集を開始します', 'success');
+      finalizeShareImport(true);
+    } catch (error) {
+      console.warn('Failed to read shared layout', error);
+      showShareStatus('共有データを適用できませんでした', 'error');
+      finalizeShareImport(false);
+    } finally {
+      if (shareImportConfirmBtn) {
+        shareImportConfirmBtn.disabled = false;
+        shareImportConfirmBtn.removeAttribute('aria-busy');
+      }
+    }
+  };
+
+  const handleShareImportCancel = () => {
+    if (!isShareImportModalOpen()) return;
+    showShareStatus('共有レイアウトの読み込みをキャンセルしました', 'info');
+    finalizeShareImport(false);
   };
 
   // Shareボタンが押されたときのメイン処理
@@ -356,5 +471,42 @@ export const initShareFeature = ({
     });
   }
 
-  return { applySharedLayoutFromQuery };
+  if (shareViewStartEditingBtn) {
+    shareViewStartEditingBtn.addEventListener('click', () => {
+      if (!shareViewMode) return;
+      showShareImportModal();
+    });
+  }
+
+  if (shareImportDownloadBtn) {
+    shareImportDownloadBtn.addEventListener('click', () => {
+      storage?.exportFile();
+    });
+  }
+  if (shareImportConfirmBtn) {
+    shareImportConfirmBtn.addEventListener('click', handleShareImportConfirm);
+  }
+  if (shareImportCancelBtn) {
+    shareImportCancelBtn.addEventListener('click', handleShareImportCancel);
+  }
+  if (shareImportModalClose) {
+    shareImportModalClose.addEventListener('click', handleShareImportCancel);
+  }
+  if (shareImportModal) {
+    shareImportModal.addEventListener('click', (event) => {
+      if (event.target === shareImportModal) {
+        handleShareImportCancel();
+      }
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && isShareImportModalOpen()) {
+        handleShareImportCancel();
+      }
+    });
+  }
+
+  return {
+    applySharedLayoutFromQuery,
+    isShareViewMode: () => shareViewMode,
+  };
 };

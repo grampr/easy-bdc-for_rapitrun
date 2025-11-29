@@ -151,6 +151,25 @@
         <div id="workspace-container">
             <!-- Block Editor -->
             <div id="blocklyDiv"></div>
+            <div id="shareViewOverlay" class="hidden pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-6">
+                <div class="pointer-events-auto w-full max-w-2xl rounded-2xl border border-indigo-200/70 dark:border-indigo-500/40 bg-gradient-to-r from-blue-50/95 via-indigo-50/95 to-blue-50/95 dark:from-slate-900/95 dark:via-slate-900/90 dark:to-slate-900/95 backdrop-blur-xl shadow-md shadow-blue-500/10">
+                    <div class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="text-slate-800 dark:text-slate-100">
+                            <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.3em] text-indigo-500">
+                                <i data-lucide="eye" class="w-4 h-4 text-indigo-500"></i>
+                                <span>閲覧モード</span>
+                            </div>
+                            <p class="mt-2 text-sm leading-tight whitespace-pre-line">共有されたレイアウトを表示しています。<br>編集を行う場合は「編集を開始」ボタンを押してください。</p>
+                        </div>
+                        <div class="flex flex-col gap-2 w-full sm:w-auto">
+                            <button id="shareViewStartEditingBtn" class="inline-flex items-center justify-center gap-3 px-8 py-3 text-sm font-semibold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/40 transition-colors w-full">
+                                <i data-lucide="edit-3" class="w-4 h-4 text-white"></i>
+                                <span>編集を開始</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <!-- Live Code Preview (Split Mode Only) -->
             <div id="liveCodeArea">
@@ -362,6 +381,56 @@
             <div class="flex items-center justify-center gap-2 p-4 text-xs font-medium text-center text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-900/10 border-t border-amber-100 dark:border-amber-900/20">
                 <i data-lucide="shield-alert" class="w-4 h-4"></i>
                 <span>TokenはDiscord Developer Portalから取得し、他人には絶対に教えないでください。</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 共有レイアウト読込モーダル -->
+    <div id="shareImportModal" class="modal-backdrop hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" aria-hidden="true">
+        <div class="flex flex-col w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl bg-white dark:bg-slate-900 modal-content border border-white/20 dark:border-slate-800 ring-1 ring-black/5">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm sticky top-0 z-10">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900 dark:text-white">共有レイアウトを読み込みますか？</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">現在のブロックは上書きされます</p>
+                    </div>
+                </div>
+                <button id="shareImportModalClose" class="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:text-slate-500 dark:hover:text-slate-100/80 dark:hover:bg-slate-800 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="flex flex-col gap-4 p-6 bg-slate-50/60 dark:bg-slate-950/40 flex-grow overflow-y-auto">
+                <div class="p-4 rounded-xl border border-amber-100 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-900/10 text-amber-800 dark:text-amber-200 text-sm leading-relaxed">
+                    共有リンクを読み込むと、現在編集中のワークスペース全体が置き換えられます。必要であれば、下のボタンから今のブロックをダウンロードしてバックアップを作成しておいてください。
+                </div>
+                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <p class="font-semibold text-slate-900 dark:text-white">現在のブロックをダウンロード</p>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">JSONファイルとして保存し、あとから読み込めます。</p>
+                        </div>
+                    </div>
+                    <button id="shareImportDownloadBtn" type="button" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:border-indigo-700 dark:hover:text-white dark:hover:bg-indigo-500/20 transition-colors">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span>今のワークスペースを保存する</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center justify-end gap-3 px-6 py-4 bg-white/80 dark:bg-slate-900/80 border-t border-slate-100 dark:border-slate-800">
+                <button id="shareImportCancelBtn" type="button" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <i data-lucide="x-circle" class="w-4 h-4"></i>
+                    <span>キャンセル</span>
+                </button>
+                <button id="shareImportConfirmBtn" type="button" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 text-white transition-colors">
+                    <i data-lucide="check-circle" class="w-4 h-4"></i>
+                    <span>共有レイアウトを読み込む</span>
+                </button>
             </div>
         </div>
     </div>
