@@ -10,6 +10,7 @@ const BLOCKLY_CAPTURE_EXTRA_CSS = [
 ].join('');
 const SHARE_THUMBNAIL_PADDING = 32;
 const SHARE_THUMBNAIL_MIN_DIMENSION = 64;
+const SHARE_THUMBNAIL_WATERMARK_SRC = '/static/c-by-EDBB.svg';
 
 // ローカルストレージを使った共有設定の永続化を行うクラス
 class SharePreferenceManager {
@@ -140,6 +141,7 @@ class ShareThumbnailManager {
     this.messageEl = document.getElementById('shareThumbnailMessage');
     this.copyBtn = document.getElementById('shareThumbnailCopyBtn');
     this.thumbnailDataUrl = '';
+    this.watermarkImagePromise = null;
     this.registerCopyHandler();
     this.setState('hidden');
   }
@@ -256,7 +258,7 @@ class ShareThumbnailManager {
 
     return await new Promise((resolve, reject) => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const canvas = document.createElement('canvas');
         canvas.width = Math.ceil(viewWidth * scaleFactor);
         canvas.height = Math.ceil(viewHeight * scaleFactor);
@@ -264,11 +266,52 @@ class ShareThumbnailManager {
         if (!ctx) return reject(new Error('CANVAS_CONTEXT_NOT_AVAILABLE'));
         ctx.scale(scaleFactor, scaleFactor);
         ctx.drawImage(img, 0, 0);
+        try {
+          const watermarkImage = await this.loadWatermarkImage();
+          if (watermarkImage) {
+            const paddingPx = Math.max(12, Math.min(48, Math.round(Math.min(viewWidth, viewHeight) * 0.06)));
+            const maxWidth = Math.max(80, Math.min(220, viewWidth * 0.25));
+            const naturalRatio =
+              watermarkImage.naturalWidth && watermarkImage.naturalHeight
+                ? watermarkImage.naturalWidth / watermarkImage.naturalHeight
+                : 1;
+            const targetWidth = Math.max(
+              80,
+              Math.min(maxWidth, watermarkImage.naturalWidth || maxWidth),
+            );
+            const targetHeight = Math.round(targetWidth / naturalRatio);
+            const targetX = paddingPx;
+            const targetY = viewHeight - targetHeight - paddingPx;
+            ctx.drawImage(watermarkImage, targetX, targetY, targetWidth, targetHeight);
+          }
+        } catch (error) {
+          console.warn('Failed to load watermark', error);
+        }
         resolve(canvas.toDataURL('image/png'));
       };
       img.onerror = reject;
       img.src = svgDataUrl;
     });
+  }
+
+  async loadWatermarkImage() {
+    if (this.watermarkImagePromise) return this.watermarkImagePromise;
+    this.watermarkImagePromise = new Promise((resolve) => {
+      const watermark = new Image();
+      watermark.crossOrigin = 'anonymous';
+      watermark.onload = () => resolve(watermark);
+      watermark.onerror = () => resolve(null);
+      try {
+        watermark.src = new URL(
+          SHARE_THUMBNAIL_WATERMARK_SRC,
+          typeof window !== 'undefined' ? window.location.href : undefined,
+        ).toString();
+      } catch (error) {
+        console.warn('Failed to resolve watermark url, fallback to raw path', error);
+        watermark.src = SHARE_THUMBNAIL_WATERMARK_SRC;
+      }
+    });
+    return this.watermarkImagePromise;
   }
 
   // SVG文字列をBase64 DataURLに変換
