@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tutorial 05: Botを動かすための環境とプラグイン | EDBB Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 antialiased">
+  <header class="border-b border-gray-900 bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950">
+    <div class="max-w-5xl mx-auto px-6 py-8 space-y-3">
+      <div class="text-sm text-gray-400 flex flex-wrap gap-2">
+        <a href="./index.html" class="hover:text-white transition">docs</a>
+        <span>/</span>
+        <span class="text-gray-300">tutorial-05</span>
+        <span class="hidden md:inline">・</span>
+        <a href="../index.html" class="text-blue-300 hover:text-white transition">Wiki トップへ戻る</a>
+      </div>
+      <h1 class="text-3xl md:text-4xl font-extrabold text-white">Tutorial 05: Botを動かすための環境とプラグイン</h1>
+      <p class="text-gray-300">discord.py で生成コードを動かすときに必要なプラグイン・ツールの導入手順まとめ。</p>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-10 space-y-10">
+    <section class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-3">
+      <h2 class="text-xl font-semibold text-white">必須/推奨コンポーネント</h2>
+      <ul class="list-disc list-inside text-gray-300 space-y-2 text-sm">
+        <li><strong>Python 3.10+</strong> と <code>pip</code>（必須）</li>
+        <li><strong>discord.py</strong>（必須）: Bot のコアライブラリ</li>
+        <li><strong>python-dotenv</strong>（推奨）: .env でトークン管理する場合に便利</li>
+        <li><strong>FFmpeg</strong>（音楽ブロック使用時必須）: 音声ストリーム処理に使用</li>
+        <li><strong>Git / エディタ</strong>（推奨）: VS Code などでコード確認・編集を行うとエラーに気付きやすい</li>
+      </ul>
+    </section>
+
+    <section class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-3">
+      <h2 class="text-xl font-semibold text-white">Python パッケージの導入</h2>
+      <p class="text-gray-300 text-sm">プロジェクト用フォルダで仮想環境を作ると依存関係を分離できます。</p>
+      <div class="bg-gray-800/60 border border-gray-800 rounded-xl p-4 text-xs text-gray-200 space-y-2">
+        <pre class="whitespace-pre-wrap"># (任意) 仮想環境を作成・有効化
+python -m venv .venv
+# Windows
+.\.venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
+
+# 必須ライブラリ
+pip install -U discord.py
+
+# .env でトークン管理したい場合
+pip install -U python-dotenv</pre>
+      </div>
+      <p class="text-xs text-gray-400">生成コードの <code>BOT_TOKEN</code> を環境変数に置く場合は <code>python-dotenv</code> が便利です。</p>
+    </section>
+
+    <section class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-3">
+      <h2 class="text-xl font-semibold text-white">.env の例と読み込み</h2>
+      <p class="text-gray-300 text-sm">リポジトリ直下に <code>.env</code> を置き、トークンやギルドIDを隠して管理します。</p>
+      <div class="bg-gray-800/60 border border-gray-800 rounded-xl p-4 text-xs text-gray-200 space-y-2">
+        <pre class="whitespace-pre-wrap"># .env
+BOT_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+GUILD_ID=123456789012345678</pre>
+      </div>
+      <div class="bg-gray-800/60 border border-gray-800 rounded-xl p-4 text-xs text-gray-200 space-y-2">
+        <pre class="whitespace-pre-wrap"># 生成コードの冒頭に追記すると読み込めます
+from dotenv import load_dotenv
+import os
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")</pre>
+      </div>
+      <p class="text-xs text-gray-400">Git 管理する場合は <code>.env</code> をコミットしないように <code>.gitignore</code> に追加してください。</p>
+    </section>
+
+    <section class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-3">
+      <h2 class="text-xl font-semibold text-white">FFmpeg の導入（音楽ブロック）</h2>
+      <div class="text-sm text-gray-300 space-y-2">
+        <p><strong>Windows</strong>: <a href="https://ffmpeg.org/download.html" class="text-blue-300 hover:text-white">公式配布</a> か <a href="https://www.gyan.dev/ffmpeg/builds/" class="text-blue-300 hover:text-white">Gyan build</a> から zip を取得 → 解凍 → <code>ffmpeg.exe</code> を PATH の通ったフォルダへ配置（または環境変数 PATH に追加）。</p>
+        <p><strong>macOS</strong>: <code>brew install ffmpeg</code>（Homebrew）。</p>
+        <p><strong>Linux</strong>: Debian/Ubuntu 系なら <code>sudo apt-get install ffmpeg</code>。RHEL/CentOS 系なら <code>sudo dnf install ffmpeg</code>（要 EPEL）。</p>
+        <p>確認: ターミナルで <code>ffmpeg -version</code> が表示されれば OK。</p>
+      </div>
+      <p class="text-xs text-gray-400">音楽ブロックは内部で FFmpeg を呼び出します。パスが通っていないと再生に失敗します。</p>
+    </section>
+
+    <section class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-3">
+      <h2 class="text-xl font-semibold text-white">実行前チェックリスト</h2>
+      <ul class="list-disc list-inside text-gray-300 space-y-2 text-sm">
+        <li><code>pip show discord.py</code> でインストールを確認。</li>
+        <li>音楽機能を使うなら <code>ffmpeg -version</code> を確認。</li>
+        <li>Bot トークンを <code>.env</code> や環境変数に設定し、コード内で読み込む。</li>
+        <li>権限: 「メッセージ送信」「埋め込みリンク」「ボイス接続/発言」「アプリコマンド作成」を招待 URL で付与。</li>
+        <li>初回は <code>python bot.py</code> をターミナルから実行し、エラーログが出ないか確認する。</li>
+        <li>共有サーバーにデプロイする前に、個人用テストサーバーで動作確認を行う。</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

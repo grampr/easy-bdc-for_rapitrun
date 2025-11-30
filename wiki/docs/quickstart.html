@@ -14,7 +14,7 @@
         <span>/</span>
         <span class="text-gray-300">tutorial-01</span>
         <span class="hidden md:inline">・</span>
-        <a href="../wiki.html" class="text-blue-300 hover:text-white transition">Wiki トップへ戻る</a>
+        <a href="../index.html" class="text-blue-300 hover:text-white transition">Wiki トップへ戻る</a>
       </div>
       <h1 class="text-3xl md:text-4xl font-extrabold text-white">Tutorial 01: はじめての Bot</h1>
       <p class="text-gray-300">スラッシュコマンドで挨拶する最小構成を作り、生成コードを動かすまでの手順。</p>
@@ -28,7 +28,15 @@
         <li>Discord Developer Portal で Bot を作成し、トークンをメモ。</li>
         <li>Bot に「アプリコマンドを作成」「メッセージ送信」権限を付与した招待 URL を発行。</li>
         <li>ローカルで動かす場合は Python 3.10+ と <code>pip install -U discord.py</code> を用意。</li>
+        <li>音楽ブロックを使う場合は FFmpeg をインストール（<a href="plugins-setup.html" class="text-blue-300 hover:text-white">導入手順</a>）。</li>
       </ul>
+      <div class="bg-gray-800/60 border border-gray-800 rounded-xl p-4 text-xs text-gray-200 space-y-2">
+        <p class="font-semibold text-white">最小セットアップ例</p>
+        <pre class="whitespace-pre-wrap">python -m venv .venv
+.\.venv\Scripts\activate   # macOS/Linux: source .venv/bin/activate
+pip install -U discord.py
+echo BOT_TOKEN=xxxxxxx > .env</pre>
+      </div>
     </section>
 
     <section class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
