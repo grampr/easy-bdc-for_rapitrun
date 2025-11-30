@@ -673,7 +673,26 @@ class ShareModalController {
     if (!data?.url) {
       throw new Error('SHORTENER_RESPONSE_INVALID');
     }
-    return data.url;
+    return this.normalizeShortShareUrl(data.url);
+  }
+
+  // 短縮URLが期待ドメインになるように整形
+  normalizeShortShareUrl(url) {
+    try {
+      const parsed = new URL(url, window.location.origin);
+      const shareHost = new URL(SHARE_CANONICAL_ORIGIN).hostname;
+      const isHimaisDomain =
+        parsed.hostname === 'himais0giiiin.com' || parsed.hostname.endsWith('.himais0giiiin.com');
+      if (isHimaisDomain && parsed.hostname !== shareHost) {
+        parsed.protocol = 'https:';
+        parsed.hostname = shareHost;
+        return parsed.toString();
+      }
+      return parsed.toString();
+    } catch (error) {
+      console.warn('Failed to normalize short url', error);
+      return url;
+    }
   }
 
   // テキストのクリップボードコピーを試みる
@@ -908,17 +927,10 @@ class ShareFeature {
 
   // 共有URLを組み立て
   buildShareUrl(encoded) {
-    const { origin, pathname, host } = window.location;
-    const shouldUseCanonical =
-      typeof host === 'string' &&
-      (host === 'himais0giiiin.com' || host.endsWith('.himais0giiiin.com'));
-    const baseOrigin =
-      shouldUseCanonical && origin !== SHARE_CANONICAL_ORIGIN
-        ? SHARE_CANONICAL_ORIGIN
-        : origin;
+    const { origin, pathname } = window.location;
     const base =
-      baseOrigin && baseOrigin !== 'null'
-        ? `${baseOrigin}${pathname}`
+      origin && origin !== 'null'
+        ? `${origin}${pathname}`
         : window.location.href.split('?')[0].split('#')[0];
     return `${base}?${SHARE_QUERY_KEY}=${encoded}`;
   }
