@@ -1,12 +1,24 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja" class="scroll-smooth">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EDBB Tutorials | Wiki Docs</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     .bg-grid {background-image: linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px); background-size: 42px 42px;}
+    .markdown-body {color: #e5e7eb; line-height: 1.7;}
+    .markdown-body h1 {font-size: 1.5rem; font-weight: 800; margin: 1.5rem 0 0.75rem;}
+    .markdown-body h2 {font-size: 1.2rem; font-weight: 700; margin: 1.25rem 0 0.5rem;}
+    .markdown-body h3 {font-size: 1.05rem; font-weight: 700; margin: 1rem 0 0.5rem;}
+    .markdown-body p {margin: 0.4rem 0;}
+    .markdown-body ul, .markdown-body ol {margin: 0.6rem 0 0.6rem 1.2rem;}
+    .markdown-body li {margin: 0.2rem 0;}
+    .markdown-body code {background: rgba(255,255,255,0.05); padding: 0.15rem 0.35rem; border-radius: 0.35rem; font-size: 0.95em;}
+    .markdown-body pre {background: #0f172a; border: 1px solid #1f2937; border-radius: 0.75rem; padding: 1rem; overflow-x: auto; margin: 0.6rem 0;}
+    .markdown-body pre code {background: none; padding: 0;}
+    .markdown-body blockquote {border-left: 3px solid rgba(148,163,184,0.6); padding-left: 0.8rem; color: #cbd5e1; margin: 0.6rem 0;}
   </style>
 </head>
 <body class="bg-gray-950 text-gray-100 antialiased">
@@ -14,100 +26,268 @@
     <div class="absolute inset-0 bg-grid opacity-20 pointer-events-none"></div>
     <div class="absolute -left-20 -top-16 w-80 h-80 bg-blue-600 blur-3xl opacity-20"></div>
     <div class="absolute -right-14 top-6 w-72 h-72 bg-purple-600 blur-3xl opacity-20"></div>
-    <div class="max-w-5xl mx-auto px-6 py-10 relative z-10">
+    <div class="max-w-6xl mx-auto px-6 py-10 relative z-10 space-y-6">
       <div class="flex items-center justify-between">
         <div class="space-y-1">
           <p class="text-xs uppercase tracking-[0.2em] text-gray-400">Easy Discord Bot Builder</p>
-          <h1 class="text-3xl md:text-4xl font-extrabold text-white">チュートリアル集</h1>
-          <p class="text-gray-300">EDBB の使い方を場面別にまとめたドキュメントです。好きな記事からどうぞ。</p>
+          <h1 class="text-3xl md:text-4xl font-extrabold text-white">チュートリアル集 (Markdown 管理)</h1>
+          <p class="text-gray-300">記事タイトル・説明・更新日は Markdown の frontmatter で完結。ファイルを追加するだけで一覧に反映されます。</p>
         </div>
         <a href="../index.html" class="hidden md:inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-gray-900 border border-gray-800 text-gray-200 hover:border-blue-500/60 transition">← Wiki に戻る</a>
+      </div>
+      <div class="flex flex-wrap gap-3 text-xs text-gray-300">
+        <span class="px-3 py-1 rounded-full bg-gray-900 border border-gray-800">.md + frontmatter で記事を管理</span>
+        <span class="px-3 py-1 rounded-full bg-gray-900 border border-gray-800">index.json にファイル名を追加するだけ</span>
+        <span class="px-3 py-1 rounded-full bg-gray-900 border border-gray-800">?article=slug で直リンク</span>
       </div>
     </div>
   </header>
 
-  <main class="max-w-5xl mx-auto px-6 py-10 space-y-10">
-    <section class="grid md:grid-cols-2 gap-4">
-      <article class="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-3 hover:border-blue-500/50 transition">
-        <div class="text-sm text-blue-200">Tutorial 01</div>
-        <h2 class="text-xl font-semibold text-white">はじめてのBot: スラッシュコマンドと挨拶</h2>
-        <p class="text-gray-300 text-sm leading-relaxed">開発環境の準備から、`/hello` で挨拶する最小構成を作り、Python コードを動かすまでの流れ。</p>
-        <div class="flex flex-wrap gap-2 text-xs text-gray-200">
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">quickstart</span>
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">slash</span>
-        </div>
-        <div class="pt-2">
-          <a href="quickstart.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-500 transition">読む</a>
-        </div>
-      </article>
-
-      <article class="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-3 hover:border-purple-500/50 transition">
-        <div class="text-sm text-purple-200">Tutorial 02</div>
-        <h2 class="text-xl font-semibold text-white">ボタン・モーダル付きのフォーム Bot</h2>
-        <p class="text-gray-300 text-sm leading-relaxed">Embed で案内し、ボタンを押すとモーダルで入力を集め、結果をまとめて返信する UI 付き Bot の作り方。</p>
-        <div class="flex flex-wrap gap-2 text-xs text-gray-200">
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">button</span>
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">modal</span>
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">embed</span>
-        </div>
-        <div class="pt-2">
-          <a href="ui-form-bot.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-500 transition">読む</a>
-        </div>
-      </article>
-
-      <article class="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-3 hover:border-emerald-500/50 transition">
-        <div class="text-sm text-emerald-200">Tutorial 03</div>
-        <h2 class="text-xl font-semibold text-white">モデレーション & ログ: 削除・Kick/BAN・スレッド</h2>
-        <p class="text-gray-300 text-sm leading-relaxed">メッセージ削除、リアクション監視、Kick/BAN、ログ出力など、サーバー管理に役立つ構成例。</p>
-        <div class="flex flex-wrap gap-2 text-xs text-gray-200">
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">moderation</span>
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">logs</span>
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">roles</span>
-        </div>
-        <div class="pt-2">
-          <a href="moderation-logging.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 transition">読む</a>
-        </div>
-      </article>
-
-      <article class="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-3 hover:border-amber-500/50 transition">
-        <div class="text-sm text-amber-200">Tutorial 04</div>
-        <h2 class="text-xl font-semibold text-white">音楽プレイヤー: VC 参加と音源再生</h2>
-        <p class="text-gray-300 text-sm leading-relaxed">ボイスチャンネル参加、音楽ファイル再生/停止の基本。FFmpeg 設定と権限チェックのポイント付き。</p>
-        <div class="flex flex-wrap gap-2 text-xs text-gray-200">
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">voice</span>
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">audio</span>
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">commands</span>
-        </div>
-        <div class="pt-2">
-          <a href="music-player.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 text-gray-900 text-sm font-semibold hover:bg-amber-400 transition">読む</a>
-        </div>
-      </article>
-
-      <article class="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-3 hover:border-cyan-500/50 transition">
-        <div class="text-sm text-cyan-200">Tutorial 05</div>
-        <h2 class="text-xl font-semibold text-white">環境準備とプラグイン導入</h2>
-        <p class="text-gray-300 text-sm leading-relaxed">discord.py の導入、.env 運用、FFmpeg インストールまでをまとめた環境準備ガイド。</p>
-        <div class="flex flex-wrap gap-2 text-xs text-gray-200">
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">setup</span>
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">dependencies</span>
-          <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700">ffmpeg</span>
-        </div>
-        <div class="pt-2">
-          <a href="plugins-setup.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500 text-gray-900 text-sm font-semibold hover:bg-cyan-400 transition">読む</a>
-        </div>
-      </article>
+  <main class="max-w-6xl mx-auto px-6 py-10 space-y-8">
     </section>
 
-    <section class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-3">
-      <h2 class="text-xl font-semibold text-white">おすすめの読み順</h2>
-      <ol class="list-decimal list-inside text-gray-300 text-sm space-y-1">
-        <li>まず <strong>環境準備とプラグイン導入</strong> で Python / discord.py / FFmpeg をセットアップ。</li>
-        <li><strong>はじめての Bot</strong> でスラッシュコマンドの最小構成を体験。</li>
-        <li>UI が必要なら <strong>ボタン・モーダル付きフォーム</strong>、管理なら <strong>モデレーション & ログ</strong> を追加。</li>
-        <li>音声機能が欲しくなったら <strong>音楽プレイヤー</strong> を組み込む。</li>
-      </ol>
-      <p class="text-xs text-gray-400">どのチュートリアルも単品で読めます。気になるところからどうぞ。</p>
+    <section class="space-y-4" id="article-section">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 class="text-2xl font-bold text-white">記事一覧 (Markdown)</h2>
+          <p class="text-sm text-gray-400">frontmatter からタイトル・説明・更新日を読み込んでカード化します。</p>
+        </div>
+        <a href="../index.html" class="md:hidden inline-flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-gray-900 border border-gray-800 text-gray-200 hover:border-blue-500/60 transition">← Wiki</a>
+      </div>
+      <div id="article-list" class="grid md:grid-cols-2 gap-4"></div>
+    </section>
+
+    <section class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4" id="viewer">
+      <div class="flex flex-wrap items-baseline gap-3">
+        <span id="viewer-subtitle" class="text-sm text-blue-200 px-3 py-1 rounded-full bg-blue-600/10 border border-blue-500/30">Tutorial</span>
+        <h2 id="viewer-title" class="text-2xl md:text-3xl font-bold text-white flex-1">記事を選択してください</h2>
+      </div>
+      <div class="flex flex-wrap items-center gap-3 text-sm text-gray-400">
+        <span id="viewer-updated">更新日: --</span>
+        <div id="viewer-tags" class="flex flex-wrap gap-2"></div>
+      </div>
+      <div id="article-status" class="text-sm text-gray-400">記事を読み込み中...</div>
+      <article id="article-content" class="markdown-body space-y-2"></article>
     </section>
   </main>
+
+  <script>
+    (function() {
+      const manifestPath = './articles/index.json';
+      const accentPalette = {
+        blue: { color: '#3b82f6' },
+        purple: { color: '#a855f7' },
+        emerald: { color: '#10b981' },
+        amber: { color: '#f59e0b' },
+        cyan: { color: '#22d3ee' }
+      };
+      const state = { articles: [], currentSlug: '' };
+
+      const listEl = document.getElementById('article-list');
+      const titleEl = document.getElementById('viewer-title');
+      const subtitleEl = document.getElementById('viewer-subtitle');
+      const updatedEl = document.getElementById('viewer-updated');
+      const tagsEl = document.getElementById('viewer-tags');
+      const contentEl = document.getElementById('article-content');
+      const statusEl = document.getElementById('article-status');
+
+      marked.setOptions({ breaks: true, gfm: true });
+      init();
+
+      async function init() {
+        setStatus('記事を読み込み中...');
+        try {
+          const manifest = await fetchManifest();
+          const articles = await Promise.all(manifest.map(loadArticle));
+          articles.sort((a, b) => (a.meta.order ?? 999) - (b.meta.order ?? 999));
+          state.articles = articles;
+          renderCards();
+          const initial = pickInitialSlug(articles);
+          if (initial) {
+            selectArticle(initial, false);
+          } else {
+            renderEmpty('記事が見つかりません。wiki/docs/articles に md を追加してください。');
+          }
+        } catch (err) {
+          renderEmpty('読み込みに失敗しました: ' + err.message);
+        }
+      }
+
+      async function fetchManifest() {
+        const res = await fetch(manifestPath);
+        if (!res.ok) throw new Error('articles/index.json を取得できませんでした');
+        return res.json();
+      }
+
+      async function loadArticle(file) {
+        const res = await fetch(`./articles/${file}`);
+        if (!res.ok) throw new Error(`${file} を取得できませんでした`);
+        const raw = await res.text();
+        const { meta, body } = parseFrontmatter(raw);
+        const slug = (meta.slug || file.replace(/\.md$/, '')).trim();
+        const accentKey = (meta.accent || 'blue').toLowerCase();
+        const accent = accentPalette[accentKey] || accentPalette.blue;
+
+        return {
+          slug,
+          file,
+          accent,
+          meta: {
+            subtitle: meta.subtitle || '',
+            title: meta.title || slug,
+            description: meta.description || '',
+            updated: meta.updated || '',
+            tags: normalizeArray(meta.tags),
+            order: Number.isFinite(meta.order) ? meta.order : parseFloat(meta.order) || 999,
+            accent: accentKey
+          },
+          body: body.trimStart()
+        };
+      }
+
+      function parseFrontmatter(text) {
+        const match = text.match(/^---\s*([\s\S]*?)\s*---\s*/);
+        if (!match) return { meta: {}, body: text };
+        const metaRaw = match[1].trim();
+        const body = text.slice(match[0].length);
+        const meta = {};
+
+        metaRaw.split(/\r?\n/).forEach(line => {
+          const m = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+          if (!m) return;
+          const key = m[1].trim();
+          const value = m[2].trim();
+          meta[key] = parseValue(value);
+        });
+
+        return { meta, body };
+      }
+
+      function parseValue(value) {
+        if (!value) return '';
+        if (value.startsWith('[') && value.endsWith(']')) {
+          return value
+            .slice(1, -1)
+            .split(',')
+            .map(v => v.trim().replace(/^['"]|['"]$/g, ''))
+            .filter(Boolean);
+        }
+        const unquoted = value.replace(/^['"]|['"]$/g, '');
+        if (/^-?\d+(\.\d+)?$/.test(unquoted)) return Number(unquoted);
+        return unquoted;
+      }
+
+      function normalizeArray(value) {
+        if (Array.isArray(value)) return value;
+        if (typeof value === 'string' && value.length) {
+          return value
+            .split(',')
+            .map(v => v.trim().replace(/^['"]|['"]$/g, ''))
+            .filter(Boolean);
+        }
+        return [];
+      }
+
+      function renderCards() {
+        listEl.innerHTML = '';
+        state.articles.forEach(article => {
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.dataset.slug = article.slug;
+          card.dataset.accentColor = article.accent.color;
+          card.className = 'text-left bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-2 transition hover:border-blue-500/30';
+          card.innerHTML = `
+            <div class="flex items-center justify-between text-sm text-gray-400">
+              <span class="inline-flex items-center gap-2 font-semibold">
+                <span class="w-2 h-2 rounded-full" style="background:${article.accent.color}"></span>
+                ${escapeHtml(article.meta.subtitle || 'Article')}
+              </span>
+              <span>${article.meta.updated ? '更新 ' + escapeHtml(article.meta.updated) : ''}</span>
+            </div>
+            <h3 class="text-lg font-semibold text-white">${escapeHtml(article.meta.title)}</h3>
+            <p class="text-sm text-gray-300 leading-relaxed">${escapeHtml(article.meta.description)}</p>
+            <div class="flex flex-wrap gap-2">${article.meta.tags.map(tag => `<span class="px-2 py-1 rounded-full bg-gray-800 border border-gray-700 text-xs text-gray-200">${escapeHtml(tag)}</span>`).join('')}</div>
+          `;
+          card.addEventListener('click', () => selectArticle(article.slug, true));
+          listEl.appendChild(card);
+        });
+      }
+
+      function selectArticle(slug, updateUrl = true) {
+        const article = state.articles.find(a => a.slug === slug);
+        if (!article) return;
+        state.currentSlug = slug;
+
+        subtitleEl.textContent = article.meta.subtitle || 'Article';
+        subtitleEl.style.background = `${article.accent.color}1a`;
+        subtitleEl.style.borderColor = `${article.accent.color}55`;
+        subtitleEl.style.color = article.accent.color;
+
+        titleEl.textContent = article.meta.title;
+        updatedEl.textContent = article.meta.updated ? `更新日: ${article.meta.updated}` : '更新日: --';
+        tagsEl.innerHTML = '';
+        article.meta.tags.forEach(tag => {
+          const chip = document.createElement('span');
+          chip.className = 'px-2 py-1 rounded-full bg-gray-800 border border-gray-700 text-xs text-gray-200';
+          chip.textContent = tag;
+          tagsEl.appendChild(chip);
+        });
+
+        contentEl.innerHTML = marked.parse(article.body);
+        setStatus('');
+        highlightCard(slug, article.accent.color);
+        if (updateUrl) updateQuery(slug);
+      }
+
+      function pickInitialSlug(articles) {
+        const url = new URL(window.location.href);
+        const fromParam = url.searchParams.get('article');
+        const fromHash = window.location.hash.replace('#', '');
+        const candidate = fromParam || fromHash;
+        if (candidate && articles.some(a => a.slug === candidate)) return candidate;
+        return articles[0]?.slug || null;
+      }
+
+      function renderEmpty(message) {
+        titleEl.textContent = '記事を選択してください';
+        subtitleEl.textContent = 'Tutorial';
+        updatedEl.textContent = '更新日: --';
+        tagsEl.innerHTML = '';
+        contentEl.innerHTML = '';
+        setStatus(message);
+      }
+
+      function setStatus(text) {
+        statusEl.textContent = text || '';
+      }
+
+      function highlightCard(slug, accentColor) {
+        listEl.querySelectorAll('button[data-slug]').forEach(btn => {
+          if (btn.dataset.slug === slug) {
+            btn.style.borderColor = accentColor;
+            btn.style.boxShadow = `0 0 0 1px ${accentColor}66, 0 0 0 10px ${accentColor}22`;
+          } else {
+            btn.style.borderColor = '';
+            btn.style.boxShadow = '';
+          }
+        });
+      }
+
+      function updateQuery(slug) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('article', slug);
+        history.replaceState({}, '', url);
+      }
+
+      function escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+    })();
+  </script>
 </body>
 </html>
