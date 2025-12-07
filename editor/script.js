@@ -9,7 +9,7 @@ Blockly.Blocks['custom_python_code'] = {
   init: function () {
     this.appendDummyInput().appendField('🐍 Pythonコード実行');
     this.appendDummyInput().appendField(
-      new Blockly.FieldMultilineInput("print('Hello World')"),
+      new FieldMultilineInput("print('Hello World')"),
       'CODE',
     );
     this.setPreviousStatement(true, null);
@@ -342,13 +342,6 @@ const initializeApp = () => {
       const saveStatus = document.getElementById('saveStatus');
       saveStatus.setAttribute('data-show', 'true');
       setTimeout(() => saveStatus.setAttribute('data-show', 'false'), 2000);
-    }
-
-    if (e.type === Blockly.Events.TOOLBOX_ITEM_SELECT) {
-      // flyoutを閉じた際にDeleteAreaが消えない問題の修正
-      setTimeout(() => {
-        Blockly.svgResize(workspace);
-      }, 50);
     }
   });
 

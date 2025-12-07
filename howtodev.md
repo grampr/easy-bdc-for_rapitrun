@@ -35,7 +35,7 @@ CORF エラーで読み込みがうまく行かないことがあります。
 
 1. `blocks.js` にブロック定義を追加します。既存の `Blockly.Blocks['...']` の書き方に倣ってください。
 
-2. （必要なら）Blockly のコード生成ロジックを追加します。Python 出力を使う場合は `Blockly.Python['your_block'] = function(block) { ... }` のように定義します。
+2. （必要なら）Blockly のコード生成ロジックを追加します。Python 出力を使う場合は `Blockly.Python.forBlock['your_block'] = function(block) { ... }` のように定義します。
 
 3. ブラウザでページをリロードして、新しいブロックがツールボックスに表示され、生成コードが期待通りであることを確認します。
 
