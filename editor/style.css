@@ -238,6 +238,13 @@ svg[display="none"] {
 .blocklyFlyout {
   border-right: 1px solid #00000040;
 }
+
+/* Hide toolbox/flyout completely while share view mode is active */
+.share-view-mode .blocklyToolboxDiv,
+.share-view-mode .blocklyFlyout,
+.share-view-mode .blocklyFlyoutBackground {
+  display: none !important;
+}
 .dark .blocklyFlyout {
   border-right: 1px solid #ffffff40;
 }
