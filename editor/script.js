@@ -108,14 +108,12 @@ const generatePythonCode = () => {
   const lines = rawCode.split('\n');
   let filteredLines = [];
   let currentEventName = null;
-  let currentEventBody = [];
 
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
     if (line.includes('# BUTTON_EVENT:')) {
       currentEventName = line.split(':')[1].trim();
-      componentEvents +=
-        componentEvents += `            if interaction.data.get('custom_id') == '${currentEventName}':\n                await on_button_${currentEventName}(interaction)\n`;
+      componentEvents += `            if interaction.data.get('custom_id') == '${currentEventName}':\n                await on_button_${currentEventName}(interaction)\n`;
       filteredLines.push(line); // Keep definition
     } else if (line.includes('# MODAL_EVENT:')) {
       currentEventName = line.split(':')[1].trim();
@@ -127,12 +125,25 @@ const generatePythonCode = () => {
   }
 
   rawCode = filteredLines.join('\n');
-  if (!componentEvents.trim()) componentEvents = '            pass';
+  
+  const hasComponentEvents = componentEvents.trim().length > 0;
+  const hasModalEvents = modalEvents.trim().length > 0;
 
+  if (!componentEvents.trim()) componentEvents = '            pass';
   if (!modalEvents.trim()) modalEvents = '            pass';
 
+  // --- Dependency Analysis ---
+  const usesJson = rawCode.includes('_load_json_data') || rawCode.includes('_save_json_data') || rawCode.includes('json.');
+  const usesModal = rawCode.includes('EasyModal');
+  const usesRandom = rawCode.includes('random.');
+  const usesAsyncio = rawCode.includes('asyncio.');
+  const usesDatetime = rawCode.includes('datetime.');
+  const usesMath = rawCode.includes('math.');
+  const usesLogging = rawCode.includes('logging.') || usesJson; // JSON helpers use logging
+  const needInteractionHandler = hasComponentEvents || hasModalEvents;
+
   // --- Optimized Boilerplate ---
-  const boilerplate = `
+  let boilerplate = `
 # Easy Discord Bot Builderによって作成されました！ 製作：@himais0giiiin
 # Created with Easy Discord Bot Builder! created by @himais0giiiin!
 # Optimized Version
@@ -140,18 +151,26 @@ const generatePythonCode = () => {
 import discord
 from discord import app_commands
 from discord.ext import commands
-from discord import ui
-import random
-import asyncio
-import datetime
-import math
-import json
-import os
-import logging
+`;
 
-# ロギング設定 (Logging Setup)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+  if (needInteractionHandler || usesModal || rawCode.includes('discord.ui')) {
+    boilerplate += `from discord import ui\n`;
+  }
+  if (usesRandom) boilerplate += `import random\n`;
+  if (usesAsyncio) boilerplate += `import asyncio\n`;
+  if (usesDatetime) boilerplate += `import datetime\n`;
+  if (usesMath) boilerplate += `import math\n`;
+  if (usesJson) {
+      boilerplate += `import json\nimport os\n`;
+  }
+  if (usesLogging) boilerplate += `import logging\n`;
 
+  // Logging Setup
+  if (usesLogging) {
+      boilerplate += `\n# ロギング設定 (Logging Setup)\nlogging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')\n`;
+  }
+
+  boilerplate += `
 intents = discord.Intents.default()
 intents.message_content = True 
 intents.members = True 
@@ -159,14 +178,13 @@ intents.voice_states = True
 
 # Botの作成
 bot = commands.Bot(command_prefix='!', intents=intents)
+`;
 
-# グローバルエラーハンドラー
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound):
-        return
-    logging.error(f"Command Error: {error}")
+  // Note: Global Error Handler removed as per issue #12
 
+  // --- JSON Operations ---
+  if (usesJson) {
+    boilerplate += `
 # ---JSON操作---
 def _load_json_data(filename):
     if not os.path.exists(filename):
@@ -184,14 +202,24 @@ def _save_json_data(filename, data):
             json.dump(data, f, ensure_ascii=False, indent=4)
     except Exception as e:
         logging.error(f"JSON Save Error: {e}")
+`;
+  }
 
+  // --- Modal Class ---
+  if (usesModal) {
+    boilerplate += `
 # --- モーダルクラス ---
 class EasyModal(discord.ui.Modal):
     def __init__(self, title, custom_id, inputs):
         super().__init__(title=title, timeout=None, custom_id=custom_id)
         for item in inputs:
             self.add_item(discord.ui.TextInput(label=item['label'], custom_id=item['id']))
+`;
+  }
 
+  // --- Interaction Handler ---
+  if (needInteractionHandler) {
+    boilerplate += `
 # --- インタラクションハンドラー ---
 @bot.event
 async def on_interaction(interaction):
@@ -202,7 +230,10 @@ ${componentEvents}
 ${modalEvents}
     except Exception as e:
         print(f"Interaction Error: {e}")
+`;
+  }
 
+  boilerplate += `
 # ----------------------------
 
 # --- ユーザー作成部分 ---
@@ -219,6 +250,7 @@ if __name__ == "__main__":
     bot.run('TOKEN')  # 実行時はここにTokenを入れてください!
     pass
 `;
+
   return boilerplate.trim();
 };
 
