@@ -506,6 +506,74 @@ Blockly.Blocks['empty_list_create'] = {
     this.setColour(210)
   },
 };
+const LIST_VARIABLE_EMPTY_ID = '__edbb_list_empty__';
+const getListStore = () => (typeof Blockly !== 'undefined' ? Blockly.edbbListStore : null);
+const resolveListWorkspace = (field) => {
+  const workspace = field?.getSourceBlock?.()?.workspace;
+  if (workspace?.isFlyout && workspace?.targetWorkspace) {
+    return workspace.targetWorkspace;
+  }
+  return workspace;
+};
+const getListVariableOptions = (field) => {
+  const workspace = resolveListWorkspace(field);
+  const store = getListStore();
+  const entries = store?.getEntries?.() || [];
+  const options = [];
+  if (workspace && entries.length) {
+    entries.forEach((entry) => {
+      const variable = workspace.getVariableById?.(entry.id);
+      if (variable) options.push([variable.name, variable.getId()]);
+    });
+  }
+  if (!options.length) {
+    options.push(['リストがありません', LIST_VARIABLE_EMPTY_ID]);
+  }
+  return options;
+};
+class FieldListDropdown extends Blockly.FieldDropdown {
+  constructor() {
+    super(function () {
+      return getListVariableOptions(this);
+    });
+  }
+
+  init() {
+    super.init();
+    this.ensureValidValue_();
+  }
+
+  ensureValidValue_() {
+    const options = getListVariableOptions(this);
+    const values = options.map((option) => option[1]);
+    const current = this.getValue();
+    if (!current || !values.includes(current)) {
+      this.setValue(values[0]);
+    }
+  }
+
+  getText() {
+    const store = getListStore();
+    const hasLists = (store?.getIds?.() || []).length > 0;
+    const current = this.getValue();
+    if (!hasLists || current === LIST_VARIABLE_EMPTY_ID) {
+      return 'リストがありません';
+    }
+    const options = getListVariableOptions(this);
+    const match = options.find((option) => option[1] === current);
+    if (!match) return 'リストを選択';
+    return match[0];
+  }
+}
+Blockly.Blocks['list_variable_get'] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField('📋 リスト変数')
+      .appendField(new FieldListDropdown(), 'VAR');
+    this.setOutput(true, 'Array');
+    this.setColour(210);
+  },
+};
 Blockly.Blocks['lists_append_to'] = {
   init: function () {
     this.appendValueInput('LIST').setCheck('Array').appendField('リスト');
@@ -977,6 +1045,22 @@ Blockly.Python.forBlock['lists_create_with'] = function (block) {
 Blockly.Python.forBlock['empty_list_create'] = function (block) {
   return ['[]', Blockly.Python.ORDER_ATOMIC];
 }
+Blockly.Python.forBlock['list_variable_get'] = function (block) {
+  const varId = block.getFieldValue('VAR');
+  if (!varId || varId === LIST_VARIABLE_EMPTY_ID) {
+    return ['[]', Blockly.Python.ORDER_ATOMIC];
+  }
+  const variableModel = block.workspace?.getVariableById?.(varId);
+  if (!variableModel) {
+    return ['[]', Blockly.Python.ORDER_ATOMIC];
+  }
+  const getVarName =
+    typeof Blockly.Python.getVariableName === 'function'
+      ? Blockly.Python.getVariableName.bind(Blockly.Python)
+      : (id) => Blockly.Python.nameDB_.getName(id, Blockly.Names.VARIABLE_NAME);
+  const variable = getVarName(variableModel.getId?.() || varId);
+  return [variable || '[]', Blockly.Python.ORDER_ATOMIC];
+};
 // 現在は不使用(後方互換性のため残す)
 Blockly.Python.forBlock['lists_length'] = function (block) {
   const list = Blockly.Python.valueToCode(block, 'VALUE', Blockly.Python.ORDER_NONE) || '[]';

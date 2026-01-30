@@ -7,6 +7,182 @@ const PROJECT_TITLE_STORAGE_KEY = 'edbb_project_title';
 let workspace;
 let storage;
 
+const LIST_STORE_KEY = 'edbb_list_store';
+
+const listStore = (() => {
+  let lists = new Map();
+
+  const normalizeItems = (items) => {
+    if (!Array.isArray(items)) return [];
+    return items.map((item) => (item == null ? '' : String(item)));
+  };
+
+  const ensureList = (id) => {
+    if (!id) return [];
+    if (!lists.has(id)) lists.set(id, []);
+    return lists.get(id) || [];
+  };
+
+  const setItems = (id, items) => {
+    if (!id) return;
+    lists.set(id, normalizeItems(items));
+  };
+
+  const getItems = (id) => lists.get(id) || [];
+
+  const appendItem = (id, value = '') => {
+    if (!id) return;
+    const items = [...getItems(id), String(value)];
+    lists.set(id, items);
+  };
+
+  const updateItem = (id, index, value) => {
+    if (!id) return;
+    const items = [...getItems(id)];
+    if (index < 0 || index >= items.length) return;
+    items[index] = String(value ?? '');
+    lists.set(id, items);
+  };
+
+  const removeItem = (id, index) => {
+    if (!id) return;
+    const items = [...getItems(id)];
+    if (index < 0 || index >= items.length) return;
+    items.splice(index, 1);
+    lists.set(id, items);
+  };
+
+  const removeList = (id) => {
+    if (!id) return;
+    lists.delete(id);
+  };
+
+  const getEntries = () =>
+    Array.from(lists.entries()).map(([id, items]) => ({ id, items: [...items] }));
+
+  const getIds = () => Array.from(lists.keys());
+
+  const toJSON = (workspaceRef) => {
+    const payload = { lists: [] };
+    if (!workspaceRef) return payload;
+    lists.forEach((items, id) => {
+      const variable = workspaceRef.getVariableById(id);
+      if (!variable) return;
+      payload.lists.push({
+        name: variable.name,
+        items: [...items],
+      });
+    });
+    return payload;
+  };
+
+  const fromJSON = (data, workspaceRef) => {
+    lists = new Map();
+    if (!data || typeof data !== 'object') return;
+
+    if (Array.isArray(data.lists)) {
+      data.lists.forEach((entry) => {
+        if (!entry || typeof entry !== 'object') return;
+        const name = String(entry.name || '').trim();
+        if (!name) return;
+        let variable = null;
+        if (workspaceRef?.getVariableMap) {
+          const variableMap = workspaceRef.getVariableMap();
+          variable =
+            variableMap?.getVariable?.(name) ||
+            variableMap?.getVariableByName?.(name) ||
+            variableMap?.getAllVariables?.().find((item) => item.name === name) ||
+            null;
+        }
+        if (!variable && workspaceRef?.createVariable) {
+          variable = workspaceRef.createVariable(name);
+        }
+        if (!variable) return;
+        lists.set(variable.getId(), normalizeItems(entry.items));
+      });
+      return;
+    }
+
+    // Backward compatibility: id -> items map
+    Object.entries(data).forEach(([id, items]) => {
+      if (!Array.isArray(items)) return;
+      const variable = workspaceRef?.getVariableById?.(id);
+      if (!variable) return;
+      lists.set(variable.getId(), normalizeItems(items));
+    });
+  };
+
+  return {
+    ensureList,
+    setItems,
+    getItems,
+    appendItem,
+    updateItem,
+    removeItem,
+    removeList,
+    getEntries,
+    getIds,
+    toJSON,
+    fromJSON,
+  };
+})();
+
+if (typeof Blockly !== 'undefined') {
+  Blockly.edbbListStore = listStore;
+}
+
+const toPythonLiteral = (raw) => {
+  const original = String(raw ?? '');
+  const trimmed = original.trim();
+  if (!trimmed) return null;
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return trimmed;
+  const lowered = trimmed.toLowerCase();
+  if (lowered === 'true') return 'True';
+  if (lowered === 'false') return 'False';
+  if (lowered === 'none' || lowered === 'null') return 'None';
+  const quoted =
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"));
+  if (quoted) return trimmed;
+  return JSON.stringify(original);
+};
+
+const buildListInitializationCode = (generator) => {
+  if (!workspace) return '';
+  const entries = listStore.getEntries();
+  if (!entries.length) return '';
+  if (!generator?.nameDB_) return '';
+  const lines = [];
+  entries.forEach(({ id, items }) => {
+    const variable = workspace.getVariableById(id);
+    if (!variable) return;
+    const name = generator.nameDB_.getName(variable.name, Blockly.Names.VARIABLE_NAME);
+    const serialized = items
+      .map((item) => toPythonLiteral(item))
+      .filter((item) => item !== null);
+    lines.push(`${name} = [${serialized.join(', ')}]`);
+  });
+  return lines.join('\n');
+};
+
+const ensureListGenerator = (() => {
+  let patched = false;
+  return () => {
+    if (patched || !Blockly?.Python?.finish) return;
+    const originalFinish = Blockly.Python.finish;
+    Blockly.Python.finish = function (code) {
+      const listInit = buildListInitializationCode(this);
+      if (listInit) {
+        this.definitions_['edbb_list_init'] = listInit;
+      } else if (this.definitions_) {
+        delete this.definitions_['edbb_list_init'];
+      }
+      return originalFinish.call(this, code);
+    };
+    patched = true;
+  };
+})();
+
 Blockly.Blocks['custom_python_code'] = {
   init: function () {
     this.appendDummyInput().appendField('🐍 Pythonコード実行');
@@ -261,6 +437,213 @@ const updateLivePreview = () => {
   hljs.highlightElement(preview);
 };
 
+const setupListManager = ({ workspace, storage, shareFeature, workspaceContainer }) => {
+  if (!workspace || !workspaceContainer) return null;
+  ensureListGenerator();
+
+  let panel = document.getElementById('listPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'listPanel';
+    panel.className = 'list-panel hidden';
+
+    const header = document.createElement('div');
+    header.className = 'list-panel__header';
+    const title = document.createElement('span');
+    title.className = 'list-panel__title';
+    title.textContent = 'リスト';
+    header.appendChild(title);
+    panel.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'list-panel__body';
+    panel.appendChild(body);
+    workspaceContainer.appendChild(panel);
+  }
+
+  const body = panel.querySelector('.list-panel__body');
+  let saveTimer = null;
+
+  const showSaveStatus = () => {
+    const saveStatus = document.getElementById('saveStatus');
+    if (!saveStatus) return;
+    saveStatus.setAttribute('data-show', 'true');
+    setTimeout(() => saveStatus.setAttribute('data-show', 'false'), 2000);
+  };
+
+  const scheduleListSave = () => {
+    if (shareFeature?.isShareViewMode?.()) return;
+    if (saveTimer) window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(() => {
+      storage?.save();
+      showSaveStatus();
+      if (workspaceContainer.classList.contains('split-view')) updateLivePreview();
+    }, 150);
+  };
+
+  const pruneLists = () => {
+    const validIds = new Set(workspace.getAllVariables().map((variable) => variable.getId()));
+    listStore.getIds().forEach((id) => {
+      if (!validIds.has(id)) listStore.removeList(id);
+    });
+  };
+
+  const renderListPanel = () => {
+    if (!body) return;
+    pruneLists();
+    const entries = listStore.getEntries();
+    body.innerHTML = '';
+
+    if (!entries.length) {
+      panel.classList.add('hidden');
+      return;
+    }
+
+    panel.classList.remove('hidden');
+    entries.forEach(({ id, items }) => {
+      const variable = workspace.getVariableById(id);
+      if (!variable) return;
+
+      const card = document.createElement('div');
+      card.className = 'list-panel__list';
+      card.dataset.listId = id;
+
+      const cardHeader = document.createElement('div');
+      cardHeader.className = 'list-panel__list-header';
+      const name = document.createElement('span');
+      name.className = 'list-panel__list-name';
+      name.textContent = variable.name;
+      cardHeader.appendChild(name);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'list-panel__list-delete';
+      deleteBtn.type = 'button';
+      deleteBtn.textContent = '削除';
+      deleteBtn.addEventListener('click', () => {
+        const confirmed = window.confirm(`リスト「${variable.name}」を削除しますか？`);
+        if (!confirmed) return;
+        if (typeof workspace.deleteVariableById === 'function') {
+          workspace.deleteVariableById(id);
+        } else if (typeof workspace.deleteVariable === 'function') {
+          workspace.deleteVariable(variable);
+        }
+        listStore.removeList(id);
+        renderListPanel();
+        scheduleListSave();
+      });
+      cardHeader.appendChild(deleteBtn);
+      card.appendChild(cardHeader);
+
+      const itemList = document.createElement('div');
+      itemList.className = 'list-panel__items';
+
+      items.forEach((item, index) => {
+        const row = document.createElement('div');
+        row.className = 'list-panel__item';
+
+        const indexLabel = document.createElement('span');
+        indexLabel.className = 'list-panel__item-index';
+        indexLabel.textContent = String(index + 1);
+
+        const input = document.createElement('input');
+        input.className = 'list-panel__item-input';
+        input.type = 'text';
+        input.value = item;
+        input.addEventListener('input', () => {
+          listStore.updateItem(id, index, input.value);
+          scheduleListSave();
+        });
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'list-panel__item-remove';
+        removeBtn.type = 'button';
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', () => {
+          listStore.removeItem(id, index);
+          renderListPanel();
+          scheduleListSave();
+        });
+
+        row.appendChild(indexLabel);
+        row.appendChild(input);
+        row.appendChild(removeBtn);
+        itemList.appendChild(row);
+      });
+
+      card.appendChild(itemList);
+
+      const addBtn = document.createElement('button');
+      addBtn.className = 'list-panel__item-add';
+      addBtn.type = 'button';
+      addBtn.textContent = '+ 追加';
+      addBtn.addEventListener('click', () => {
+        listStore.appendItem(id, '');
+        renderListPanel();
+        scheduleListSave();
+        const latestInput = panel.querySelector(
+          `[data-list-id="${id}"] .list-panel__item:last-child input`,
+        );
+        latestInput?.focus();
+      });
+      card.appendChild(addBtn);
+      body.appendChild(card);
+    });
+  };
+
+  const promptForListName = (callback) => {
+    const defaultName = 'list';
+    if (typeof Blockly.prompt === 'function') {
+      Blockly.prompt('リスト名を入力してください', defaultName, (name) => callback(name));
+    } else {
+      callback(window.prompt('リスト名を入力してください', defaultName));
+    }
+  };
+
+  const handleCreateList = () => {
+    promptForListName((name) => {
+      if (!name) return;
+      const variable = workspace.createVariable(name);
+      if (!variable) return;
+      listStore.ensureList(variable.getId());
+      renderListPanel();
+      scheduleListSave();
+    });
+  };
+
+  workspace.registerButtonCallback('CREATE_LIST_BUTTON', handleCreateList);
+
+  const originalGetExtraState = workspace.getExtraState?.bind(workspace);
+  const originalSetExtraState = workspace.setExtraState?.bind(workspace);
+
+  workspace.getExtraState = () => {
+    const base = originalGetExtraState ? originalGetExtraState() : {};
+    const safeBase = base && typeof base === 'object' ? base : {};
+    return { ...safeBase, [LIST_STORE_KEY]: listStore.toJSON(workspace) };
+  };
+
+  workspace.setExtraState = (state) => {
+    if (originalSetExtraState) originalSetExtraState(state);
+    listStore.fromJSON(state?.[LIST_STORE_KEY], workspace);
+    renderListPanel();
+  };
+
+  workspace.addChangeListener((event) => {
+    if (event.type === Blockly.Events.VAR_DELETE) {
+      listStore.removeList(event.varId);
+      renderListPanel();
+      scheduleListSave();
+    }
+    if (event.type === Blockly.Events.VAR_RENAME) {
+      renderListPanel();
+      scheduleListSave();
+    }
+  });
+
+  renderListPanel();
+
+  return { renderListPanel, scheduleListSave };
+};
+
 
 
 const initializeApp = () => {
@@ -358,6 +741,12 @@ const initializeApp = () => {
   const shareFeature = initShareFeature({
     workspace,
     storage,
+  });
+  setupListManager({
+    workspace,
+    storage,
+    shareFeature,
+    workspaceContainer,
   });
   if (isMobileDevice && headerActions && mobileHeaderToggle) {
     mobileHeaderToggle.classList.remove('hidden');
