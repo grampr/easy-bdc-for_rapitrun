@@ -102,6 +102,10 @@ class ShareViewStateController {
 
   // UIを現在の閲覧モードに合わせて更新
   applyUiState() {
+    const bodyEl = typeof document !== 'undefined' ? document.body : null;
+    if (bodyEl?.classList) {
+      bodyEl.classList.toggle('share-view-mode', this.shareViewMode);
+    }
     if (this.overlayEl) {
       this.overlayEl.classList.toggle('hidden', !this.shareViewMode);
     }
@@ -967,6 +971,7 @@ class ShareFeature {
       applySharedLayoutFromQuery: () => this.applySharedLayoutFromQuery(),
       isShareViewMode: () => this.isShareViewMode(),
       onShareViewModeChange: (listener) => this.onShareViewModeChange(listener),
+      applyUiState: () => this.viewStateController.applyUiState(),
     };
   }
 }
