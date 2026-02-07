@@ -1,4 +1,6 @@
-import Blocks from './blocks.js';
+// Note: blocks.js modifies the global Blockly object directly
+// We import it to ensure it's loaded and executed
+import './blocks.js';
 import WorkspaceStorage from './storage.js';
 import { initShareFeature } from "./share.js";
 import { PluginManager } from "./plugin.js";
@@ -246,9 +248,11 @@ const setupBlocklyEnvironment = () => {
     },
   });
 
-  Blockly.Python = Blocks.Python;
-  Blockly.Blocks = Blocks.Blocks;
-  Blockly.Python.INDENT = '    ';
+  // blocks.js has already extended the global Blockly object
+  // Just ensure Python.INDENT is set
+  if (!Blockly.Python.INDENT) {
+    Blockly.Python.INDENT = '    ';
+  }
 
   return { modernLightTheme, modernDarkTheme };
 };
