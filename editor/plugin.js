@@ -150,29 +150,51 @@ export class PluginManager {
     // GitHubから直接インストール
     async installFromGitHub(fullName, branchOrUrl = 'main') {
         try {
-            // 完全なURLが渡された場合はそれを使用し、そうでなければブランチ名として組み立てる
-            // ブランチ名に既に .zip が含まれている場合は二重にならないようにする
-            const zipUrl = branchOrUrl.startsWith('http')
-                ? branchOrUrl
-                : `https://github.com/${fullName}/archive/refs/heads/${branchOrUrl.replace(/\.zip$/, '')}.zip`;
+            const parseRefFromInput = (value) => {
+                if (!value || !value.startsWith('http')) return (value || 'main').replace(/\.zip$/, '');
+                const normalizedUrl = value.split('?')[0];
 
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(zipUrl)}`;
+                const zipballMatch = normalizedUrl.match(/\/zipball\/(.+)$/);
+                if (zipballMatch) return decodeURIComponent(zipballMatch[1]);
 
-            const response = await fetch(proxyUrl);
-            if (!response.ok) throw new Error('Failed to download ZIP via proxy');
-            const blob = await response.blob();
+                const githubArchiveMatch = normalizedUrl.match(/\/archive\/refs\/(?:heads|tags)\/(.+)\.zip$/);
+                if (githubArchiveMatch) return decodeURIComponent(githubArchiveMatch[1]);
 
-            const zip = await JSZip.loadAsync(blob);
+                const codeloadArchiveMatch = normalizedUrl.match(/\/zip\/refs\/(?:heads|tags)\/(.+)$/);
+                if (codeloadArchiveMatch) return decodeURIComponent(codeloadArchiveMatch[1]);
 
-            const findFile = (name) => {
-                // フォルダ構造を考慮してファイルを探す
-                return Object.values(zip.files).find(f => f.name.endsWith('/' + name) || f.name === name);
+                const releaseAssetMatch = normalizedUrl.match(/\/releases\/download\/([^\/]+)\//);
+                if (releaseAssetMatch) return decodeURIComponent(releaseAssetMatch[1]);
+
+                return null;
             };
 
-            const manifestFile = findFile('manifest.json');
-            if (!manifestFile) throw new Error("manifest.json がリポジトリ内に見つかりません。");
+            const ref = parseRefFromInput(branchOrUrl);
+            if (!ref) {
+                throw new Error('Unsupported ZIP URL in browser. Choose Source code (zip) or install from local ZIP.');
+            }
 
-            const manifestText = await manifestFile.async("string");
+            const decodeBase64Utf8 = (encoded) => {
+                const binary = atob(encoded.replace(/\n/g, ''));
+                const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+                return new TextDecoder('utf-8').decode(bytes);
+            };
+
+            const fetchRepoFile = async (filePath) => {
+                const apiUrl = `https://api.github.com/repos/${fullName}/contents/${filePath}?ref=${encodeURIComponent(ref)}`;
+                const response = await fetch(apiUrl, {
+                    headers: { Accept: 'application/vnd.github+json' }
+                });
+                if (!response.ok) return null;
+
+                const data = await response.json();
+                if (!data || data.type !== 'file' || !data.content) return null;
+                return decodeBase64Utf8(data.content);
+            };
+
+            const manifestText = await fetchRepoFile('manifest.json');
+            if (!manifestText) throw new Error('manifest.json not found at repository root for selected ref');
+
             const manifest = JSON.parse(manifestText);
 
             if (!manifest.uuid) {
@@ -183,9 +205,9 @@ export class PluginManager {
             manifest.id = id;
             manifest.updateDate = new Date().toISOString().split('T')[0];
 
-            const scriptFile = findFile('plugin.js');
-            if (scriptFile) {
-                manifest.script = await scriptFile.async("string");
+            const scriptText = await fetchRepoFile('plugin.js');
+            if (scriptText) {
+                manifest.script = scriptText;
             }
 
             this.installedPlugins[id] = manifest;
@@ -196,8 +218,6 @@ export class PluginManager {
             throw error;
         }
     }
-
-    // プラグインの削除
     async uninstallPlugin(id) {
         if (this.builtinRegistry.some(p => p.id === id)) {
             throw new Error("組み込みプラグインは削除できません。");
