@@ -1051,3 +1051,7 @@ button:active {
 .dark .readme-content th { background-color: #0f172a; }
 .readme-content a { color: #6366f1; text-decoration: underline; }
 .dark .readme-content a { color: #818cf8; }
+.readme-content div[align="center"], .readme-content center { text-align: center; display: block; width: 100%; }
+.readme-content img[align="center"] { display: block; margin: 1rem auto; }
+.readme-content h1 img { vertical-align: middle; display: inline-block; }
+.readme-content br { content: ""; display: block; margin: 0.5rem 0; }

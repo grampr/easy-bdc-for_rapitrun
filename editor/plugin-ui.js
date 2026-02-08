@@ -329,14 +329,27 @@ export class PluginUI {
     renderMarkdown(markdown) {
         if (typeof marked === 'undefined') return markdown;
         
+        // marked.js のオプション設定
+        marked.setOptions({
+            gfm: true,
+            breaks: true,
+            headerIds: true,
+            mangle: false
+        });
+
         // marked.js を使用して Markdown を HTML に変換
+        // HTMLタグをそのまま通すようにパース
         const rawHtml = marked.parse(markdown);
         
-        // DOMPurify を使用して安全な HTML にサニタイズ (HTMLタグを許可)
+        // DOMPurify を使用して安全な HTML にサニタイズ
         if (typeof DOMPurify !== 'undefined') {
             return DOMPurify.sanitize(rawHtml, {
-                ADD_TAGS: ['div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'span', 'img', 'a', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'code', 'pre', 'blockquote', 'hr'],
-                ADD_ATTR: ['class', 'style', 'src', 'href', 'target', 'alt', 'width', 'height', 'align']
+                // GitHubのREADMEでよく使われるタグと属性を許可
+                ADD_TAGS: ['div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'span', 'img', 'a', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'code', 'pre', 'blockquote', 'hr', 'details', 'summary', 'b', 'i', 'strong', 'em', 'del', 'center'],
+                ADD_ATTR: ['class', 'style', 'src', 'href', 'target', 'alt', 'width', 'height', 'align', 'valign', 'border'],
+                // インラインスタイルを許可 (中央揃えなどに必要)
+                FORBID_ATTR: [],
+                FORBID_TAGS: []
             });
         }
         return rawHtml;
