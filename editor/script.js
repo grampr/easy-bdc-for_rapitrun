@@ -1406,6 +1406,8 @@ const initializeApp = async () => {
   const sharedApplied = shareFeature.applySharedLayoutFromQuery();
   if (!sharedApplied) {
     storage?.load();
+    // Keep block interactivity aligned with current (non-share) mode.
+    shareFeature.applyUiState();
   }
 
   const toggleTheme = () => {
@@ -1432,6 +1434,8 @@ const initializeApp = async () => {
     storage
       .importFile(file)
       .then(() => {
+        // Imported JSON/XML may contain stale block flags.
+        shareFeature.applyUiState();
         Blockly.svgResize(workspace);
       })
       .catch((err) => console.error(err))
