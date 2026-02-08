@@ -288,13 +288,12 @@ const applyMobileToolboxIcons = (toolboxEl) => {
   });
 };
 
-const escapePyString = (value) =>
-  String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-const extractEventName = (line) => line.split(':').slice(1).join(':').trim();
+// --- Code Generation & UI Sync ---
+const generatePythonCode = () => {
+  if (!workspace) return '';
+  let rawCode = Blockly.Python.workspaceToCode(workspace);
 
-const extractInteractionEvents = (rawCode) => {
-  const lines = rawCode.split('\n');
-  let filteredLines = [];
+  // --- Event Handlers for Dynamic Components ---
   let componentEvents = '';
   let modalEvents = '';
 
@@ -394,6 +393,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # ----------------------------
 
 # --- ユーザー作成部分 ---
+${rawCode}
 ${rawCode}
 # --------------------------
 
