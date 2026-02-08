@@ -208,8 +208,8 @@ export class PluginUI {
             </div>
             
             <div class="prose dark:prose-invert max-w-none border-t border-slate-100 dark:border-slate-800 pt-6">
-                <div class="bg-slate-50 dark:bg-slate-950/50 rounded-xl p-6 border border-slate-100 dark:border-slate-800 font-sans text-sm leading-relaxed whitespace-pre-wrap">
-                    ${this.escapeHtml(readme)}
+                <div class="bg-slate-50 dark:bg-slate-950/50 rounded-xl p-6 border border-slate-100 dark:border-slate-800 font-sans text-sm leading-relaxed">
+                    <div class="readme-content">${this.renderMarkdown(readme)}</div>
                 </div>
             </div>
         `;
@@ -320,10 +320,26 @@ export class PluginUI {
         if (plugin.repo && plugin.repo.includes('github.com')) {
             const fullName = plugin.repo.split('github.com/')[1].replace(/\/$/, '');
             const readme = await this.pluginManager.getREADME(fullName);
-            container.innerHTML = `<div class="font-sans text-sm leading-relaxed whitespace-pre-wrap">${this.escapeHtml(readme)}</div>`;
+            container.innerHTML = `<div class="font-sans text-sm leading-relaxed"><div class="readme-content">${this.renderMarkdown(readme)}</div></div>`;
         } else {
             container.innerHTML = `<p class="text-sm text-slate-500">${plugin.description}</p>`;
         }
+    }
+
+    renderMarkdown(markdown) {
+        if (typeof marked === 'undefined') return markdown;
+        
+        // marked.js を使用して Markdown を HTML に変換
+        const rawHtml = marked.parse(markdown);
+        
+        // DOMPurify を使用して安全な HTML にサニタイズ (HTMLタグを許可)
+        if (typeof DOMPurify !== 'undefined') {
+            return DOMPurify.sanitize(rawHtml, {
+                ADD_TAGS: ['div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'span', 'img', 'a', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'code', 'pre', 'blockquote', 'hr'],
+                ADD_ATTR: ['class', 'style', 'src', 'href', 'target', 'alt', 'width', 'height', 'align']
+            });
+        }
+        return rawHtml;
     }
 
     escapeHtml(str) {
