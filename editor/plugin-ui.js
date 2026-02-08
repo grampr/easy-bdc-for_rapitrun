@@ -25,6 +25,25 @@ export class PluginUI {
             if (e.target === this.modal) this.close();
         });
 
+        // ZIPインストールボタン
+        const installBtn = document.getElementById('pluginInstallBtn');
+        const installInput = document.getElementById('pluginInstallInput');
+        if (installBtn && installInput) {
+            installBtn.addEventListener('click', () => installInput.click());
+            installInput.addEventListener('change', async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                    await this.pluginManager.installFromZip(file);
+                    this.renderPluginList();
+                    alert('プラグインをインストールしました。');
+                } catch (err) {
+                    alert('プラグインのインストールに失敗しました: ' + err.message);
+                }
+                e.target.value = '';
+            });
+        }
+
         this.renderPluginList();
     }
 
@@ -79,9 +98,10 @@ export class PluginUI {
             <div class="flex justify-between items-start mb-6">
                 <div>
                     <h1 class="text-3xl font-bold text-slate-900 dark:text-white">${plugin.name}</h1>
-                    <div class="flex items-center gap-4 mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    <div class="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500 dark:text-slate-400">
                         <span class="flex items-center gap-1"><i data-lucide="user" class="w-3.5 h-3.5"></i> 開発者: ${plugin.author}</span>
                         <span class="flex items-center gap-1"><i data-lucide="tag" class="w-3.5 h-3.5"></i> バージョン: ${plugin.version}</span>
+                        <span class="flex items-center gap-1 font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">UUID: ${plugin.uuid}</span>
                     </div>
                     <div class="mt-2 text-sm text-indigo-500 dark:text-indigo-400">
                         <a href="${plugin.repo}" target="_blank" class="hover:underline flex items-center gap-1">

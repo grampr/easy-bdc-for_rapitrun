@@ -7,13 +7,16 @@ export class PluginManager {
     constructor(workspace) {
         this.workspace = workspace;
         this.plugins = new Map();
+        // インストール済みプラグインのメタデータ
+        this.installedPlugins = JSON.parse(localStorage.getItem('edbb_installed_plugins') || '{}');
+        // 有効化されているプラグインのID
         this.enabledPlugins = new Set(JSON.parse(localStorage.getItem('edbb_enabled_plugins') || '[]'));
         
-        // プラグインレジストリ
-        // 実際には外部から取得する可能性がありますが、現在はハードコード
-        this.pluginRegistry = [
+        // 組み込みプラグインレジストリ
+        this.builtinRegistry = [
             {
                 id: 'vanilla-plugin',
+                uuid: 'edbp-builtin-vanilla-001',
                 name: 'Vanilla Plugin',
                 author: 'EDBP Team',
                 version: '1.0.0',
@@ -23,65 +26,111 @@ export class PluginManager {
                 affectsStyle: false,
                 affectsBlocks: true,
                 isCustom: false
-            },
-            {
-                id: 'style-plugin-example',
-                name: 'Theme Extension',
-                author: 'EDBP Team',
-                version: '1.0.0',
-                description: 'エディタのスタイルをカスタマイズするプラグインです。',
-                repo: 'https://github.com/EDBPlugin/easy-bdp',
-                updateDate: '2026-02-07',
-                affectsStyle: true,
-                affectsBlocks: false,
-                isCustom: false
-            },
-            {
-                id: 'custom-block-plugin',
-                name: 'Custom Blocks',
-                author: 'User',
-                version: '1.0.0',
-                description: '自作のブロックを追加するプラグインです。',
-                repo: '',
-                updateDate: '2026-02-07',
-                affectsStyle: false,
-                affectsBlocks: true,
-                isCustom: true
             }
         ];
     }
 
     async init() {
         console.log('PluginManager initializing...');
+        // 組み込みプラグインをインストール済みとして扱う
+        this.builtinRegistry.forEach(p => {
+            if (!this.installedPlugins[p.id]) {
+                this.installedPlugins[p.id] = p;
+            }
+        });
+
         for (const pluginId of this.enabledPlugins) {
             await this.enablePlugin(pluginId);
+        }
+    }
+
+    // UUIDの生成 (開発者名 + プラグイン名 + ランダム値)
+    generateUUID(author, name) {
+        const seed = `${author}-${name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        // 簡易的なハッシュ化
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+            const char = seed.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        const hex = Math.abs(hash).toString(16).padStart(8, '0');
+        return `edbp-${hex}-${Math.random().toString(36).substr(2, 4)}`;
+    }
+
+    async installFromZip(file) {
+        try {
+            const zip = await JSZip.loadAsync(file);
+            const manifestFile = zip.file("manifest.json");
+            if (!manifestFile) throw new Error("manifest.json が見つかりません。");
+
+            const manifestText = await manifestFile.async("string");
+            const manifest = JSON.parse(manifestText);
+
+            // 必須項目のチェック
+            if (!manifest.name || !manifest.author) {
+                throw new Error("マニフェストに名前または開発者情報が不足しています。");
+            }
+
+            // UUIDの付与（既存でない場合のみ）
+            if (!manifest.uuid) {
+                manifest.uuid = this.generateUUID(manifest.author, manifest.name);
+            }
+
+            // IDの生成
+            const id = manifest.id || manifest.name.toLowerCase().replace(/\s+/g, '-');
+            manifest.id = id;
+            manifest.updateDate = new Date().toISOString().split('T')[0];
+
+            // スクリプトの読み込み
+            const scriptFile = zip.file("plugin.js");
+            if (scriptFile) {
+                manifest.script = await scriptFile.async("string");
+            }
+
+            this.installedPlugins[id] = manifest;
+            this.saveInstalledPlugins();
+            
+            return manifest;
+        } catch (error) {
+            console.error("Plugin installation failed:", error);
+            throw error;
         }
     }
 
     async enablePlugin(id) {
         if (this.plugins.has(id)) return;
         
-        const pluginMeta = this.pluginRegistry.find(p => p.id === id);
+        const pluginMeta = this.installedPlugins[id];
         if (!pluginMeta) return;
 
-        // プラグインの実装（現在はデモ用にハードコード）
-        if (id === 'vanilla-plugin') {
-            const plugin = new VanillaPlugin(this.workspace);
-            await plugin.onload();
-            this.plugins.set(id, plugin);
-        } else if (id === 'style-plugin-example') {
-            // スタイル変更の例
-            document.body.classList.add('custom-theme-active');
-            this.plugins.set(id, { onunload: () => document.body.classList.remove('custom-theme-active') });
-        } else if (id === 'custom-block-plugin') {
-            // 自作ブロックの例
-            const plugin = new CustomBlockPlugin(this.workspace);
-            await plugin.onload();
-            this.plugins.set(id, plugin);
+        try {
+            if (id === 'vanilla-plugin') {
+                const plugin = new VanillaPlugin(this.workspace);
+                await plugin.onload();
+                this.plugins.set(id, plugin);
+            } else if (pluginMeta.script) {
+                // 動的スクリプトの実行
+                // 安全のため、簡単なサンドボックス化を検討すべきですが、現状は eval または Function
+                const pluginClass = new Function('workspace', `
+                    ${pluginMeta.script}
+                    return new Plugin(workspace);
+                `)(this.workspace);
+                
+                if (pluginClass && typeof pluginClass.onload === 'function') {
+                    await pluginClass.onload();
+                }
+                this.plugins.set(id, pluginClass);
+            } else if (pluginMeta.affectsStyle) {
+                // スタイルのみのプラグイン例
+                this.plugins.set(id, { onunload: () => {} });
+            }
+            
+            this.enabledPlugins.add(id);
+            this.saveState();
+        } catch (e) {
+            console.error(`Failed to enable plugin ${id}:`, e);
         }
-        
-        this.enabledPlugins.add(id);
-        this.saveState();
     }
 
     async disablePlugin(id) {
@@ -100,41 +149,53 @@ export class PluginManager {
         localStorage.setItem('edbb_enabled_plugins', JSON.stringify(Array.from(this.enabledPlugins)));
     }
 
+    saveInstalledPlugins() {
+        localStorage.setItem('edbb_installed_plugins', JSON.stringify(this.installedPlugins));
+    }
+
     getRegistry() {
-        return this.pluginRegistry;
+        return Object.values(this.installedPlugins);
     }
 
     isPluginEnabled(id) {
         return this.enabledPlugins.has(id);
     }
 
-    // 共有時に必要なプラグイン情報を取得
-    getPluginsForShare() {
-        const activePlugins = [];
+    // 共有時に必要なプラグインUUIDを取得
+    getPluginUUIDsForShare() {
+        const uuids = [];
         for (const id of this.enabledPlugins) {
-            const meta = this.pluginRegistry.find(p => p.id === id);
+            const meta = this.installedPlugins[id];
             if (meta) {
                 // スタイルに干渉するプラグインは除外
                 if (meta.affectsStyle) continue;
                 
                 // ブロックに干渉するプラグインのうち、自作以外を許可
                 if (meta.affectsBlocks && !meta.isCustom) {
-                    activePlugins.push(id);
+                    uuids.push(meta.uuid);
                 }
             }
         }
-        return activePlugins;
+        return uuids;
     }
 
     // 自作プラグイン（ブロック干渉）が使用されているか確認
     hasCustomBlockPlugin() {
         for (const id of this.enabledPlugins) {
-            const meta = this.pluginRegistry.find(p => p.id === id);
+            const meta = this.installedPlugins[id];
             if (meta && meta.affectsBlocks && meta.isCustom) {
                 return true;
             }
         }
         return false;
+    }
+
+    // UUIDからプラグインIDを解決（共有からの復元用）
+    getPluginIdByUUID(uuid) {
+        for (const [id, meta] of Object.entries(this.installedPlugins)) {
+            if (meta.uuid === uuid) return id;
+        }
+        return null;
     }
 }
 
@@ -198,68 +259,6 @@ class VanillaPlugin {
         if (!toolbox) return;
 
         const category = toolbox.querySelector('category[name="プラグイン"]');
-        if (category) {
-            category.remove();
-            if (this.workspace) {
-                this.workspace.updateToolbox(toolbox);
-            }
-        }
-    }
-}
-
-class CustomBlockPlugin {
-    constructor(workspace) {
-        this.workspace = workspace;
-    }
-
-    async onload() {
-        console.log('Custom Block Plugin loaded');
-        this.registerBlocks();
-    }
-
-    registerBlocks() {
-        if (typeof Blockly === 'undefined') return;
-
-        Blockly.Blocks['custom_plugin_block'] = {
-            init: function() {
-                this.appendDummyInput()
-                    .appendField("🛠️ 自作ブロック");
-                this.setPreviousStatement(true, null);
-                this.setNextStatement(true, null);
-                this.setColour(100);
-            }
-        };
-
-        Blockly.Python['custom_plugin_block'] = function(block) {
-            return "# Custom Block\n";
-        };
-
-        this.updateToolbox();
-    }
-
-    updateToolbox() {
-        const toolbox = document.getElementById('toolbox');
-        if (!toolbox) return;
-
-        let category = toolbox.querySelector('category[name="自作"]');
-        if (!category) {
-            category = document.createElement('category');
-            category.setAttribute('name', '自作');
-            category.setAttribute('data-icon', '🛠️');
-            category.setAttribute('colour', '#100');
-            toolbox.appendChild(category);
-        }
-        category.innerHTML += '<block type="custom_plugin_block"></block>';
-        
-        if (this.workspace) {
-            this.workspace.updateToolbox(toolbox);
-        }
-    }
-
-    async onunload() {
-        const toolbox = document.getElementById('toolbox');
-        if (!toolbox) return;
-        const category = toolbox.querySelector('category[name="自作"]');
         if (category) {
             category.remove();
             if (this.workspace) {

@@ -16,7 +16,7 @@ class WorkspaceShareCodec {
       // プラグイン情報の付与
       const payloadObj = {
           workspace: stripped,
-          plugins: workspace.pluginManager?.getPluginsForShare() || []
+          pluginUUIDs: workspace.pluginManager?.getPluginUUIDsForShare() || []
       };
       
       const payload = JSON.stringify(payloadObj);
@@ -43,12 +43,22 @@ class WorkspaceShareCodec {
       const payload = JSON.parse(text);
       
       // プラグイン情報が含まれている場合は適用
-      if (payload.workspace && payload.plugins) {
+      if (payload.workspace && (payload.pluginUUIDs || payload.plugins)) {
           Blockly.serialization.workspaces.load(payload.workspace, workspace);
           
           // プラグインの有効化
           if (workspace.pluginManager) {
-              payload.plugins.forEach(pluginId => {
+              const uuids = payload.pluginUUIDs || [];
+              uuids.forEach(uuid => {
+                  const pluginId = workspace.pluginManager.getPluginIdByUUID(uuid);
+                  if (pluginId) {
+                      workspace.pluginManager.enablePlugin(pluginId);
+                  }
+              });
+              
+              // 互換性のため古い形式もサポート
+              const oldPlugins = payload.plugins || [];
+              oldPlugins.forEach(pluginId => {
                   workspace.pluginManager.enablePlugin(pluginId);
               });
           }

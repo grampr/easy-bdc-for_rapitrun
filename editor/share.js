@@ -619,7 +619,7 @@ class ShareModalController {
   async handleShareButtonClick() {
     // 自作ブロックプラグインが有効な場合は共有を制限
     if (this.pluginManager?.hasCustomBlockPlugin()) {
-        this.statusNotifier?.show('自作プラグイン（ブロック）が有効な場合は、セキュリティと互換性の観点から共有機能を利用できません。', 'error');
+        this.statusNotifier?.show('自作プラグイン（ブロック）が有効な場合は、共有機能を利用できません。', 'error');
         return;
     }
 
@@ -945,13 +945,13 @@ class ShareFeature {
     const shareBtn = document.getElementById('shareBtn');
     if (!shareBtn) return;
     
-    // storage.pluginManager または直接 this.shareModalController.pluginManager を参照
     const pm = this.storage?.pluginManager || this.shareModalController?.pluginManager;
     
     if (pm?.hasCustomBlockPlugin()) {
-      shareBtn.classList.add('opacity-50', 'cursor-not-allowed');
-      shareBtn.title = '自作ブロックプラグインが有効なため共有できません';
+      // 自作ブロックがある場合はボタンを完全に非表示にする
+      shareBtn.classList.add('hidden');
     } else {
+      shareBtn.classList.remove('hidden');
       shareBtn.classList.remove('opacity-50', 'cursor-not-allowed');
       shareBtn.title = '';
     }
