@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1><img src="https://github.com/user-attachments/assets/85370508-c684-4084-b979-51e918d7e0e8" alt="EDBB Icon" style="width: 1em; height: 1em;"">Easy Discord Bot Builder (EDBB)</h1>
+<h1><img src="https://github.com/user-attachments/assets/85370508-c684-4084-b979-51e918d7e0e8" alt="EDBB Icon" style="width: 1em; height: 1em;"">Easy Discord Bot Builder (EDBP)</h1>
   
 ![EDBBCounter](https://count.getloli.com/@easybdc)
 
