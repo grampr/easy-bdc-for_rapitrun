@@ -388,7 +388,7 @@ class VanillaPlugin {
                 this.setPreviousStatement(true, null);
                 this.setNextStatement(true, null);
                 this.setColour(200);
-                this.setTooltip("バニラプラグインが正常に動作しているか確認するためのブロックです。");
+                this.setTooltip("バニラプラグインが正常に動作しているか確認するためのブロックです。このブロックをフィールドに出すとコードを生成できません！");
             }
         };
 

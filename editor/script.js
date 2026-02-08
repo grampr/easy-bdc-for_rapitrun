@@ -268,6 +268,99 @@ const setupBlocklyEnvironment = () => {
   return { modernLightTheme, modernDarkTheme };
 };
 
+const PRIMITIVE_LITERAL_INPUT_CHECKS = new Set(['String', 'Number']);
+
+const getLiteralShadowTypeForChecks = (checks) => {
+  const normalized = (Array.isArray(checks) ? checks : [checks]).filter(Boolean);
+  if (!normalized.length) return null;
+  const uniqueChecks = [...new Set(normalized)];
+  if (uniqueChecks.some((check) => !PRIMITIVE_LITERAL_INPUT_CHECKS.has(check))) {
+    return null;
+  }
+  if (uniqueChecks.includes('Number')) {
+    return 'math_number';
+  }
+  return 'text';
+};
+
+const createLiteralShadowBlock = (workspaceRef, blockType) => {
+  if (!workspaceRef || !blockType) return null;
+  const shadow = workspaceRef.newBlock(blockType);
+  shadow.setShadow(true);
+  if (blockType === 'math_number') {
+    shadow.setFieldValue('0', 'NUM');
+  }
+  if (blockType === 'text') {
+    shadow.setFieldValue('', 'TEXT');
+  }
+  if (workspaceRef.rendered) {
+    shadow.initSvg?.();
+    shadow.render?.();
+  }
+  return shadow;
+};
+
+const ensureLiteralShadowForInput = (block, input) => {
+  const valueInputType = Blockly.inputTypes?.VALUE ?? Blockly.INPUT_VALUE;
+  if (!input || input.type !== valueInputType) return;
+  const connection = input.connection;
+  if (!connection || connection.targetConnection) return;
+  const blockType = getLiteralShadowTypeForChecks(connection.getCheck?.() || null);
+  if (!blockType) return;
+  const shadow = createLiteralShadowBlock(block.workspace, blockType);
+  if (!shadow?.outputConnection) return;
+  try {
+    connection.connect(shadow.outputConnection);
+  } catch (error) {
+    shadow.dispose(false, true);
+  }
+};
+
+const ensureLiteralShadowsForBlock = (block) => {
+  if (!block || block.isShadow?.() || block.isInsertionMarker?.()) return;
+  if (block.workspace?.isFlyout) return;
+  block.inputList?.forEach((input) => ensureLiteralShadowForInput(block, input));
+};
+
+const ensureLiteralShadowsForWorkspace = (workspaceRef) => {
+  workspaceRef?.getAllBlocks(false).forEach((block) => ensureLiteralShadowsForBlock(block));
+};
+
+const setupLiteralInputAutofill = (workspaceRef) => {
+  if (!workspaceRef) return;
+
+  const queueBlockCheck = (blockId) => {
+    if (!blockId) return;
+    setTimeout(() => {
+      const block = workspaceRef.getBlockById(blockId);
+      ensureLiteralShadowsForBlock(block);
+    }, 0);
+  };
+
+  workspaceRef.addChangeListener((event) => {
+    if (!event || event.isUiEvent) return;
+    if (event.type === Blockly.Events.FINISHED_LOADING) {
+      ensureLiteralShadowsForWorkspace(workspaceRef);
+      return;
+    }
+    if (event.type === Blockly.Events.BLOCK_CREATE) {
+      (event.ids || []).forEach((id) => queueBlockCheck(id));
+      return;
+    }
+    if (event.type === Blockly.Events.BLOCK_MOVE) {
+      queueBlockCheck(event.blockId);
+      queueBlockCheck(event.newParentId);
+      queueBlockCheck(event.oldParentId);
+      return;
+    }
+    if (event.type === Blockly.Events.BLOCK_CHANGE) {
+      queueBlockCheck(event.blockId);
+    }
+  });
+
+  ensureLiteralShadowsForWorkspace(workspaceRef);
+};
+
 const html = document.documentElement;
 const isMobileDevice =
   typeof window !== 'undefined' && window.innerWidth < 768;
@@ -1091,6 +1184,7 @@ const initializeApp = async () => {
     renderer: 'zelos',
     theme: initialTheme,
   });
+  setupLiteralInputAutofill(workspace);
 
   // --- ワークスペース保存クラスの初期化 ---
   storage = new WorkspaceStorage(workspace);
