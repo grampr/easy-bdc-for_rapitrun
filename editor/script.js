@@ -1,25 +1,218 @@
-import Blocks from './blocks.js';
+// Note: blocks.js modifies the global Blockly object directly
+// We import it to ensure it's loaded and executed
+// blocks.js is loaded dynamically in startApp
+
 import WorkspaceStorage from './storage.js';
 import { initShareFeature } from "./share.js";
+import { PluginManager } from "./plugin.js";
+import { PluginUI } from "./plugin-ui.js";
+
+const PROJECT_TITLE_STORAGE_KEY = 'edbb_project_title';
 
 let workspace;
 let storage;
 
-Blockly.Blocks['custom_python_code'] = {
-  init: function () {
-    this.appendDummyInput().appendField('🐍 Pythonコード実行');
-    this.appendDummyInput().appendField(
-      new Blockly.FieldMultilineInput("print('Hello World')"),
-      'CODE',
-    );
-    this.setPreviousStatement(true, null);
-    this.setNextStatement(true, null);
-    this.setColour(60);
-    this.setTooltip('任意のPythonコードをここに記述して実行させます。');
-  },
+const LIST_STORE_KEY = 'edbb_list_store';
+
+const listStore = (() => {
+  let lists = new Map();
+
+  const normalizeItems = (items) => {
+    if (!Array.isArray(items)) return [];
+    return items.map((item) => (item == null ? '' : String(item)));
+  };
+
+  const ensureList = (id) => {
+    if (!id) return [];
+    if (!lists.has(id)) lists.set(id, []);
+    return lists.get(id) || [];
+  };
+
+  const setItems = (id, items) => {
+    if (!id) return;
+    lists.set(id, normalizeItems(items));
+  };
+
+  const getItems = (id) => lists.get(id) || [];
+
+  const appendItem = (id, value = '') => {
+    if (!id) return;
+    const items = [...getItems(id), String(value)];
+    lists.set(id, items);
+  };
+
+  const updateItem = (id, index, value) => {
+    if (!id) return;
+    const items = [...getItems(id)];
+    if (index < 0 || index >= items.length) return;
+    items[index] = String(value ?? '');
+    lists.set(id, items);
+  };
+
+  const removeItem = (id, index) => {
+    if (!id) return;
+    const items = [...getItems(id)];
+    if (index < 0 || index >= items.length) return;
+    items.splice(index, 1);
+    lists.set(id, items);
+  };
+
+  const removeList = (id) => {
+    if (!id) return;
+    lists.delete(id);
+  };
+
+  const getEntries = () =>
+    Array.from(lists.entries()).map(([id, items]) => ({ id, items: [...items] }));
+
+  const getIds = () => Array.from(lists.keys());
+
+  const toJSON = (workspaceRef) => {
+    const payload = { lists: [] };
+    if (!workspaceRef) return payload;
+    lists.forEach((items, id) => {
+      const variable = workspaceRef.getVariableById(id);
+      if (!variable) return;
+      payload.lists.push({
+        name: variable.name,
+        items: [...items],
+      });
+    });
+    return payload;
+  };
+
+  const fromJSON = (data, workspaceRef) => {
+    lists = new Map();
+    if (!data || typeof data !== 'object') return;
+
+    if (Array.isArray(data.lists)) {
+      data.lists.forEach((entry) => {
+        if (!entry || typeof entry !== 'object') return;
+        const name = String(entry.name || '').trim();
+        if (!name) return;
+        let variable = null;
+        if (workspaceRef?.getVariableMap) {
+          const variableMap = workspaceRef.getVariableMap();
+          variable =
+            variableMap?.getVariable?.(name) ||
+            variableMap?.getVariableByName?.(name) ||
+            variableMap?.getAllVariables?.().find((item) => item.name === name) ||
+            null;
+        }
+        if (!variable && workspaceRef?.createVariable) {
+          variable = workspaceRef.createVariable(name);
+        }
+        if (!variable) return;
+        lists.set(variable.getId(), normalizeItems(entry.items));
+      });
+      return;
+    }
+
+    // Backward compatibility: id -> items map
+    Object.entries(data).forEach(([id, items]) => {
+      if (!Array.isArray(items)) return;
+      const variable = workspaceRef?.getVariableById?.(id);
+      if (!variable) return;
+      lists.set(variable.getId(), normalizeItems(items));
+    });
+  };
+
+  return {
+    ensureList,
+    setItems,
+    getItems,
+    appendItem,
+    updateItem,
+    removeItem,
+    removeList,
+    getEntries,
+    getIds,
+    toJSON,
+    fromJSON,
+  };
+})();
+
+// listStore assignment moved to initializeApp
+
+
+const toPythonLiteral = (raw) => {
+  const original = String(raw ?? '');
+  const trimmed = original.trim();
+  if (!trimmed) return null;
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return trimmed;
+  const lowered = trimmed.toLowerCase();
+  if (lowered === 'true') return 'True';
+  if (lowered === 'false') return 'False';
+  if (lowered === 'none' || lowered === 'null') return 'None';
+  const quoted =
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"));
+  if (quoted) return trimmed;
+  return JSON.stringify(original);
 };
 
+const buildListInitializationCode = (generator) => {
+  if (!workspace) return '';
+  const entries = listStore.getEntries();
+  if (!entries.length) return '';
+  if (!generator?.nameDB_) return '';
+  const lines = [];
+  entries.forEach(({ id, items }) => {
+    const variable = workspace.getVariableById(id);
+    if (!variable) return;
+    const name = generator.nameDB_.getName(variable.name, Blockly.Names.VARIABLE_NAME);
+    const serialized = items
+      .map((item) => toPythonLiteral(item))
+      .filter((item) => item !== null);
+    lines.push(`${name} = [${serialized.join(', ')}]`);
+  });
+  return lines.join('\n');
+};
+
+const ensureListGenerator = (() => {
+  let patched = false;
+  return () => {
+    if (patched || !Blockly?.Python?.finish) return;
+    const originalFinish = Blockly.Python.finish;
+    Blockly.Python.finish = function (code) {
+      const listInit = buildListInitializationCode(this);
+      if (listInit) {
+        this.definitions_['edbb_list_init'] = listInit;
+      } else if (this.definitions_) {
+        delete this.definitions_['edbb_list_init'];
+      }
+      return originalFinish.call(this, code);
+    };
+    patched = true;
+  };
+})();
+
+
+
 const setupBlocklyEnvironment = () => {
+  // Define custom blocks (moved from top-level to safe scope)
+  if (!Blockly.Blocks['custom_python_code']) {
+    Blockly.Blocks['custom_python_code'] = {
+      init: function () {
+        this.appendDummyInput().appendField('🐍 Pythonコード実行');
+        // Check for FieldMultilineInput availability
+        const FieldMultiline = (typeof FieldMultilineInput !== 'undefined')
+          ? FieldMultilineInput
+          : (Blockly.FieldMultilineInput || Blockly.FieldTextInput);
+
+        this.appendDummyInput().appendField(
+          new FieldMultiline("print('Hello World')"),
+          'CODE',
+        );
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour(60);
+        this.setTooltip('任意のPythonコードをここに記述して実行させます。');
+      },
+    };
+  }
+
+
   // Modern Theme Definition
   const modernLightTheme = Blockly.Theme.defineTheme('modernLight', {
     base: Blockly.Themes.Classic,
@@ -66,14 +259,34 @@ const setupBlocklyEnvironment = () => {
     },
   });
 
-  Blockly.Python = Blocks.Python;
-  Blockly.Blocks = Blocks.Blocks;
-  Blockly.Python.INDENT = '    ';
+  // blocks.js has already extended the global Blockly object
+  // Just ensure Python.INDENT is set
+  if (!Blockly.Python.INDENT) {
+    Blockly.Python.INDENT = '    ';
+  }
 
   return { modernLightTheme, modernDarkTheme };
 };
 
 const html = document.documentElement;
+const isMobileDevice =
+  typeof window !== 'undefined' && window.innerWidth < 768;
+if (isMobileDevice) {
+  html.classList.add('is-mobile');
+}
+
+const applyMobileToolboxIcons = (toolboxEl) => {
+  if (!isMobileDevice || !toolboxEl) return;
+  const categories = toolboxEl.querySelectorAll('category');
+  categories.forEach((cat) => {
+    const icon = cat.getAttribute('data-icon');
+    if (icon) {
+      const currentName = cat.getAttribute('name') || '';
+      cat.setAttribute('data-label', currentName);
+      cat.setAttribute('name', icon);
+    }
+  });
+};
 
 const escapePyString = (value) =>
   String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -171,101 +384,217 @@ const generatePythonCode = () => {
 ${header}
 
 intents = discord.Intents.default()
-intents.message_content = True 
-intents.members = True 
+intents.message_content = True
+intents.members = True
 intents.voice_states = True
 
 # Botの作成
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# グローバルエラーハンドラー
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound):
-        return
-    logging.error(f"Command Error: {error}")
-
-# ---JSON操作---
-def _load_json_data(filename):
-    if not os.path.exists(filename):
-        return {}
-    try:
-        with open(filename, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        logging.error(f"JSON Load Error: {e}")
-        return {}
-
-def _save_json_data(filename, data):
-    try:
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        logging.error(f"JSON Save Error: {e}")
-
-# --- モーダルクラス ---
-class EasyModal(discord.ui.Modal):
-    def __init__(self, title, custom_id, inputs):
-        super().__init__(title=title, timeout=None, custom_id=custom_id)
-        for item in inputs:
-            self.add_item(discord.ui.TextInput(label=item['label'], custom_id=item['id']))
-
-# --- インタラクションハンドラー ---
-@bot.event
-async def on_interaction(interaction):
-    try:
-        if interaction.type == discord.InteractionType.component:
-${componentEvents}
-        elif interaction.type == discord.InteractionType.modal_submit:
-${modalEvents}
-    except Exception as e:
-        print(f"Interaction Error: {e}")
-
 # ----------------------------
 
 # --- ユーザー作成部分 ---
-${bodyCode}
+${rawCode}
 # --------------------------
 
 if __name__ == "__main__":
     # Token check
-    # bot.run('TOKEN') # 実行時はここにTokenを入れてください!
-    pass
+    print('\\x1b[31m!!!!注意!!!! トークンを設定していない場合は、実行前にコードの最後にある"TOKEN"部分にトークンを記述してください。\\x1b[0m')
+    print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the token in the "TOKEN" section at the end of the code before running it.\\x1b[0m')
+    # トークン設定後は注意を削除しても問題ありません / After setting the token, you may safely remove this check.
+
+    bot.run("TOKEN")
 `;
 
   return fullBoiler.trim();
 };
 
-const updateLivePreview = () => {
-  const code = generatePythonCode();
-  const preview = document.getElementById('codePreviewContent');
-  preview.textContent = code;
-  hljs.highlightElement(preview);
-};
+const setupListManager = ({ workspace, storage, shareFeature, workspaceContainer }) => {
+  const panel = document.createElement('div');
+  panel.id = 'listPanel';
+  panel.className = 'hidden';
 
-const toggleTheme = (modernLightTheme, modernDarkTheme) => {
-  const currentTheme = html.classList.contains('dark') ? 'dark' : 'light';
-  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-  html.classList.remove(currentTheme);
-  html.classList.add(newTheme);
-  localStorage.setItem('theme', newTheme);
-  if (workspace) {
-    workspace.setTheme(newTheme === 'dark' ? modernDarkTheme : modernLightTheme);
-  }
+  const header = document.createElement('div');
+  header.className = 'list-panel__header';
+  header.textContent = 'リスト管理';
+  panel.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'list-panel__body';
+  panel.appendChild(body);
+
+  workspaceContainer.appendChild(panel);
+
+  const scheduleListSave = () => {
+    storage?.save();
+  };
+
+  const renderListPanel = () => {
+    body.innerHTML = '';
+    const entries = listStore.getEntries();
+
+    if (!entries.length) {
+      panel.classList.add('hidden');
+      return;
+    }
+
+    panel.classList.remove('hidden');
+    entries.forEach(({ id, items }) => {
+      const variable = workspace.getVariableById(id);
+      if (!variable) return;
+
+      const card = document.createElement('div');
+      card.className = 'list-panel__list';
+      card.dataset.listId = id;
+
+      const cardHeader = document.createElement('div');
+      cardHeader.className = 'list-panel__list-header';
+      const name = document.createElement('span');
+      name.className = 'list-panel__list-name';
+      name.textContent = variable.name;
+      cardHeader.appendChild(name);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'list-panel__list-delete';
+      deleteBtn.type = 'button';
+      deleteBtn.textContent = '削除';
+      deleteBtn.addEventListener('click', () => {
+        const confirmed = window.confirm(`リスト「${variable.name}」を削除しますか？`);
+        if (!confirmed) return;
+        if (typeof workspace.deleteVariableById === 'function') {
+          workspace.deleteVariableById(id);
+        } else if (typeof workspace.deleteVariable === 'function') {
+          workspace.deleteVariable(variable);
+        }
+        listStore.removeList(id);
+        renderListPanel();
+        scheduleListSave();
+      });
+      cardHeader.appendChild(deleteBtn);
+      card.appendChild(cardHeader);
+
+      const itemList = document.createElement('div');
+      itemList.className = 'list-panel__items';
+
+      items.forEach((item, index) => {
+        const row = document.createElement('div');
+        row.className = 'list-panel__item';
+
+        const indexLabel = document.createElement('span');
+        indexLabel.className = 'list-panel__item-index';
+        indexLabel.textContent = String(index + 1);
+
+        const input = document.createElement('input');
+        input.className = 'list-panel__item-input';
+        input.type = 'text';
+        input.value = item;
+        input.addEventListener('input', () => {
+          listStore.updateItem(id, index, input.value);
+          scheduleListSave();
+        });
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'list-panel__item-remove';
+        removeBtn.type = 'button';
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', () => {
+          listStore.removeItem(id, index);
+          renderListPanel();
+          scheduleListSave();
+        });
+
+        row.appendChild(indexLabel);
+        row.appendChild(input);
+        row.appendChild(removeBtn);
+        itemList.appendChild(row);
+      });
+
+      card.appendChild(itemList);
+
+      const addBtn = document.createElement('button');
+      addBtn.className = 'list-panel__item-add';
+      addBtn.type = 'button';
+      addBtn.textContent = '+ 追加';
+      addBtn.addEventListener('click', () => {
+        listStore.appendItem(id, '');
+        renderListPanel();
+        scheduleListSave();
+        const latestInput = panel.querySelector(
+          `[data-list-id="${id}"] .list-panel__item:last-child input`,
+        );
+        latestInput?.focus();
+      });
+      card.appendChild(addBtn);
+      body.appendChild(card);
+    });
+  };
+
+  const promptForListName = (callback) => {
+    const defaultName = 'list';
+    if (typeof Blockly.prompt === 'function') {
+      Blockly.prompt('リスト名を入力してください', defaultName, (name) => callback(name));
+    } else {
+      callback(window.prompt('リスト名を入力してください', defaultName));
+    }
+  };
+
+  const handleCreateList = () => {
+    promptForListName((name) => {
+      if (!name) return;
+      const variable = workspace.createVariable(name);
+      if (!variable) return;
+      listStore.ensureList(variable.getId());
+      renderListPanel();
+      scheduleListSave();
+    });
+  };
+
+  workspace.registerButtonCallback('CREATE_LIST_BUTTON', handleCreateList);
+
+  const originalGetExtraState = workspace.getExtraState?.bind(workspace);
+  const originalSetExtraState = workspace.setExtraState?.bind(workspace);
+
+  workspace.getExtraState = () => {
+    const base = originalGetExtraState ? originalGetExtraState() : {};
+    const safeBase = base && typeof base === 'object' ? base : {};
+    return { ...safeBase, [LIST_STORE_KEY]: listStore.toJSON(workspace) };
+  };
+
+  workspace.setExtraState = (state) => {
+    if (originalSetExtraState) originalSetExtraState(state);
+    listStore.fromJSON(state?.[LIST_STORE_KEY], workspace);
+    renderListPanel();
+  };
+
+  workspace.addChangeListener((event) => {
+    if (event.type === Blockly.Events.VAR_DELETE) {
+      listStore.removeList(event.varId);
+      renderListPanel();
+      scheduleListSave();
+    }
+    if (event.type === Blockly.Events.VAR_RENAME) {
+      renderListPanel();
+      scheduleListSave();
+    }
+  });
+
+  renderListPanel();
+
+  return { renderListPanel, scheduleListSave };
 };
 
 const indentBlock = (block, spaces = 4) =>
   block
     .split('\n')
-    .map((line) => (line.trim() === '' ? '' : `${' '.repeat(spaces)}${line}`))
+    .map((line) => (line.trim() === '' ? '' : `${' '.repeat(spaces)}${line} `))
     .join('\n');
 
 const addSelfParam = (block) =>
   block.replace(/async def ([^(]+)\(([^)]*)\)/, (match, name, params) => {
     const trimmed = params.trim();
-    if (!trimmed) return `async def ${name}(self)`;
-    if (trimmed.startsWith('self')) return `async def ${name}(${trimmed})`;
-    return `async def ${name}(self, ${trimmed})`;
+    if (!trimmed) return `async def ${name} (self)`;
+    if (trimmed.startsWith('self')) return `async def ${name} (${trimmed})`;
+    return `async def ${name} (self, ${trimmed})`;
   });
 
 const convertEventBlock = (block) => {
@@ -304,15 +633,15 @@ const buildInteractionHandler = (componentEvents, modalEvents) => {
     : '            pass';
 
   return `
-@commands.Cog.listener()
-async def on_interaction(self, interaction):
-    try:
-        if interaction.type == discord.InteractionType.component:
+  @commands.Cog.listener()
+  async def on_interaction(self, interaction):
+  try:
+  if interaction.type == discord.InteractionType.component:
 ${componentBody}
         elif interaction.type == discord.InteractionType.modal_submit:
 ${modalBody}
     except Exception as e:
-        print(f"Interaction Error: {e}")
+  print(f"Interaction Error: {e}")
 `.trim();
 };
 
@@ -356,65 +685,65 @@ const buildSharedModule = (bodyCode) => {
   let content = `# Shared helpers\n`;
   if (usesLogging) {
     content += `import logging\n\n`;
-    content += `logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')\n\n`;
+    content += `logging.basicConfig(level = logging.INFO, format = '%(asctime)s - %(levelname)s - %(message)s') \n\n`;
   }
   if (usesJson) {
     content += `import json\nimport os\n\n`;
-    content += `def _load_json_data(filename):\n`;
-    content += `    if not os.path.exists(filename):\n`;
+    content += `def _load_json_data(filename): \n`;
+    content += `    if not os.path.exists(filename): \n`;
     content += `        return {}\n`;
-    content += `    try:\n`;
-    content += `        with open(filename, 'r', encoding='utf-8') as f:\n`;
-    content += `            return json.load(f)\n`;
-    content += `    except Exception as e:\n`;
-    content += `        logging.error(f"JSON Load Error: {e}")\n`;
+    content += `    try: \n`;
+    content += `        with open(filename, 'r', encoding = 'utf-8') as f: \n`;
+    content += `            return json.load(f) \n`;
+    content += `    except Exception as e: \n`;
+    content += `        logging.error(f"JSON Load Error: {e}") \n`;
     content += `        return {}\n\n`;
-    content += `def _save_json_data(filename, data):\n`;
-    content += `    try:\n`;
-    content += `        with open(filename, 'w', encoding='utf-8') as f:\n`;
-    content += `            json.dump(data, f, ensure_ascii=False, indent=4)\n`;
-    content += `    except Exception as e:\n`;
-    content += `        logging.error(f"JSON Save Error: {e}")\n\n`;
+    content += `def _save_json_data(filename, data): \n`;
+    content += `    try: \n`;
+    content += `        with open(filename, 'w', encoding = 'utf-8') as f: \n`;
+    content += `            json.dump(data, f, ensure_ascii = False, indent = 4) \n`;
+    content += `    except Exception as e: \n`;
+    content += `        logging.error(f"JSON Save Error: {e}") \n\n`;
   }
   if (usesModal) {
     content += `import discord\n\n`;
-    content += `class EasyModal(discord.ui.Modal):\n`;
-    content += `    def __init__(self, title, custom_id, inputs):\n`;
-    content += `        super().__init__(title=title, timeout=None, custom_id=custom_id)\n`;
-    content += `        for item in inputs:\n`;
-    content += `            self.add_item(discord.ui.TextInput(label=item['label'], custom_id=item['id']))\n`;
+    content += `class EasyModal(discord.ui.Modal): \n`;
+    content += `    def __init__(self, title, custom_id, inputs): \n`;
+    content += `        super().__init__(title = title, timeout = None, custom_id = custom_id) \n`;
+    content += `        for item in inputs: \n`;
+    content += `            self.add_item(discord.ui.TextInput(label = item['label'], custom_id = item['id'])) \n`;
   }
   return content.trim();
 };
 
 const buildCogFile = (className, blocks, imports, sharedImports = '', preamble = '') => {
   const body = blocks.map((block) => indentBlock(block)).join('\n\n');
-  const header = `${imports.join('\n')}\n${sharedImports}`.trim();
-  const preambleBlock = preamble ? `${preamble}\n\n` : '';
+  const header = `${imports.join('\n')} \n${sharedImports} `.trim();
+  const preambleBlock = preamble ? `${preamble} \n\n` : '';
   return `
 ${header}
 
-${preambleBlock}class ${className}(commands.Cog):
+${preambleBlock} class ${className}(commands.Cog):
     def __init__(self, bot):
-        self.bot = bot
+  self.bot = bot
 
 ${body}
 
 async def setup(bot):
-    await bot.add_cog(${className}(bot))
-`.trim();
+  await bot.add_cog(${className}(bot))
+    `.trim();
 };
 
 const buildModuleFile = (imports, sharedImports, body, preamble = '') => {
-  const header = `${imports.join('\n')}\n${sharedImports}`.trim();
-  const preambleBlock = preamble ? `${preamble}\n\n` : '';
+  const header = `${imports.join('\n')} \n${sharedImports} `.trim();
+  const preambleBlock = preamble ? `${preamble} \n\n` : '';
   return `
 ${header}
 
 ${preambleBlock}${body}
 
 async def setup(bot):
-    pass
+  pass
 `.trim();
 };
 
@@ -488,7 +817,7 @@ const generateSplitPythonFiles = () => {
   const makeUniqueSlug = (base) => {
     const current = nameCounter.get(base) || 0;
     nameCounter.set(base, current + 1);
-    return current === 0 ? base : `${base}_${current + 1}`;
+    return current === 0 ? base : `${base}_${current + 1} `;
   };
 
   topBlockEntries.forEach(({ block, rawGroup }) => {
@@ -508,7 +837,7 @@ const generateSplitPythonFiles = () => {
     const { kind, label } = deriveGroupMeta(block);
     const baseSlug = slugify(`${kind}_${label}`);
     const fileSlug = makeUniqueSlug(baseSlug);
-    const className = `${toPascalCase(fileSlug)}Cog`.replace(/^[0-9]/, 'Cog$&');
+    const className = `${toPascalCase(fileSlug)} Cog`.replace(/^[0-9]/, 'Cog$&');
 
     const needsInteractionHandler = hasComponentEvents || hasModalEvents;
     const imports = buildImports(cleanedCode, needsInteractionHandler);
@@ -522,7 +851,7 @@ const generateSplitPythonFiles = () => {
     if (usesModal) sharedSymbols.push('EasyModal');
     const sharedImports =
       sharedModule && sharedSymbols.length
-        ? `from .shared import ${sharedSymbols.join(', ')}`
+        ? `from.shared import ${sharedSymbols.join(', ')} `
         : '';
 
     let fileContent = '';
@@ -575,8 +904,8 @@ import discord
 from discord.ext import commands
 
 intents = discord.Intents.default()
-intents.message_content = True 
-intents.members = True 
+intents.message_content = True
+intents.members = True
 intents.voice_states = True
 
 class EasyBot(commands.Bot):
@@ -616,18 +945,18 @@ const renderSplitFiles = (files) => {
     item.className =
       'rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden';
     item.innerHTML = `
-      <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
-        <div class="text-xs font-mono text-slate-600 dark:text-slate-300">${path}</div>
-        <div class="flex items-center gap-2">
+      <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-mono text-xs">
+        <div class="text-slate-600 dark:text-slate-300 font-bold overflow-hidden text-ellipsis whitespace-nowrap" title="${path}">${path}</div>
+        <div class="flex items-center gap-2 shrink-0">
           <button class="splitCopyBtn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800" data-path="${path}">
             <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy
           </button>
-          <button class="splitDownloadBtn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white" data-path="${path}">
+          <button class="splitDownloadBtn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm" data-path="${path}">
             <i data-lucide="download" class="w-3.5 h-3.5"></i> DL
           </button>
         </div>
       </div>
-      <pre class="p-4 text-xs font-mono bg-[#0f172a] text-[#e2e8f0] overflow-x-auto"></pre>
+      <pre class="p-4 text-xs font-mono bg-[#0f172a] text-[#e2e8f0] overflow-x-auto selection:bg-indigo-500/30"></pre>
     `;
     const pre = item.querySelector('pre');
     if (pre) pre.textContent = content;
@@ -659,13 +988,15 @@ const renderSplitFiles = (files) => {
   lucide.createIcons();
 };
 
-const initializeApp = () => {
+const initializeApp = async () => {
   lucide.createIcons();
   const { modernLightTheme, modernDarkTheme } = setupBlocklyEnvironment();
 
   const blocklyDiv = document.getElementById('blocklyDiv');
   const toolbox = document.getElementById('toolbox');
   const themeToggle = document.getElementById('themeToggle');
+  const headerActions = document.getElementById('headerActions');
+  const mobileHeaderToggle = document.getElementById('mobileHeaderToggle');
   // ヘッダーのコード生成ボタン
   const showCodeBtn = document.getElementById('showCodeBtn');
   // モーダル関連
@@ -684,15 +1015,41 @@ const initializeApp = () => {
   const workspaceContainer = document.getElementById('workspace-container');
   const layoutBlockBtn = document.getElementById('layoutBlockBtn');
   const layoutSplitBtn = document.getElementById('layoutSplitBtn');
+  const projectTitleInput = document.getElementById('projectTitleInput');
+  const initialScale = isMobileDevice ? 0.85 : 1.0;
+  const maxScale = isMobileDevice ? 2.2 : 3;
+  const minScale = isMobileDevice ? 0.5 : 0.3;
+
+  const resolveProjectTitle = () =>
+    (projectTitleInput?.value || '').trim() || WorkspaceStorage.DEFAULT_TITLE;
+
+  const hydrateProjectTitle = () => {
+    if (!projectTitleInput) return;
+    try {
+      const storedTitle = localStorage.getItem(PROJECT_TITLE_STORAGE_KEY);
+      if (storedTitle) {
+        projectTitleInput.value = storedTitle;
+        return;
+      }
+    } catch (error) {
+      // localStorage unavailable; fall back to default
+    }
+    if (!projectTitleInput.value) {
+      projectTitleInput.value = WorkspaceStorage.DEFAULT_TITLE;
+    }
+  };
+
+  hydrateProjectTitle();
 
   const savedTheme = localStorage.getItem('theme');
   if (savedTheme === 'dark') html.classList.add('dark');
   const initialTheme = savedTheme === 'dark' ? modernDarkTheme : modernLightTheme;
+  applyMobileToolboxIcons(toolbox);
 
   // --- パレット固定化の強制適用 (Zoom Fix) ---
   // フライアウト（パレット）のスケールを常に1に固定するオーバーライド
   Blockly.VerticalFlyout.prototype.getFlyoutScale = function () {
-    return 1;
+    return isMobileDevice ? 0.9 : 1;
   };
 
   // --- Blocklyワークスペースの初期化 ---
@@ -703,9 +1060,9 @@ const initializeApp = () => {
     zoom: {
       controls: true,
       wheel: true,
-      startScale: 1.0,
-      maxScale: 3,
-      minScale: 0.3,
+      startScale: initialScale,
+      maxScale,
+      minScale,
       scaleSpeed: 1.2,
     },
     renderer: 'zelos',
@@ -714,12 +1071,51 @@ const initializeApp = () => {
 
   // --- ワークスペース保存クラスの初期化 ---
   storage = new WorkspaceStorage(workspace);
+  storage.setTitleProvider(() => resolveProjectTitle());
+
+  if (projectTitleInput) {
+    projectTitleInput.addEventListener('input', () => {
+      try {
+        localStorage.setItem(PROJECT_TITLE_STORAGE_KEY, resolveProjectTitle());
+      } catch (error) {
+        // ignore storage errors
+      }
+    });
+  }
 
   // --- Blocklyのブロック定義 ---
   const shareFeature = initShareFeature({
     workspace,
     storage,
   });
+  setupListManager({
+    workspace,
+    storage,
+    shareFeature,
+    workspaceContainer,
+  });
+  if (isMobileDevice && headerActions && mobileHeaderToggle) {
+    mobileHeaderToggle.classList.remove('hidden');
+    let headerExpanded = false;
+    const syncHeaderVisibility = () => {
+      headerActions.classList.toggle('collapsed', !headerExpanded);
+      mobileHeaderToggle.setAttribute('aria-expanded', headerExpanded ? 'true' : 'false');
+      const label = mobileHeaderToggle.querySelector('#mobileHeaderToggleText');
+      if (label) label.textContent = headerExpanded ? '操作を閉じる' : '操作を表示';
+      const icon = mobileHeaderToggle.querySelector('svg');
+      if (icon) icon.style.transform = headerExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+      if (workspace) {
+        setTimeout(() => Blockly.svgResize(workspace), 150);
+      }
+    };
+    syncHeaderVisibility();
+    mobileHeaderToggle.addEventListener('click', () => {
+      headerExpanded = !headerExpanded;
+      syncHeaderVisibility();
+    });
+  } else if (headerActions) {
+    headerActions.classList.remove('collapsed');
+  }
 
   // --- パレット（フライアウト）の固定設定 ---
   if (workspace.getToolbox()) {
@@ -750,7 +1146,6 @@ const initializeApp = () => {
         'dark:text-indigo-400',
       );
       layoutBlockBtn.classList.add('text-slate-500', 'dark:text-slate-400');
-      updateLivePreview();
     } else {
       workspaceContainer.classList.remove('split-view');
       layoutBlockBtn.classList.remove('text-slate-500', 'dark:text-slate-400');
@@ -771,22 +1166,28 @@ const initializeApp = () => {
       );
       layoutSplitBtn.classList.add('text-slate-500', 'dark:text-slate-400');
     }
-    setTimeout(() => Blockly.svgResize(workspace), 350);
+    if (workspace) {
+      setTimeout(() => Blockly.svgResize(workspace), 450);
+    }
   };
 
   layoutBlockBtn.addEventListener('click', () => setLayout('block'));
   layoutSplitBtn.addEventListener('click', () => setLayout('split'));
 
-  // --- Realtime Sync ---
+  // Live Preview Sync
+  const liveCodeOutput = document.getElementById('codePreviewContent');
   workspace.addChangeListener((e) => {
-    // UIイベント以外で更新
-    if (e.type !== Blockly.Events.UI && workspaceContainer.classList.contains('split-view')) {
-      updateLivePreview();
+    if (
+      workspaceContainer.classList.contains('split-view') &&
+      !e.isUiEvent &&
+      liveCodeOutput
+    ) {
+      liveCodeOutput.textContent = generatePythonCode();
+      hljs.highlightElement(liveCodeOutput);
     }
 
-    // Auto Save
+    // Auto-save
     if (
-      !shareFeature.isShareViewMode() &&
       !e.isUiEvent &&
       e.type !== Blockly.Events.FINISHED_LOADING
     ) {
@@ -864,13 +1265,48 @@ const initializeApp = () => {
     if (e.type === Blockly.Events.TOOLBOX_ITEM_SELECT) setTimeout(updatePinState, 50);
   });
 
+  // --- Plugin System ---
+  const pluginManager = new PluginManager(workspace);
+  workspace.pluginManager = pluginManager; // storage.js からアクセスできるようにする
+  storage.pluginManager = pluginManager; // share.js からアクセスできるようにする
+
+  // プラグインの状態が変更されたら共有ボタンの状態を更新する
+  const originalEnable = pluginManager.enablePlugin.bind(pluginManager);
+  pluginManager.enablePlugin = async (id) => {
+    await originalEnable(id);
+    shareFeature?.updateShareButtonState?.();
+  };
+  const originalDisable = pluginManager.disablePlugin.bind(pluginManager);
+  pluginManager.disablePlugin = async (id) => {
+    await originalDisable(id);
+    shareFeature?.updateShareButtonState?.();
+  };
+
+  const pluginUI = new PluginUI(pluginManager);
+  await pluginManager.init();
+
   // --- Load Saved Data ---
   const sharedApplied = shareFeature.applySharedLayoutFromQuery();
   if (!sharedApplied) {
     storage?.load();
   }
 
-  themeToggle.addEventListener('click', () => toggleTheme(modernLightTheme, modernDarkTheme));
+  const toggleTheme = () => {
+    const currentTheme = html.classList.contains('dark') ? 'dark' : 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    html.classList.remove(currentTheme);
+    html.classList.add(newTheme);
+    localStorage.setItem('theme', newTheme);
+    if (workspace) {
+      workspace.setTheme(newTheme === 'dark' ? modernDarkTheme : modernLightTheme);
+    }
+    // Re-apply share view UI state (e.g. hide toolbox)
+    if (shareFeature.isShareViewMode()) {
+      shareFeature.applyUiState();
+    }
+  };
+
+  themeToggle.addEventListener('click', toggleTheme);
 
   importBtn.addEventListener('click', () => importInput.click());
   importInput.addEventListener('change', (e) => {
@@ -892,16 +1328,28 @@ const initializeApp = () => {
   });
 
   // --- モーダル表示ロジック (アニメーション付き) ---
+  const toggleModal = (modal, isOpen) => {
+    if (isOpen) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      // Force reflow
+      void modal.offsetWidth;
+      modal.classList.add('show-modal');
+    } else {
+      modal.classList.remove('show-modal');
+      setTimeout(() => {
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+      }, 300); // Wait for transition
+    }
+  };
+
   showCodeBtn.addEventListener('click', () => {
     showCodeBtn.blur();
     // Blocklyの選択ハイライトなどを解除
     if (workspace) Blockly.hideChaff();
     codeOutput.textContent = generatePythonCode();
-    codeModal.classList.remove('hidden');
-    codeModal.classList.add('flex');
-    // Force reflow
-    void codeModal.offsetWidth;
-    codeModal.classList.add('show-modal');
+    toggleModal(codeModal, true);
   });
 
   const openSplitModal = () => {
@@ -919,11 +1367,12 @@ const initializeApp = () => {
   });
 
   closeModalBtn.addEventListener('click', () => {
-    codeModal.classList.remove('show-modal');
-    setTimeout(() => {
-      codeModal.classList.remove('flex');
-      codeModal.classList.add('hidden');
-    }, 300); // Wait for transition
+    toggleModal(codeModal, false);
+  });
+
+  // Backdrop click to close
+  codeModal.addEventListener('click', (e) => {
+    if (e.target === codeModal) toggleModal(codeModal, false);
   });
 
   splitModalClose?.addEventListener('click', () => {
@@ -943,6 +1392,11 @@ const initializeApp = () => {
     });
   });
 
+  // Ensure listStore is attached to Blockly
+  if (typeof Blockly !== 'undefined') {
+    Blockly.edbbListStore = listStore;
+  }
+
   copyCodeBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(codeOutput.textContent);
     const originalHtml = copyCodeBtn.innerHTML;
@@ -960,4 +1414,67 @@ const initializeApp = () => {
   });
 };
 
-window.onload = initializeApp;
+// Initialize app when DOM is ready and all modules are loaded
+// Use a small delay to ensure all module imports are complete
+const startApp = async (retryCount = 0) => {
+  // Limit retries to prevent infinite loops (approx 10 seconds)
+  if (retryCount > 100) {
+    console.error('App initialization timed out: Blockly or modules failed to load.');
+    const saveStatus = document.getElementById('saveStatus');
+    if (saveStatus) {
+      saveStatus.textContent = 'Load Timeout!';
+      saveStatus.classList.remove('bg-emerald-100', 'text-emerald-800');
+      saveStatus.classList.add('bg-red-100', 'text-red-800');
+      saveStatus.setAttribute('data-show', 'true');
+    }
+    return;
+  }
+
+  // Ensure Blockly is fully initialized with custom blocks
+  if (typeof Blockly === 'undefined' || !Blockly.Blocks || !Blockly.Python) {
+    // If Blockly is not ready, retry after a short delay
+    setTimeout(() => startApp(retryCount + 1), 100);
+    return;
+  }
+
+  // Dynamically load blocks.js if not already loaded
+  if (!Blockly.Blocks['on_ready']) {
+    try {
+      await import('./blocks.js');
+    } catch (e) {
+      console.error('Failed to load blocks.js', e);
+    }
+  }
+
+  // Verify custom blocks are registered
+  if (!Blockly.Blocks['on_ready']) {
+    // Custom blocks not yet registered, retry
+    setTimeout(() => startApp(retryCount + 1), 100);
+    return;
+  }
+
+  // All systems ready, initialize the app
+  try {
+    await initializeApp();
+  } catch (e) {
+    console.error('App initialization failed:', e);
+    // Attempt to notify user
+    const saveStatus = document.getElementById('saveStatus');
+    if (saveStatus) {
+      saveStatus.textContent = 'Init Error!';
+      saveStatus.classList.remove('bg-emerald-100', 'text-emerald-800');
+      saveStatus.classList.add('bg-red-100', 'text-red-800');
+      saveStatus.setAttribute('data-show', 'true');
+    }
+  }
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    // Add a small delay to ensure module imports are complete
+    setTimeout(startApp, 50);
+  });
+} else {
+  // DOM already loaded, start app with delay
+  setTimeout(startApp, 50);
+}

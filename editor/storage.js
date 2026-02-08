@@ -12,7 +12,14 @@ class WorkspaceShareCodec {
       // 生のBlocklyデータからIDを間引いたうえでJSON→LZ圧縮する
       const raw = Blockly.serialization.workspaces.save(workspace);
       const stripped = WorkspaceShareCodec.#stripIds(raw);
-      const payload = JSON.stringify(stripped);
+      
+      // プラグイン情報の付与
+      const payloadObj = {
+          workspace: stripped,
+          pluginUUIDs: workspace.pluginManager?.getPluginUUIDsForShare() || []
+      };
+      
+      const payload = JSON.stringify(payloadObj);
       const compressed = lz.compressToEncodedURIComponent(payload);
       if (!compressed) throw new Error('圧縮に失敗しました。');
       return compressed;
@@ -34,7 +41,32 @@ class WorkspaceShareCodec {
       if (!text) throw new Error('データを展開できませんでした。');
       // 復号後はJSONを戻してそのままBlocklyへ読み込む
       const payload = JSON.parse(text);
-      Blockly.serialization.workspaces.load(payload, workspace);
+      
+      // プラグイン情報が含まれている場合は適用
+      if (payload.workspace && (payload.pluginUUIDs || payload.plugins)) {
+          Blockly.serialization.workspaces.load(payload.workspace, workspace);
+          
+          // プラグインの有効化
+          if (workspace.pluginManager) {
+              const uuids = payload.pluginUUIDs || [];
+              uuids.forEach(uuid => {
+                  const pluginId = workspace.pluginManager.getPluginIdByUUID(uuid);
+                  if (pluginId) {
+                      workspace.pluginManager.enablePlugin(pluginId);
+                  }
+              });
+              
+              // 互換性のため古い形式もサポート
+              const oldPlugins = payload.plugins || [];
+              oldPlugins.forEach(pluginId => {
+                  workspace.pluginManager.enablePlugin(pluginId);
+              });
+          }
+      } else {
+          // 互換性のため、古い形式（直接workspaceデータ）もサポート
+          Blockly.serialization.workspaces.load(payload, workspace);
+      }
+      
       return true;
     } catch (error) {
       console.error('圧縮ワークスペースの読み込みに失敗しました。', error);
@@ -61,12 +93,49 @@ class WorkspaceShareCodec {
 
 export default class WorkspaceStorage {
   static STORAGE_KEY = 'discord_bot_builder_workspace_v5';
-  static DOWNLOAD_NAME = 'bot-project.json';
+  static DEFAULT_TITLE = 'bot-project';
 
   #workspace;
+  #titleProvider = () => WorkspaceStorage.DEFAULT_TITLE;
 
   constructor(workspace) {
     this.#workspace = workspace;
+  }
+
+  setTitleProvider(provider) {
+    if (typeof provider === 'function') {
+      this.#titleProvider = provider;
+    } else {
+      this.#titleProvider = () => WorkspaceStorage.DEFAULT_TITLE;
+    }
+  }
+
+  static sanitizeTitle(rawTitle) {
+    if (!rawTitle || typeof rawTitle !== 'string') {
+      return WorkspaceStorage.DEFAULT_TITLE;
+    }
+    const normalized = rawTitle.trim().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '-');
+    return normalized || WorkspaceStorage.DEFAULT_TITLE;
+  }
+
+  static buildDownloadName(title, date = new Date()) {
+    const safeTitle = WorkspaceStorage.sanitizeTitle(title);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const timestamp = `${month}-${day}-${hours}${minutes}`;
+    return `EDBB-${safeTitle}-${timestamp}.json`;
+  }
+
+  #resolveTitle() {
+    try {
+      const provided = typeof this.#titleProvider === 'function' ? this.#titleProvider() : '';
+      return WorkspaceStorage.sanitizeTitle(provided);
+    } catch (error) {
+      console.warn('Failed to resolve project title', error);
+      return WorkspaceStorage.DEFAULT_TITLE;
+    }
   }
 
   // XMLかどうかの大まかな判定
@@ -158,11 +227,12 @@ export default class WorkspaceStorage {
     const json = this.exportText({ pretty: true });
     if (!json) return;
     try {
+      const fileName = WorkspaceStorage.buildDownloadName(this.#resolveTitle());
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = WorkspaceStorage.DOWNLOAD_NAME;
+      a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
     } catch (error) {
