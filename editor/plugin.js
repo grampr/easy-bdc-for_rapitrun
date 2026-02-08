@@ -148,10 +148,14 @@ export class PluginManager {
     }
 
     // GitHubから直接インストール
-    async installFromGitHub(fullName, zipUrl) {
+    async installFromGitHub(fullName, defaultBranch = 'main') {
         try {
-            const response = await fetch(zipUrl);
-            if (!response.ok) throw new Error('Failed to download ZIP from GitHub');
+            // CORSを回避するためにプロキシを使用
+            const zipUrl = `https://github.com/${fullName}/archive/refs/heads/${defaultBranch}.zip`;
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(zipUrl)}`;
+            
+            const response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error('Failed to download ZIP via proxy');
             const blob = await response.blob();
 
             const zip = await JSZip.loadAsync(blob);
@@ -354,7 +358,7 @@ class VanillaPlugin {
         if (typeof Blockly === 'undefined') return;
 
         Blockly.Blocks['vanilla_plugin_test'] = {
-            init: function () {
+            init: function() {
                 this.appendDummyInput()
                     .appendField("🍦 バニラプラグイン・テスト");
                 this.setPreviousStatement(true, null);
@@ -364,7 +368,7 @@ class VanillaPlugin {
             }
         };
 
-        Blockly.Python['vanilla_plugin_test'] = function (block) {
+        Blockly.Python['vanilla_plugin_test'] = function(block) {
             return "# Vanilla Plugin Test\n";
         };
 
@@ -382,9 +386,9 @@ class VanillaPlugin {
         category.setAttribute('data-icon', '🔌');
         category.setAttribute('colour', '#200');
         category.innerHTML = '<block type="vanilla_plugin_test"></block>';
-
+        
         toolbox.appendChild(category);
-
+        
         if (this.workspace) {
             this.workspace.updateToolbox(toolbox);
         }
