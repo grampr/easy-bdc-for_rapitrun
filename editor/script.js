@@ -291,46 +291,6 @@ const applyMobileToolboxIcons = (toolboxEl) => {
 // --- Code Generation & UI Sync ---
 const generatePythonCode = () => {
   if (!workspace) return '';
-  let rawCode = Blockly.Python.workspaceToCode(workspace);
-
-  // --- Event Handlers for Dynamic Components ---
-  let componentEvents = '';
-  let modalEvents = '';
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.includes('# BUTTON_EVENT:')) {
-      const currentEventName = extractEventName(line);
-      const escapedEventName = escapePyString(currentEventName);
-      componentEvents +=
-        `            if interaction.data.get('custom_id') == '${escapedEventName}':\n` +
-        `                await on_button_${currentEventName}(interaction)\n`;
-      filteredLines.push(line);
-    } else if (line.includes('# MODAL_EVENT:')) {
-      const currentEventName = extractEventName(line);
-      const escapedEventName = escapePyString(currentEventName);
-      modalEvents +=
-        `            if interaction.data.get('custom_id') == '${escapedEventName}':\n` +
-        `                await on_modal_${currentEventName}(interaction)\n`;
-      filteredLines.push(line);
-    } else {
-      filteredLines.push(line);
-    }
-  }
-
-  const cleanedCode = filteredLines.join('\n');
-  return {
-    cleanedCode,
-    componentEvents,
-    modalEvents,
-    hasComponentEvents: componentEvents.trim().length > 0,
-    hasModalEvents: modalEvents.trim().length > 0,
-  };
-};
-
-// --- Code Generation & UI Sync ---
-const generatePythonCode = () => {
-  if (!workspace) return '';
   const rawCode = Blockly.Python.workspaceToCode(workspace);
   const {
     cleanedCode,
