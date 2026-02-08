@@ -86,9 +86,9 @@ export class PluginUI {
 
     async renderMarketplace() {
         this.pluginList.innerHTML = '';
-        
-        // 1. インストール済みプラグインの表示
         const installed = this.pluginManager.getRegistry();
+        
+        // 1. インストール済みプラグインの表示 (検索クエリがある場合はフィルタリング)
         const filteredInstalled = installed.filter(p => 
             p.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
             p.author.toLowerCase().includes(this.searchQuery.toLowerCase())
@@ -105,24 +105,29 @@ export class PluginUI {
             });
         }
 
-        // 2. GitHubからの検索結果の表示 (インストール済みのみ表示がOFFの場合)
+        // 2. GitHub Marketplace (検索またはトピック表示)
         if (!this.isOnlyInstalled) {
             const header = document.createElement('div');
             header.className = 'px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-4 flex justify-between items-center';
-            header.innerHTML = `<span>${this.searchQuery ? '検索結果 (GitHub)' : '注目のコミュニティプラグイン'}</span><span class="animate-pulse">Searching...</span>`;
+            
+            // クエリがある場合は「検索結果」、ない場合は「注目のコミュニティプラグイン」
+            const title = this.searchQuery ? `GitHub リポジトリ検索: "${this.searchQuery}"` : '注目のコミュニティプラグイン (GitHub Topic)';
+            header.innerHTML = `<span>${title}</span><span class="animate-pulse">GitHubから取得中...</span>`;
             this.pluginList.appendChild(header);
 
+            // PluginManager.searchGitHubPlugins はクエリがあればリポジトリ検索、なければ topic:edbp-plugin 検索を行う
             const results = await this.pluginManager.searchGitHubPlugins(this.searchQuery);
-            header.querySelector('span:last-child').remove();
+            const statusSpan = header.querySelector('span:last-child');
+            if (statusSpan) statusSpan.remove();
             
             if (results.length === 0) {
                 const empty = document.createElement('div');
                 empty.className = 'px-3 py-4 text-center text-xs text-slate-400';
-                empty.textContent = 'GitHubに該当するプラグインはありません';
+                empty.textContent = this.searchQuery ? '該当するリポジトリが見つかりませんでした' : '注目のプラグインがありません';
                 this.pluginList.appendChild(empty);
             } else {
                 results.forEach(plugin => {
-                    // すでにインストール済みのものはスキップ
+                    // すでにインストール済みのものは重複表示しない
                     if (installed.some(p => p.repo === plugin.repo)) return;
                     this.addPluginItem(plugin, false);
                 });
