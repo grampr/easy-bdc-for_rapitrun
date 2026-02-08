@@ -16,6 +16,7 @@ export class PluginUI {
         this.isOnlyInstalled = false;
         this.searchQuery = '';
         this.githubResults = [];
+        this.currentSearchId = 0;
 
         this.init();
     }
@@ -85,6 +86,7 @@ export class PluginUI {
     }
 
     async renderMarketplace() {
+        const searchId = ++this.currentSearchId;
         this.pluginList.innerHTML = '';
         const installed = this.pluginManager.getRegistry();
 
@@ -117,6 +119,10 @@ export class PluginUI {
 
             // PluginManager.searchGitHubPlugins はクエリがあればリポジトリ検索、なければ topic:edbp-plugin 検索を行う
             const results = await this.pluginManager.searchGitHubPlugins(this.searchQuery);
+
+            // 非同期処理の間に別の検索が開始されていたら中断
+            if (searchId !== this.currentSearchId) return;
+
             const statusSpan = header.querySelector('span:last-child');
             if (statusSpan) statusSpan.remove();
 
