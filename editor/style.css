@@ -273,7 +273,7 @@ html.is-mobile .blocklyFlyout {
 .modal-backdrop {
   opacity: 0;
   visibility: hidden;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .modal-backdrop.show-modal {
   opacity: 1;
@@ -1019,3 +1019,39 @@ html.is-mobile #blocklyDiv {
   background-color: #0369a1 !important;
 }
 
+/* Button Active Animation */
+button:active {
+  transform: scale(0.95) !important;
+}
+
+#showCodeBtn:active, #shareBtn:active, #pluginBtn:active, #layoutBlockBtn:active, #layoutSplitBtn:active, #importBtn:active, #exportBtn:active, #themeToggle:active {
+  transform: scale(0.92) !important;
+}
+
+
+
+/* README Content Styles */
+.readme-content h1 { font-size: 1.875rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 0.5rem; }
+.readme-content h2 { font-size: 1.5rem; font-weight: 700; margin-top: 1.25rem; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 0.3rem; }
+.readme-content h3 { font-size: 1.25rem; font-weight: 700; margin-top: 1rem; margin-bottom: 0.5rem; }
+.readme-content p { margin-bottom: 1rem; line-height: 1.6; }
+.readme-content ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1rem; }
+.readme-content ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 1rem; }
+.readme-content li { margin-bottom: 0.25rem; }
+.readme-content code { background-color: rgba(0,0,0,0.05); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: monospace; font-size: 0.9em; }
+.dark .readme-content code { background-color: rgba(255,255,255,0.1); }
+.readme-content pre { background-color: #1e293b; color: #f8fafc; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1rem; }
+.readme-content blockquote { border-left: 4px solid #e2e8f0; padding-left: 1rem; color: #64748b; font-style: italic; margin-bottom: 1rem; }
+.dark .readme-content blockquote { border-left-color: #334155; color: #94a3b8; }
+.readme-content img { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 1rem 0; }
+.readme-content table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9em; }
+.readme-content th, .readme-content td { border: 1px solid #e2e8f0; padding: 0.6rem; text-align: left; }
+.dark .readme-content th, .dark .readme-content td { border-color: #334155; }
+.readme-content th { background-color: #f8fafc; font-weight: 700; }
+.dark .readme-content th { background-color: #0f172a; }
+.readme-content a { color: #6366f1; text-decoration: underline; }
+.dark .readme-content a { color: #818cf8; }
+.readme-content div[align="center"], .readme-content center { text-align: center; display: block; width: 100%; }
+.readme-content img[align="center"] { display: block; margin: 1rem auto; }
+.readme-content h1 img { vertical-align: middle; display: inline-block; }
+.readme-content br { content: ""; display: block; margin: 0.5rem 0; }
