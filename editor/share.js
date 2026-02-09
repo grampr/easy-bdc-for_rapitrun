@@ -4,6 +4,7 @@ const SHARE_STATUS_SHOW_MS = 2500;
 const SHARE_SHORTENER_ENDPOINT = '/share/create';
 const SHARE_IMPORT_SKIP_KEY = 'share_import_dialog_skip';
 const SHARE_CANONICAL_ORIGIN = 'https://share.himais0giiiin.com';
+const SHARE_BETA_ORIGIN = 'https://beta-edbb.himaiso.workers.dev';
 const BLOCKLY_CAPTURE_EXTRA_CSS = [
   '.blocklyText { fill:#fff !important; }',
   '.blocklyEditableText { fill: #fff !important; }',
@@ -90,7 +91,7 @@ class ShareViewStateController {
 
   // リスナーを登録して状態変化を通知
   onChange(listener) {
-    if (typeof listener !== 'function') return () => {};
+    if (typeof listener !== 'function') return () => { };
     this.listeners.add(listener);
     try {
       listener(this.shareViewMode);
@@ -539,10 +540,11 @@ class ShareHistoryManager {
 // 共有リンクモーダルの操作をまとめたクラス
 class ShareModalController {
   // コンストラクタで依存を受け取りDOMを取得
-  constructor({ statusNotifier, thumbnailManager, exportSharePayload }) {
+  constructor({ statusNotifier, thumbnailManager, exportSharePayload, pluginManager }) {
     this.statusNotifier = statusNotifier;
     this.thumbnailManager = thumbnailManager;
     this.exportSharePayload = exportSharePayload;
+    this.pluginManager = pluginManager;
     this.shareBtn = document.getElementById('shareBtn');
     this.modalEl = document.getElementById('shareModal');
     this.modalInput = document.getElementById('shareModalInput');
@@ -616,7 +618,14 @@ class ShareModalController {
 
   // Shareボタン押下時の処理フロー
   async handleShareButtonClick() {
+    // 共有不可能なプラグインが有効な場合は共有を制限
+    if (this.pluginManager?.hasNonSharablePlugin()) {
+      this.statusNotifier?.show('共有できないプラグイン（ローカルZIPなど）が有効なため、共有機能を利用できません。', 'error');
+      return;
+    }
+
     if (!this.shareBtn || this.shareBtn.disabled) return;
+
     this.shareBtn.disabled = true;
     this.shareBtn.setAttribute('aria-busy', 'true');
     try {
@@ -665,19 +674,54 @@ class ShareModalController {
 
   // 短縮URLを生成する非同期処理
   async createShortShareUrl(encoded) {
-    const response = await fetch(SHARE_SHORTENER_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ share: encoded }),
-    });
-    if (!response.ok) {
-      throw new Error(`SHORTENER_HTTP_${response.status}`);
+    const endpoints = this.resolveShortenerEndpoints();
+    let lastError = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ share: encoded }),
+        });
+        if (!response.ok) {
+          lastError = new Error(`SHORTENER_HTTP_${response.status}`);
+          continue;
+        }
+        const data = await response.json();
+        if (!data?.url) {
+          lastError = new Error('SHORTENER_RESPONSE_INVALID');
+          continue;
+        }
+        return this.normalizeShortShareUrl(data.url);
+      } catch (error) {
+        lastError = error;
+      }
     }
-    const data = await response.json();
-    if (!data?.url) {
-      throw new Error('SHORTENER_RESPONSE_INVALID');
+
+    throw lastError || new Error('SHORTENER_UNAVAILABLE');
+  }
+
+  resolveShortenerEndpoints() {
+    const endpoints = [];
+    const pushUnique = (value) => {
+      if (!value) return;
+      if (!endpoints.includes(value)) {
+        endpoints.push(value);
+      }
+    };
+
+    const sameOriginEndpoint = new URL(SHARE_SHORTENER_ENDPOINT, window.location.origin).toString();
+    pushUnique(sameOriginEndpoint);
+
+    const hostname = window.location.hostname || '';
+    const isBetaHost = /^beta(\.|-)/i.test(hostname);
+    if (isBetaHost) {
+      pushUnique(new URL(SHARE_SHORTENER_ENDPOINT, SHARE_BETA_ORIGIN).toString());
     }
-    return this.normalizeShortShareUrl(data.url);
+
+    pushUnique(new URL(SHARE_SHORTENER_ENDPOINT, SHARE_CANONICAL_ORIGIN).toString());
+    return endpoints;
   }
 
   // 短縮URLが期待ドメインになるように整形
@@ -919,6 +963,7 @@ class ShareFeature {
       statusNotifier: this.statusNotifier,
       thumbnailManager: this.thumbnailManager,
       exportSharePayload: () => this.exportSharePayload(),
+      pluginManager: storage.pluginManager, // storageからアクセスできるようにするか、引数で渡す
     });
     this.shareImportModalController = new ShareImportModalController({
       storage,
@@ -927,6 +972,25 @@ class ShareFeature {
       viewStateController: this.viewStateController,
       historyManager: this.historyManager,
     });
+
+    // 自作プラグインの状態を監視してボタンの見た目を更新
+    this.updateShareButtonState();
+  }
+
+  updateShareButtonState() {
+    const shareBtn = document.getElementById('shareBtn');
+    if (!shareBtn) return;
+
+    const pm = this.storage?.pluginManager || this.shareModalController?.pluginManager;
+
+    if (pm?.hasNonSharablePlugin()) {
+      // 自作ブロックがある場合はボタンを完全に非表示にする
+      shareBtn.classList.add('hidden');
+    } else {
+      shareBtn.classList.remove('hidden');
+      shareBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      shareBtn.title = '';
+    }
   }
 
   // 共有URLを組み立て
@@ -972,6 +1036,7 @@ class ShareFeature {
       isShareViewMode: () => this.isShareViewMode(),
       onShareViewModeChange: (listener) => this.onShareViewModeChange(listener),
       applyUiState: () => this.viewStateController.applyUiState(),
+      updateShareButtonState: () => this.updateShareButtonState(),
     };
   }
 }

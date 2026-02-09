@@ -1,3 +1,6 @@
+// blocks.js - Blockly definitions for EDBB
+// This file extends the global Blockly object with custom blocks and generators
+
 Blockly.Python.forBlock['custom_python_code'] = function (block) {
   const code = block.getFieldValue('CODE');
   return code + '\n';

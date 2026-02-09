@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1><img src="https://github.com/user-attachments/assets/85370508-c684-4084-b979-51e918d7e0e8" alt="EDBB Icon" style="width: 1em; height: 1em;"">Easy Discord Bot Builder (EDBB)</h1>
+<h1><img src="https://github.com/user-attachments/assets/85370508-c684-4084-b979-51e918d7e0e8" alt="EDBB Icon" style="width: 1em; height: 1em;"">Easy Discord Bot Builder (EDBP)</h1>
   
 ![EDBBCounter](https://count.getloli.com/@easybdc)
 
@@ -10,7 +10,11 @@
 
 </div>
 
-<i><b>Easy Discord Bot Builder は、ブラウザ上でブロックを組み合わせて、誰でも簡単に Discord Bot を作成できるビジュアルプログラミングツールです。</i></b>
+<i><b>Easy Discord Bot builder with Plugin は、ブラウザ上でブロックを組み合わせて、誰でも簡単に Discord Bot を作成できるビジュアルプログラミングツールです。</i></b>
+
+## 📱スマホで使用される方への注意
+
+現在、プラグイン機能はスマートフォンに最適化していません。ご利用しづらい部分がありますが、何卒ご了承下さい。
 
 ## 🚀 概要
 

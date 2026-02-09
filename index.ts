@@ -40,9 +40,13 @@ async function generateUniqueSlug(env: Env): Promise<string> {
 // ========= CORS 許可リスト =========
 const allowedOrigins: RegExp[] = [
   /^https?:\/\/localhost(:\d+)?$/,
+  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+  /^https?:\/\/\[::1\](:\d+)?$/,
   /^https?:\/\/himais0giiiin\.com$/,
   /^https?:\/\/([a-zA-Z0-9-]+\.)?himais0giiiin\.com$/,
+  /^https?:\/\/beta\.himais0giiiin\.com$/,
   /^https?:\/\/([a-zA-Z0-9-]+\.)?edbb\.himaiso\.workers\.dev$/,
+  /^https?:\/\/edbplugin\.github\.io$/,
 ];
 
 // ========= CORS ヘッダ生成 =========
