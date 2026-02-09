@@ -55,6 +55,7 @@ body {
   background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
   background-size: 24px 24px;
 }
+
 .dark body {
   background-image: radial-gradient(#1e293b 1px, transparent 1px);
 }
@@ -80,7 +81,8 @@ body {
 #liveCodeArea {
   width: 0;
   height: 100%;
-  background-color: #0f172a; /* Slate 900 */
+  background-color: #0f172a;
+  /* Slate 900 */
   color: #e2e8f0;
   overflow: hidden;
   transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
@@ -97,9 +99,11 @@ body {
   flex-shrink: 0;
   border-right: 1px solid rgba(0, 0, 0, 0.05);
 }
+
 .dark .split-view #blocklyDiv {
   border-right: 1px solid rgba(255, 255, 255, 0.05);
 }
+
 .split-view #liveCodeArea {
   width: 45%;
   opacity: 1;
@@ -122,16 +126,20 @@ body {
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
 .dark ::-webkit-scrollbar-thumb {
   background: #475569;
 }
@@ -139,9 +147,11 @@ body {
 #liveCodeArea ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 #liveCodeArea ::-webkit-scrollbar-thumb {
   background: #334155;
 }
+
 #liveCodeArea ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
@@ -155,6 +165,7 @@ body {
   border-right: 1px solid rgba(0, 0, 0, 0.05);
   padding-top: 1rem;
 }
+
 .dark .blocklyToolboxDiv {
   background-color: rgba(15, 23, 42, 0.95) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.05);
@@ -163,17 +174,19 @@ body {
 /* カテゴリ行のレイアウト修正 (Flexbox化) */
 .blocklyTreeRow {
   height: 48px !important;
-  padding-left: 12px !important; /* 左側の余白 */
+  padding-left: 12px !important;
+  /* 左側の余白 */
   border-left: 4px solid transparent;
   margin-bottom: 4px;
   transition: all 0.2s ease;
   margin-right: 12px;
   border-radius: 0 8px 8px 0;
-  
+
   /* Flexboxで垂直中央揃えを強制 */
   display: flex !important;
   align-items: center !important;
-  line-height: normal !important; /* line-height固定を解除 */
+  line-height: normal !important;
+  /* line-height固定を解除 */
 }
 
 /* デフォルトの四角い色アイコンを非表示にする（border-leftで色を表現するため） */
@@ -187,8 +200,10 @@ body {
   font-weight: 600;
   font-size: 0.85rem;
   color: #475569;
-  padding: 0 !important; /* パディングは親要素で管理 */
-  margin-left: 8px; /* 左のボーダーとの距離 */
+  padding: 0 !important;
+  /* パディングは親要素で管理 */
+  margin-left: 8px;
+  /* 左のボーダーとの距離 */
 }
 
 /* ホバー時のスタイル */
@@ -202,6 +217,7 @@ body {
   background-color: #e0e7ff !important;
   border-left-color: #6366f1 !important;
 }
+
 .blocklyTreeSelected .blocklyTreeLabel {
   color: #4f46e5 !important;
 }
@@ -210,27 +226,31 @@ body {
 .dark .blocklyTreeLabel {
   color: #94a3b8;
 }
+
 .dark .blocklyTreeRow:not(.blocklyTreeSelected):hover {
   background-color: #1e293b;
   border-left-color: #475569;
 }
+
 .dark .blocklyTreeSelected {
   background-color: #1e1b4b !important;
   border-left-color: #818cf8 !important;
 }
+
 .dark .blocklyTreeSelected .blocklyTreeLabel {
   color: #c7d2fe !important;
 }
 
 /* セパレーター（区切り線）のスタイル */
 .blocklyTreeSeparator {
-  border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
   margin: 8px 16px 8px 0 !important;
   height: 0 !important;
   background: transparent !important;
 }
+
 .dark .blocklyTreeSeparator {
-  border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
 /* フライアウト（パレット）の背景 */
@@ -238,6 +258,7 @@ body {
   fill: #ffffff !important;
   fill-opacity: 0.98;
 }
+
 .dark .blocklyFlyoutBackground {
   fill: #0f172a !important;
   fill-opacity: 0.98;
@@ -275,6 +296,7 @@ html.is-mobile .blocklyFlyout {
   visibility: hidden;
   transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .modal-backdrop.show-modal {
   opacity: 1;
   visibility: visible;
@@ -285,6 +307,7 @@ html.is-mobile .blocklyFlyout {
   opacity: 0;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .show-modal .modal-content {
   transform: scale(1) translateY(0);
   opacity: 1;
@@ -296,6 +319,7 @@ html.is-mobile .blocklyFlyout {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
+
 .dark .glass-header {
   background: rgba(15, 23, 42, 0.8);
 }
@@ -384,7 +408,7 @@ html.is-mobile #layoutSplitBtn {
 }
 
 /* splitビューボタンを含む親divも非表示にして空白を詰める */
-html.is-mobile #headerActions > div:has(#layoutBlockBtn) {
+html.is-mobile #headerActions>div:has(#layoutBlockBtn) {
   display: none !important;
 }
 
@@ -396,6 +420,7 @@ html.is-mobile #blocklyDiv {
   border-radius: 12px;
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
 }
+
 .dark .blocklyFlyout {
   border-right: 1px solid #ffffff40;
 }
@@ -629,6 +654,7 @@ body {
     opacity: 0;
     transform: translateY(8px);
   }
+
   100% {
     opacity: 1;
     transform: translateY(0);
@@ -689,7 +715,7 @@ main {
     #0b1220;
 }
 
-#liveCodeArea > div:first-child {
+#liveCodeArea>div:first-child {
   background: rgba(2, 6, 23, 0.85);
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
   backdrop-filter: blur(10px);
@@ -884,7 +910,7 @@ main {
   box-shadow: var(--ring);
 }
 
-#shareViewOverlay > div {
+#shareViewOverlay>div {
   border: 1px solid rgba(14, 165, 233, 0.25);
   box-shadow: var(--shadow-md);
 }
@@ -1024,34 +1050,163 @@ button:active {
   transform: scale(0.95) !important;
 }
 
-#showCodeBtn:active, #shareBtn:active, #pluginBtn:active, #layoutBlockBtn:active, #layoutSplitBtn:active, #importBtn:active, #exportBtn:active, #themeToggle:active {
+#showCodeBtn:active,
+#shareBtn:active,
+#pluginBtn:active,
+#layoutBlockBtn:active,
+#layoutSplitBtn:active,
+#importBtn:active,
+#exportBtn:active,
+#themeToggle:active {
   transform: scale(0.92) !important;
 }
 
 
 
 /* README Content Styles */
-.readme-content h1 { font-size: 1.875rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 1rem; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 0.5rem; }
-.readme-content h2 { font-size: 1.5rem; font-weight: 700; margin-top: 1.25rem; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 0.3rem; }
-.readme-content h3 { font-size: 1.25rem; font-weight: 700; margin-top: 1rem; margin-bottom: 0.5rem; }
-.readme-content p { margin-bottom: 1rem; line-height: 1.6; }
-.readme-content ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1rem; }
-.readme-content ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 1rem; }
-.readme-content li { margin-bottom: 0.25rem; }
-.readme-content code { background-color: rgba(0,0,0,0.05); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: monospace; font-size: 0.9em; }
-.dark .readme-content code { background-color: rgba(255,255,255,0.1); }
-.readme-content pre { background-color: #1e293b; color: #f8fafc; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1rem; }
-.readme-content blockquote { border-left: 4px solid #e2e8f0; padding-left: 1rem; color: #64748b; font-style: italic; margin-bottom: 1rem; }
-.dark .readme-content blockquote { border-left-color: #334155; color: #94a3b8; }
-.readme-content img { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 1rem 0; }
-.readme-content table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9em; }
-.readme-content th, .readme-content td { border: 1px solid #e2e8f0; padding: 0.6rem; text-align: left; }
-.dark .readme-content th, .dark .readme-content td { border-color: #334155; }
-.readme-content th { background-color: #f8fafc; font-weight: 700; }
-.dark .readme-content th { background-color: #0f172a; }
-.readme-content a { color: #6366f1; text-decoration: underline; }
-.dark .readme-content a { color: #818cf8; }
-.readme-content div[align="center"], .readme-content center { text-align: center; display: block; width: 100%; }
-.readme-content img[align="center"] { display: block; margin: 1rem auto; }
-.readme-content h1 img { vertical-align: middle; display: inline-block; }
-.readme-content br { content: ""; display: block; margin: 0.5rem 0; }
+.readme-content h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding-bottom: 0.5rem;
+}
+
+.readme-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding-bottom: 0.3rem;
+}
+
+.readme-content h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.readme-content p {
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+.readme-content ul {
+  list-style-type: disc;
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.readme-content ol {
+  list-style-type: decimal;
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.readme-content li {
+  margin-bottom: 0.25rem;
+}
+
+.readme-content code {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.dark .readme-content code {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.readme-content pre {
+  background-color: #1e293b;
+  color: #f8fafc;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.readme-content blockquote {
+  border-left: 4px solid #e2e8f0;
+  padding-left: 1rem;
+  color: #64748b;
+  font-style: italic;
+  margin-bottom: 1rem;
+}
+
+.dark .readme-content blockquote {
+  border-left-color: #334155;
+  color: #94a3b8;
+}
+
+.readme-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+.readme-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  font-size: 0.9em;
+}
+
+.readme-content th,
+.readme-content td {
+  border: 1px solid #e2e8f0;
+  padding: 0.6rem;
+  text-align: left;
+}
+
+.dark .readme-content th,
+.dark .readme-content td {
+  border-color: #334155;
+}
+
+.readme-content th {
+  background-color: #f8fafc;
+  font-weight: 700;
+}
+
+.dark .readme-content th {
+  background-color: #0f172a;
+}
+
+.readme-content a {
+  color: #6366f1;
+  text-decoration: underline;
+}
+
+.dark .readme-content a {
+  color: #818cf8;
+}
+
+.readme-content div[align="center"],
+.readme-content center {
+  text-align: center;
+  display: block;
+  width: 100%;
+}
+
+.readme-content img[align="center"] {
+  display: block;
+  margin: 1rem auto;
+}
+
+.readme-content h1 img {
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.readme-content br {
+  content: "";
+  display: block;
+  margin: 0.5rem 0;
+}
