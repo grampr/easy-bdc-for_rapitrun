@@ -983,7 +983,7 @@ class ShareFeature {
 
     const pm = this.storage?.pluginManager || this.shareModalController?.pluginManager;
 
-    if (pm?.hasCustomBlockPlugin()) {
+    if (pm?.hasNonSharablePlugin()) {
       // 自作ブロックがある場合はボタンを完全に非表示にする
       shareBtn.classList.add('hidden');
     } else {
