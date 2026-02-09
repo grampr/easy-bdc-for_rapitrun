@@ -58,7 +58,7 @@ export class PluginManager {
 
         // 公認プラグインリストの取得
         try {
-            const response = await fetch('https://raw.githubusercontent.com/EDBPlugin/EDBP-API/main/1.json');
+            const response = await fetch('https://raw.githubusercontent.com/EDBPlugin/EDBP-API/refs/heads/main/plugins.json');
             if (response.ok) {
                 this.certifiedPlugins = await response.json();
             }
@@ -133,11 +133,14 @@ export class PluginManager {
     getTrustLevel(repo) {
         if (repo.owner.login === 'EDBPlugin') return 'official';
         // EDBP-APIのリストに含まれているかチェック
-        const isCertified = Array.isArray(this.certifiedPlugins) && this.certifiedPlugins.some(p =>
-            p.URL === repo.html_url ||
-            p.URL === repo.url ||
-            (p.URL && p.URL.includes(repo.full_name))
-        );
+        const isCertified = Array.isArray(this.certifiedPlugins) && this.certifiedPlugins.some(p => {
+            if (typeof p === 'string') {
+                return p === repo.full_name || repo.html_url.includes(p);
+            }
+            return p.URL === repo.html_url ||
+                p.URL === repo.url ||
+                (p.URL && p.URL.includes(repo.full_name));
+        });
         if (isCertified) return 'certified';
         return null;
     }
