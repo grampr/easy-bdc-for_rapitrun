@@ -274,9 +274,9 @@ export class PluginUI {
 
         let trustBadge = '';
         if (plugin.trustLevel === 'official' || plugin.author === 'EDBPlugin') {
-            trustBadge = '<span class="text-xs px-2 py-1 rounded bg-blue-500 text-white font-bold">公式プラグイン</span>';
+            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-blue-500 text-white font-bold leading-none shrink-0">公式プラグイン</span>';
         } else if (plugin.trustLevel === 'certified') {
-            trustBadge = '<span class="text-xs px-2 py-1 rounded bg-green-500 text-white font-bold">公認プラグイン</span>';
+            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-green-500 text-white font-bold leading-none shrink-0">公認プラグイン</span>';
         }
 
         this.pluginDetailContent.innerHTML = `
@@ -394,9 +394,9 @@ export class PluginUI {
 
         let trustBadge = '';
         if (plugin.author === 'EDBPlugin' || plugin.trustLevel === 'official') {
-            trustBadge = '<span class="text-xs px-2 py-1 rounded bg-blue-500 text-white font-bold">公式プラグイン</span>';
+            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-blue-500 text-white font-bold leading-none shrink-0">公式プラグイン</span>';
         } else if (plugin.trustLevel === 'certified') {
-            trustBadge = '<span class="text-xs px-2 py-1 rounded bg-green-500 text-white font-bold">公認プラグイン</span>';
+            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-green-500 text-white font-bold leading-none shrink-0">公認プラグイン</span>';
         }
 
         this.pluginDetailContent.innerHTML = `

@@ -50,6 +50,7 @@
     <script src="https://unpkg.com/blockly@11.2.2/msg/ja.js"></script>
     <script src="https://unpkg.com/@blockly/field-multilineinput@4.0.4/dist/index.js"></script>
     <script src="./mobile.js"></script>
+    <script src="./plugin-mobile.js"></script>
     <link rel="stylesheet" href="./mobile.css">
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -678,7 +679,12 @@
                 </div>
 
                 <!-- メイン: プラグイン詳細 -->
-                <div id="pluginDetail" class="flex-1 overflow-y-auto p-8 bg-white dark:bg-slate-900">
+                <div id="pluginDetail" class="flex-1 overflow-y-auto p-8 bg-white dark:bg-slate-900 relative">
+                    <button id="pluginMobileBackBtn"
+                        class="hidden mb-6 items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold transition-all active:scale-95">
+                        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                        <span>プラグイン一覧に戻る</span>
+                    </button>
                     <div id="pluginDetailEmpty" class="h-full flex flex-col items-center justify-center text-slate-400">
                         <i data-lucide="puzzle" class="w-12 h-12 mb-4 opacity-20"></i>
                         <p>プラグインを選択して詳細を表示します</p>
