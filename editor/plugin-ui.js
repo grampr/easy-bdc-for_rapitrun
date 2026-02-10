@@ -503,13 +503,14 @@ export class PluginUI {
         if (!container) return;
 
         if (plugin.repo && plugin.repo.includes('github.com')) {
-            const fullName = plugin.repo.split('github.com/')[1].replace(/\/$/, '');
-            const readme = await this.pluginManager.getREADME(fullName);
+            // manifestに記載されているURLをそのまま渡してREADMEを解決させる
+            const readme = await this.pluginManager.getREADME(plugin.repo);
             container.innerHTML = `<div class="font-sans text-sm leading-relaxed"><div class="readme-content">${this.renderMarkdown(readme)}</div></div>`;
         } else {
             container.innerHTML = `<p class="text-sm text-slate-500">${plugin.description}</p>`;
         }
     }
+
 
     renderMarkdown(markdown) {
         if (typeof marked === 'undefined') return markdown;

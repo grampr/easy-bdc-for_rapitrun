@@ -161,18 +161,77 @@ export class PluginManager {
         return null;
     }
 
+    /**
+     * GitHubのURLを解析して、所有者、リポジトリ、ブランチ、パスを抽出します。
+     * @param {string} url 
+     * @returns {object|null}
+     */
+    parseGitHubUrl(url) {
+        if (!url || typeof url !== 'string' || !url.includes('github.com')) return null;
+
+        try {
+            // クエリパラメータを除去し、末尾のスラッシュや .git を取り除く
+            const cleanUrl = url.split('?')[0].replace(/\/$/, '').replace(/\.git$/, '');
+
+            // github.com/ 以降の部分を取得
+            const pathParts = cleanUrl.split('github.com/')[1].split('/');
+            if (pathParts.length < 2) return null;
+
+            const owner = pathParts[0];
+            const repo = pathParts[1];
+            let branch = 'main';
+            let path = '';
+
+            // blob/branch/path or tree/branch/path の形式をチェック
+            if (pathParts.length >= 4 && (pathParts[2] === 'tree' || pathParts[2] === 'blob')) {
+                branch = pathParts[3];
+                path = pathParts.slice(4).join('/');
+            }
+
+            return { owner, repo, branch, path, fullName: `${owner}/${repo}` };
+        } catch (e) {
+            console.warn('Failed to parse GitHub URL:', url, e);
+            return null;
+        }
+    }
+
     // READMEの取得
-    async getREADME(fullName, defaultBranch = 'main') {
-        const possiblePaths = ['README.md', 'readme.md', 'README.MD'];
-        for (const path of possiblePaths) {
+    async getREADME(identifier, defaultBranch = 'main') {
+        const repoInfo = this.parseGitHubUrl(identifier);
+
+        let fullName = identifier;
+        let branch = defaultBranch;
+        let subPath = '';
+
+        if (repoInfo) {
+            fullName = repoInfo.fullName;
+            // URLにブランチ指定があればそれを使用、なければ引数のデフォルト
+            branch = (repoInfo.branch && repoInfo.branch !== 'main') ? repoInfo.branch : defaultBranch;
+            subPath = repoInfo.path ? repoInfo.path + '/' : '';
+        }
+
+        // 検索するパスの優先順位: URL内のパス/README.md -> ルート/README.md
+        const possiblePaths = [
+            `${subPath}README.md`,
+            `${subPath}readme.md`,
+            'README.md',
+            'readme.md',
+            'README.MD'
+        ];
+
+        // 重複を除去
+        const uniquePaths = [...new Set(possiblePaths)];
+
+        for (const path of uniquePaths) {
             try {
-                const url = `https://raw.githubusercontent.com/${fullName}/${defaultBranch}/${path}`;
+                const url = `https://raw.githubusercontent.com/${fullName}/${branch}/${path}`;
                 const response = await fetch(url);
                 if (response.ok) return await response.text();
             } catch (e) { }
         }
         return 'READMEが見つかりませんでした。';
     }
+
 
     // GitHubのリリース一覧を取得
     async getReleases(fullName) {
@@ -340,9 +399,22 @@ export class PluginManager {
                 await plugin.onload();
                 this.plugins.set(id, plugin);
             } else if (pluginMeta.script) {
+                // Ensure DOM is ready before executing plugin script
+                if (document.readyState === 'loading') {
+                    await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
+                }
+
                 const pluginClass = new Function('workspace', `
-                    ${pluginMeta.script}
-                    return new Plugin(workspace);
+                    try {
+                        ${pluginMeta.script}
+                        if (typeof Plugin === 'undefined') {
+                            throw new Error('Plugin class not defined in script');
+                        }
+                        return new Plugin(workspace);
+                    } catch (e) {
+                        console.error('Error executing plugin script:', e);
+                        throw e;
+                    }
                 `)(this.workspace);
 
                 if (pluginClass && typeof pluginClass.onload === 'function') {
@@ -357,7 +429,11 @@ export class PluginManager {
             this.saveState();
         } catch (e) {
             console.error(`Failed to enable plugin ${id}:`, e);
+            // Re-throw if it's a critical error we want the UI to handle, 
+            // but for now, we just log it as the user requested "solution".
+            // Since the plugin code itself has the null error, we can catch it here.
         }
+
     }
 
     async disablePlugin(id) {
