@@ -1126,6 +1126,14 @@ const initializeApp = async () => {
   const splitCodeModal = document.getElementById('splitCodeModal');
   const splitModalClose = document.getElementById('splitModalClose');
   const splitDownloadAllBtn = document.getElementById('splitDownloadAllBtn');
+  const saveJsonModal = document.getElementById('saveJsonModal');
+  const saveJsonCloseBtn = document.getElementById('saveJsonCloseBtn');
+  const saveJsonCancelBtn = document.getElementById('saveJsonCancelBtn');
+  const saveJsonConfirmBtn = document.getElementById('saveJsonConfirmBtn');
+  const saveJsonFilenameInput = document.getElementById('saveJsonFilename');
+  const saveJsonPrettyCheckbox = document.getElementById('saveJsonPretty');
+  const saveJsonMethodSelect = document.getElementById('saveJsonMethod');
+  const saveJsonMethodHint = document.getElementById('saveJsonMethodHint');
 
   const importBtn = document.getElementById('importBtn');
   const exportBtn = document.getElementById('exportBtn');
@@ -1140,6 +1148,33 @@ const initializeApp = async () => {
 
   const resolveProjectTitle = () =>
     (projectTitleInput?.value || '').trim() || WorkspaceStorage.DEFAULT_TITLE;
+
+  const supportsSaveFilePicker =
+    typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function';
+
+  const getDefaultJsonFileName = () =>
+    storage?.getDefaultExportFileName?.() ||
+    WorkspaceStorage.buildDownloadName(resolveProjectTitle());
+
+  const normalizeJsonFileName = (rawName) =>
+    WorkspaceStorage.normalizeDownloadName(rawName, getDefaultJsonFileName());
+
+  const flashSaveStatus = (message = 'Saved') => {
+    const status = document.getElementById('saveStatus');
+    if (!status) return;
+    const label = status.querySelector('span');
+    const originalText = label?.textContent || 'Saved';
+    if (label) {
+      label.textContent = message;
+    }
+    status.setAttribute('data-show', 'true');
+    setTimeout(() => {
+      status.setAttribute('data-show', 'false');
+      if (label) {
+        label.textContent = originalText;
+      }
+    }, 2000);
+  };
 
   const hydrateProjectTitle = () => {
     if (!projectTitleInput) return;
@@ -1447,7 +1482,21 @@ const initializeApp = async () => {
   });
 
   exportBtn.addEventListener('click', () => {
-    storage?.exportFile();
+    if (!saveJsonModal || !storage) {
+      storage?.exportFile();
+      return;
+    }
+    if (saveJsonFilenameInput) {
+      saveJsonFilenameInput.value = getDefaultJsonFileName();
+    }
+    if (saveJsonMethodSelect && !supportsSaveFilePicker) {
+      saveJsonMethodSelect.value = 'download';
+    }
+    toggleModal(saveJsonModal, true);
+    setTimeout(() => {
+      saveJsonFilenameInput?.focus();
+      saveJsonFilenameInput?.select();
+    }, 0);
   });
 
   // --- モーダル表示ロジック (アニメーション付き) ---
@@ -1478,6 +1527,84 @@ const initializeApp = async () => {
       modalTimers.set(modal, timer);
     }
   };
+
+  const updateSaveJsonMethodHint = () => {
+    if (!saveJsonMethodHint) return;
+    const mode = saveJsonMethodSelect?.value || 'download';
+    if (mode === 'picker') {
+      saveJsonMethodHint.textContent = supportsSaveFilePicker
+        ? '保存ダイアログを開いて、任意のフォルダに直接保存します。'
+        : 'このブラウザでは「保存先を選んで保存」は使えません。通常ダウンロードを選んでください。';
+      return;
+    }
+    saveJsonMethodHint.textContent =
+      '通常のダウンロードとして保存します。ほぼ全ブラウザで利用できます。';
+  };
+
+  const closeSaveJsonModal = () => {
+    if (!saveJsonModal) return;
+    toggleModal(saveJsonModal, false);
+  };
+
+  const setSaveJsonBusy = (busy) => {
+    if (!saveJsonConfirmBtn) return;
+    saveJsonConfirmBtn.disabled = busy;
+    saveJsonConfirmBtn.classList.toggle('opacity-70', busy);
+    saveJsonConfirmBtn.classList.toggle('cursor-not-allowed', busy);
+  };
+
+  const handleSaveJsonConfirm = async () => {
+    if (!storage) return;
+
+    const pretty = Boolean(saveJsonPrettyCheckbox?.checked);
+    const fileName = normalizeJsonFileName(saveJsonFilenameInput?.value || '');
+    if (saveJsonFilenameInput) {
+      saveJsonFilenameInput.value = fileName;
+    }
+    const method = saveJsonMethodSelect?.value || 'download';
+
+    setSaveJsonBusy(true);
+    let saved = false;
+    try {
+      if (method === 'picker' && supportsSaveFilePicker) {
+        saved = await storage.saveFileWithPicker({ pretty, fileName });
+      } else {
+        saved = storage.exportFile({ pretty, fileName });
+      }
+    } finally {
+      setSaveJsonBusy(false);
+    }
+
+    if (!saved) return;
+    closeSaveJsonModal();
+    flashSaveStatus('JSONを保存しました');
+  };
+
+  if (saveJsonMethodSelect && !supportsSaveFilePicker) {
+    const pickerOption = saveJsonMethodSelect.querySelector('option[value="picker"]');
+    if (pickerOption) {
+      pickerOption.disabled = true;
+    }
+    saveJsonMethodSelect.value = 'download';
+  }
+  updateSaveJsonMethodHint();
+
+  saveJsonMethodSelect?.addEventListener('change', updateSaveJsonMethodHint);
+  saveJsonCloseBtn?.addEventListener('click', closeSaveJsonModal);
+  saveJsonCancelBtn?.addEventListener('click', closeSaveJsonModal);
+  saveJsonConfirmBtn?.addEventListener('click', () => {
+    void handleSaveJsonConfirm();
+  });
+  saveJsonFilenameInput?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    void handleSaveJsonConfirm();
+  });
+  saveJsonModal?.addEventListener('click', (event) => {
+    if (event.target === saveJsonModal) {
+      closeSaveJsonModal();
+    }
+  });
 
   showCodeBtn.addEventListener('click', () => {
     showCodeBtn.blur();
