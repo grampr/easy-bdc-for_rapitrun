@@ -424,12 +424,6 @@ export class PluginManager {
 
         try {
             if (pluginMeta.script) {
-
-                // Ensure DOM is ready before executing plugin script
-                if (document.readyState === 'loading') {
-                    await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
-                }
-
                 const pluginClass = new Function('workspace', `
                     try {
                         ${pluginMeta.script}
