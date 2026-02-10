@@ -35,23 +35,64 @@ export class PluginManager {
         // 公認プラグインリストのキャッシュ
         this.certifiedPlugins = [];
 
-        // 組み込みプラグインレジストリ
-        this.builtinRegistry = [
-            {
-                id: 'vanilla-plugin',
-                uuid: 'edbp-builtin-vanilla-001',
-                name: 'Vanilla Plugin',
-                author: 'EDBPlugin',
-                version: '1.0.0',
-                description: 'EDBPの基本機能を拡張するバニラプラグインです.',
-                repo: 'https://github.com/EDBPlugin/easy-bdp',
-                updateDate: '2026-02-07',
-                affectsStyle: false,
-                affectsBlocks: true,
-                isCustom: false
-            }
-        ];
+        // 過去の負債を清算
+        this._purgeLegacySystems();
     }
+
+    _purgeLegacySystems() {
+        const legacyBuiltinIds = ['vanilla-plugin'];
+        const legacyBuiltinUUIDs = ['edbp-builtin-vanilla-001'];
+        let purged = false;
+
+        // 1. IDによるパージ
+        legacyBuiltinIds.forEach(id => {
+            if (this.installedPlugins[id]) {
+                delete this.installedPlugins[id];
+                purged = true;
+            }
+            if (this.enabledPlugins.has(id)) {
+                this.enabledPlugins.delete(id);
+                purged = true;
+            }
+        });
+
+        // 2. UUIDによるパージ
+        Object.keys(this.installedPlugins).forEach(id => {
+            const plugin = this.installedPlugins[id];
+            if (plugin && legacyBuiltinUUIDs.includes(plugin.uuid)) {
+                delete this.installedPlugins[id];
+                this.enabledPlugins.delete(id);
+                purged = true;
+            }
+        });
+
+        if (purged) {
+            console.log('Legacy systems purged from local database.');
+            this.saveInstalledPlugins();
+            this.saveState();
+        }
+    }
+
+    /**
+     * すべてのプラグインデータを完全に削除し、初期状態に戻します。
+     * 履歴消去などの操作と連動させるためのシステムです。
+     */
+    resetSystem() {
+        console.warn('EDBP System Reset initiated. Purging all local plugin data.');
+        this.installedPlugins = {};
+        this.enabledPlugins = new Set();
+        this.plugins.forEach(p => {
+            if (p && typeof p.onunload === 'function') p.onunload();
+        });
+        this.plugins.clear();
+
+        // localStorageの物理削除
+        localStorage.removeItem('edbb_installed_plugins');
+        localStorage.removeItem('edbb_enabled_plugins');
+
+        console.log('All plugin data has been completely removed.');
+    }
+
 
     async init() {
         console.log('PluginManager initializing...');
@@ -66,17 +107,11 @@ export class PluginManager {
             console.warn('Failed to fetch certified plugins list', e);
         }
 
-        // 組み込みプラグインをインストール済みとして扱う
-        this.builtinRegistry.forEach(p => {
-            if (!this.installedPlugins[p.id]) {
-                this.installedPlugins[p.id] = p;
-            }
-        });
-
         for (const pluginId of this.enabledPlugins) {
             await this.enablePlugin(pluginId);
         }
     }
+
 
     // GitHubから edbp-plugin タグ/トピックの付いたリポジトリを検索
     async searchGitHubPlugins(query = '') {
@@ -161,18 +196,77 @@ export class PluginManager {
         return null;
     }
 
+    /**
+     * GitHubのURLを解析して、所有者、リポジトリ、ブランチ、パスを抽出します。
+     * @param {string} url 
+     * @returns {object|null}
+     */
+    parseGitHubUrl(url) {
+        if (!url || typeof url !== 'string' || !url.includes('github.com')) return null;
+
+        try {
+            // クエリパラメータを除去し、末尾のスラッシュや .git を取り除く
+            const cleanUrl = url.split('?')[0].replace(/\/$/, '').replace(/\.git$/, '');
+
+            // github.com/ 以降の部分を取得
+            const pathParts = cleanUrl.split('github.com/')[1].split('/');
+            if (pathParts.length < 2) return null;
+
+            const owner = pathParts[0];
+            const repo = pathParts[1];
+            let branch = 'main';
+            let path = '';
+
+            // blob/branch/path or tree/branch/path の形式をチェック
+            if (pathParts.length >= 4 && (pathParts[2] === 'tree' || pathParts[2] === 'blob')) {
+                branch = pathParts[3];
+                path = pathParts.slice(4).join('/');
+            }
+
+            return { owner, repo, branch, path, fullName: `${owner}/${repo}` };
+        } catch (e) {
+            console.warn('Failed to parse GitHub URL:', url, e);
+            return null;
+        }
+    }
+
     // READMEの取得
-    async getREADME(fullName, defaultBranch = 'main') {
-        const possiblePaths = ['README.md', 'readme.md', 'README.MD'];
-        for (const path of possiblePaths) {
+    async getREADME(identifier, defaultBranch = 'main') {
+        const repoInfo = this.parseGitHubUrl(identifier);
+
+        let fullName = identifier;
+        let branch = defaultBranch;
+        let subPath = '';
+
+        if (repoInfo) {
+            fullName = repoInfo.fullName;
+            // URLにブランチ指定があればそれを使用、なければ引数のデフォルト
+            branch = (repoInfo.branch && repoInfo.branch !== 'main') ? repoInfo.branch : defaultBranch;
+            subPath = repoInfo.path ? repoInfo.path + '/' : '';
+        }
+
+        // 検索するパスの優先順位: URL内のパス/README.md -> ルート/README.md
+        const possiblePaths = [
+            `${subPath}README.md`,
+            `${subPath}readme.md`,
+            'README.md',
+            'readme.md',
+            'README.MD'
+        ];
+
+        // 重複を除去
+        const uniquePaths = [...new Set(possiblePaths)];
+
+        for (const path of uniquePaths) {
             try {
-                const url = `https://raw.githubusercontent.com/${fullName}/${defaultBranch}/${path}`;
+                const url = `https://raw.githubusercontent.com/${fullName}/${branch}/${path}`;
                 const response = await fetch(url);
                 if (response.ok) return await response.text();
             } catch (e) { }
         }
         return 'READMEが見つかりませんでした。';
     }
+
 
     // GitHubのリリース一覧を取得
     async getReleases(fullName) {
@@ -268,14 +362,11 @@ export class PluginManager {
         }
     }
     async uninstallPlugin(id) {
-        if (this.builtinRegistry.some(p => p.id === id)) {
-            throw new Error("組み込みプラグインは削除できません。");
-        }
-
         await this.disablePlugin(id);
         delete this.installedPlugins[id];
         this.saveInstalledPlugins();
     }
+
 
     generateUUID(author, name) {
         const seed = `${author}-${name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -335,14 +426,24 @@ export class PluginManager {
         if (!pluginMeta) return;
 
         try {
-            if (id === 'vanilla-plugin') {
-                const plugin = new VanillaPlugin(this.workspace);
-                await plugin.onload();
-                this.plugins.set(id, plugin);
-            } else if (pluginMeta.script) {
+            if (pluginMeta.script) {
+
+                // Ensure DOM is ready before executing plugin script
+                if (document.readyState === 'loading') {
+                    await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
+                }
+
                 const pluginClass = new Function('workspace', `
-                    ${pluginMeta.script}
-                    return new Plugin(workspace);
+                    try {
+                        ${pluginMeta.script}
+                        if (typeof Plugin === 'undefined') {
+                            throw new Error('Plugin class not defined in script');
+                        }
+                        return new Plugin(workspace);
+                    } catch (e) {
+                        console.error('Error executing plugin script:', e);
+                        throw e;
+                    }
                 `)(this.workspace);
 
                 if (pluginClass && typeof pluginClass.onload === 'function') {
@@ -357,7 +458,11 @@ export class PluginManager {
             this.saveState();
         } catch (e) {
             console.error(`Failed to enable plugin ${id}:`, e);
+            // Re-throw if it's a critical error we want the UI to handle, 
+            // but for now, we just log it as the user requested "solution".
+            // Since the plugin code itself has the null error, we can catch it here.
         }
+
     }
 
     async disablePlugin(id) {
@@ -428,10 +533,8 @@ export class PluginManager {
         const meta = this.installedPlugins[id];
         if (!meta) return false;
 
-        // 組み込みプラグインは共有可能 (UUIDで管理)
-        if (this.builtinRegistry.some(p => p.id === id)) return true;
-
         // GitHubからインストールされたものは、リポジトリURLがあるため共有可能 (installedFrom: 1)
+
         if (meta.installedFrom === 1 && meta.repo) return true;
 
         // ローカルZIPからのものは、他人が持っていない可能性があるため基本は共有不可
@@ -467,74 +570,5 @@ export class PluginManager {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    }
-}
-
-class VanillaPlugin {
-    constructor(workspace) {
-        this.workspace = workspace;
-    }
-
-    async onload() {
-        console.log('Vanilla Plugin loaded');
-        this.registerBlocks();
-    }
-
-    registerBlocks() {
-        if (typeof Blockly === 'undefined') return;
-
-        Blockly.Blocks['vanilla_plugin_test'] = {
-            init: function () {
-                this.appendDummyInput()
-                    .appendField("🍦 バニラプラグイン・テスト");
-                this.setPreviousStatement(true, null);
-                this.setNextStatement(true, null);
-                this.setColour(200);
-                this.setTooltip("バニラプラグインが正常に動作しているか確認するためのブロックです。このブロックをフィールドに出すとコードを生成できません！");
-            }
-        };
-
-        Blockly.Python['vanilla_plugin_test'] = function (block) {
-            return "# Vanilla Plugin Test\n";
-        };
-
-        this.updateToolbox();
-    }
-
-    updateToolbox() {
-        const toolbox = document.getElementById('toolbox');
-        if (!toolbox) return;
-
-        if (toolbox.querySelector('category[name="プラグイン"]')) return;
-
-        const category = document.createElement('category');
-        category.setAttribute('name', 'プラグイン');
-        category.setAttribute('data-icon', '🔌');
-        category.setAttribute('colour', '#200');
-        category.innerHTML = '<block type="vanilla_plugin_test"></block>';
-
-        toolbox.appendChild(category);
-
-        if (this.workspace) {
-            this.workspace.updateToolbox(toolbox);
-        }
-    }
-
-    async onunload() {
-        console.log('Vanilla Plugin unloaded');
-        this.removeFromToolbox();
-    }
-
-    removeFromToolbox() {
-        const toolbox = document.getElementById('toolbox');
-        if (!toolbox) return;
-
-        const category = toolbox.querySelector('category[name="プラグイン"]');
-        if (category) {
-            category.remove();
-            if (this.workspace) {
-                this.workspace.updateToolbox(toolbox);
-            }
-        }
     }
 }

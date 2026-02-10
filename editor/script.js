@@ -1105,7 +1105,9 @@ const renderSplitFiles = (files) => {
 };
 
 const initializeApp = async () => {
+  window.__edbb_initialized = true;
   lucide.createIcons();
+
   const { modernLightTheme, modernDarkTheme } = setupBlocklyEnvironment();
 
   const blocklyDiv = document.getElementById('blocklyDiv');
@@ -1538,6 +1540,8 @@ const initializeApp = async () => {
 // Initialize app when DOM is ready and all modules are loaded
 // Use a small delay to ensure all module imports are complete
 const startApp = async (retryCount = 0) => {
+  if (window.__edbb_initialized) return;
+
   // Limit retries to prevent infinite loops (approx 10 seconds)
   if (retryCount > 100) {
     console.error('App initialization timed out: Blockly or modules failed to load.');
