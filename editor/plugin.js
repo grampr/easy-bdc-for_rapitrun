@@ -35,23 +35,41 @@ export class PluginManager {
         // 公認プラグインリストのキャッシュ
         this.certifiedPlugins = [];
 
-        // 組み込みプラグインレジストリ
-        this.builtinRegistry = [
-            {
-                id: 'vanilla-plugin',
-                uuid: 'edbp-builtin-vanilla-001',
-                name: 'Vanilla Plugin',
-                author: 'EDBPlugin',
-                version: '1.0.0',
-                description: 'EDBPの基本機能を拡張するバニラプラグインです.',
-                repo: 'https://github.com/EDBPlugin/easy-bdp',
-                updateDate: '2026-02-07',
-                affectsStyle: false,
-                affectsBlocks: true,
-                isCustom: false
+        // 組み込みプラグインのパージ（廃止された組み込みプラグインがあれば即座に削除）
+        const legacyBuiltinIds = ['vanilla-plugin'];
+        const legacyBuiltinUUIDs = ['edbp-builtin-vanilla-001'];
+        let purged = false;
+
+        // IDによるパージ
+        legacyBuiltinIds.forEach(id => {
+            if (this.installedPlugins[id]) {
+                delete this.installedPlugins[id];
+                purged = true;
+                console.log(`Purged legacy plugin by ID: ${id}`);
             }
-        ];
+            if (this.enabledPlugins.has(id)) {
+                this.enabledPlugins.delete(id);
+                purged = true;
+            }
+        });
+
+        // UUIDによるパージ
+        Object.keys(this.installedPlugins).forEach(id => {
+            const plugin = this.installedPlugins[id];
+            if (plugin && legacyBuiltinUUIDs.includes(plugin.uuid)) {
+                delete this.installedPlugins[id];
+                this.enabledPlugins.delete(id);
+                purged = true;
+                console.log(`Purged legacy plugin by UUID: ${plugin.uuid} (ID: ${id})`);
+            }
+        });
+
+        if (purged) {
+            this.saveInstalledPlugins();
+            this.saveState();
+        }
     }
+
 
     async init() {
         console.log('PluginManager initializing...');
@@ -66,17 +84,11 @@ export class PluginManager {
             console.warn('Failed to fetch certified plugins list', e);
         }
 
-        // 組み込みプラグインをインストール済みとして扱う
-        this.builtinRegistry.forEach(p => {
-            if (!this.installedPlugins[p.id]) {
-                this.installedPlugins[p.id] = p;
-            }
-        });
-
         for (const pluginId of this.enabledPlugins) {
             await this.enablePlugin(pluginId);
         }
     }
+
 
     // GitHubから edbp-plugin タグ/トピックの付いたリポジトリを検索
     async searchGitHubPlugins(query = '') {
@@ -327,14 +339,11 @@ export class PluginManager {
         }
     }
     async uninstallPlugin(id) {
-        if (this.builtinRegistry.some(p => p.id === id)) {
-            throw new Error("組み込みプラグインは削除できません。");
-        }
-
         await this.disablePlugin(id);
         delete this.installedPlugins[id];
         this.saveInstalledPlugins();
     }
+
 
     generateUUID(author, name) {
         const seed = `${author}-${name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -394,11 +403,8 @@ export class PluginManager {
         if (!pluginMeta) return;
 
         try {
-            if (id === 'vanilla-plugin') {
-                const plugin = new VanillaPlugin(this.workspace);
-                await plugin.onload();
-                this.plugins.set(id, plugin);
-            } else if (pluginMeta.script) {
+            if (pluginMeta.script) {
+
                 // Ensure DOM is ready before executing plugin script
                 if (document.readyState === 'loading') {
                     await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
@@ -504,10 +510,8 @@ export class PluginManager {
         const meta = this.installedPlugins[id];
         if (!meta) return false;
 
-        // 組み込みプラグインは共有可能 (UUIDで管理)
-        if (this.builtinRegistry.some(p => p.id === id)) return true;
-
         // GitHubからインストールされたものは、リポジトリURLがあるため共有可能 (installedFrom: 1)
+
         if (meta.installedFrom === 1 && meta.repo) return true;
 
         // ローカルZIPからのものは、他人が持っていない可能性があるため基本は共有不可
@@ -543,74 +547,5 @@ export class PluginManager {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-    }
-}
-
-class VanillaPlugin {
-    constructor(workspace) {
-        this.workspace = workspace;
-    }
-
-    async onload() {
-        console.log('Vanilla Plugin loaded');
-        this.registerBlocks();
-    }
-
-    registerBlocks() {
-        if (typeof Blockly === 'undefined') return;
-
-        Blockly.Blocks['vanilla_plugin_test'] = {
-            init: function () {
-                this.appendDummyInput()
-                    .appendField("🍦 バニラプラグイン・テスト");
-                this.setPreviousStatement(true, null);
-                this.setNextStatement(true, null);
-                this.setColour(200);
-                this.setTooltip("バニラプラグインが正常に動作しているか確認するためのブロックです。このブロックをフィールドに出すとコードを生成できません！");
-            }
-        };
-
-        Blockly.Python['vanilla_plugin_test'] = function (block) {
-            return "# Vanilla Plugin Test\n";
-        };
-
-        this.updateToolbox();
-    }
-
-    updateToolbox() {
-        const toolbox = document.getElementById('toolbox');
-        if (!toolbox) return;
-
-        if (toolbox.querySelector('category[name="プラグイン"]')) return;
-
-        const category = document.createElement('category');
-        category.setAttribute('name', 'プラグイン');
-        category.setAttribute('data-icon', '🔌');
-        category.setAttribute('colour', '#200');
-        category.innerHTML = '<block type="vanilla_plugin_test"></block>';
-
-        toolbox.appendChild(category);
-
-        if (this.workspace) {
-            this.workspace.updateToolbox(toolbox);
-        }
-    }
-
-    async onunload() {
-        console.log('Vanilla Plugin unloaded');
-        this.removeFromToolbox();
-    }
-
-    removeFromToolbox() {
-        const toolbox = document.getElementById('toolbox');
-        if (!toolbox) return;
-
-        const category = toolbox.querySelector('category[name="プラグイン"]');
-        if (category) {
-            category.remove();
-            if (this.workspace) {
-                this.workspace.updateToolbox(toolbox);
-            }
-        }
     }
 }
