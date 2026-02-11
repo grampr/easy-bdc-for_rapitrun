@@ -2188,6 +2188,9 @@ const initializeApp = async () => {
   };
 
   const pluginUI = new PluginUI(pluginManager);
+  pluginManager.onPluginsSuggested((entries) => {
+    pluginUI.handleBulkInstall(entries.join(','));
+  });
   await pluginManager.init();
 
   // --- Load Saved Data ---

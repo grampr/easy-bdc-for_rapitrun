@@ -512,12 +512,42 @@ export class PluginManager {
         for (const id of this.enabledPlugins) {
             if (this.isPluginSharable(id)) {
                 const meta = this.installedPlugins[id];
-                if (meta && meta.affectsBlocks) {
+                if (meta) {
                     uuids.push(meta.uuid);
                 }
             }
         }
         return uuids;
+    }
+
+    // 共有された際に、レシピエント側でインストールを促すための情報を取得
+    getSharablePluginsInfo() {
+        const infos = [];
+        for (const id of this.enabledPlugins) {
+            if (this.isPluginSharable(id)) {
+                const meta = this.installedPlugins[id];
+                const info = this.parseGitHubUrl(meta.repo);
+                if (info) {
+                    let entry = info.fullName;
+                    if (meta.installRef && meta.installRef !== 'main') {
+                        entry += `@${meta.installRef}`;
+                    }
+                    infos.push(entry);
+                }
+            }
+        }
+        return infos;
+    }
+
+    // 未インストールの共有プラグインがある場合に呼び出すコールバックを登録
+    onPluginsSuggested(callback) {
+        this.suggestCallback = callback;
+    }
+
+    suggestPlugins(pluginEntries) {
+        if (typeof this.suggestCallback === 'function' && pluginEntries && pluginEntries.length > 0) {
+            this.suggestCallback(pluginEntries);
+        }
     }
 
     hasNonSharablePlugin() {

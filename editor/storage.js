@@ -12,13 +12,14 @@ class WorkspaceShareCodec {
       // 生のBlocklyデータからIDを間引いたうえでJSON→LZ圧縮する
       const raw = Blockly.serialization.workspaces.save(workspace);
       const stripped = WorkspaceShareCodec.#stripIds(raw);
-      
+
       // プラグイン情報の付与
       const payloadObj = {
-          workspace: stripped,
-          pluginUUIDs: workspace.pluginManager?.getPluginUUIDsForShare() || []
+        workspace: stripped,
+        pluginUUIDs: workspace.pluginManager?.getPluginUUIDsForShare() || [],
+        pluginInfo: workspace.pluginManager?.getSharablePluginsInfo() || []
       };
-      
+
       const payload = JSON.stringify(payloadObj);
       const compressed = lz.compressToEncodedURIComponent(payload);
       if (!compressed) throw new Error('圧縮に失敗しました。');
@@ -41,32 +42,55 @@ class WorkspaceShareCodec {
       if (!text) throw new Error('データを展開できませんでした。');
       // 復号後はJSONを戻してそのままBlocklyへ読み込む
       const payload = JSON.parse(text);
-      
+
       // プラグイン情報が含まれている場合は適用
-      if (payload.workspace && (payload.pluginUUIDs || payload.plugins)) {
-          Blockly.serialization.workspaces.load(payload.workspace, workspace);
-          
-          // プラグインの有効化
-          if (workspace.pluginManager) {
-              const uuids = payload.pluginUUIDs || [];
-              uuids.forEach(uuid => {
-                  const pluginId = workspace.pluginManager.getPluginIdByUUID(uuid);
-                  if (pluginId) {
-                      workspace.pluginManager.enablePlugin(pluginId);
-                  }
-              });
-              
-              // 互換性のため古い形式もサポート
-              const oldPlugins = payload.plugins || [];
-              oldPlugins.forEach(pluginId => {
-                  workspace.pluginManager.enablePlugin(pluginId);
-              });
+      if (payload.workspace && (payload.pluginUUIDs || payload.plugins || payload.pluginInfo)) {
+        Blockly.serialization.workspaces.load(payload.workspace, workspace);
+
+        // プラグインの有効化と未インストールのチェック
+        if (workspace.pluginManager) {
+          const uuids = payload.pluginUUIDs || [];
+          const pluginInfo = payload.pluginInfo || [];
+          const missingPlugins = [];
+
+          // インストール済みチェック
+          if (pluginInfo.length > 0) {
+            pluginInfo.forEach(entry => {
+              const [fullName] = entry.split('@');
+              const repoUrl = `https://github.com/${fullName}`;
+              const isInstalled = workspace.pluginManager.getRegistry().some(p =>
+                p.repo === repoUrl || p.repo === repoUrl + '.git'
+              );
+              if (!isInstalled) {
+                missingPlugins.push(entry);
+              }
+            });
           }
+
+          // 有効化
+          uuids.forEach(uuid => {
+            const pluginId = workspace.pluginManager.getPluginIdByUUID(uuid);
+            if (pluginId) {
+              workspace.pluginManager.enablePlugin(pluginId);
+            }
+          });
+
+          // 互換性のため古い形式もサポート
+          const oldPlugins = payload.plugins || [];
+          oldPlugins.forEach(pluginId => {
+            workspace.pluginManager.enablePlugin(pluginId);
+          });
+
+          // 未インストールがあれば促す
+          if (missingPlugins.length > 0) {
+            workspace.pluginManager.suggestPlugins(missingPlugins);
+          }
+        }
       } else {
-          // 互換性のため、古い形式（直接workspaceデータ）もサポート
-          Blockly.serialization.workspaces.load(payload, workspace);
+        // 互換性のため、古い形式（直接workspaceデータ）もサポート
+        Blockly.serialization.workspaces.load(payload, workspace);
       }
-      
+
       return true;
     } catch (error) {
       console.error('圧縮ワークスペースの読み込みに失敗しました。', error);

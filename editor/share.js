@@ -629,12 +629,6 @@ class ShareModalController {
 
   // Shareボタン押下時の処理フロー
   async handleShareButtonClick() {
-    // 共有不可能なプラグインが有効な場合は共有を制限
-    if (this.pluginManager?.hasNonSharablePlugin()) {
-      this.statusNotifier?.show('共有できないプラグイン（ローカルZIPなど）が有効なため、共有機能を利用できません。', 'error');
-      return;
-    }
-
     if (!this.shareBtn || this.shareBtn.disabled) return;
 
     this.shareBtn.disabled = true;
@@ -992,16 +986,9 @@ class ShareFeature {
     const shareBtn = document.getElementById('shareBtn');
     if (!shareBtn) return;
 
-    const pm = this.storage?.pluginManager || this.shareModalController?.pluginManager;
-
-    if (pm?.hasNonSharablePlugin()) {
-      // 自作ブロックがある場合はボタンを完全に非表示にする
-      shareBtn.classList.add('hidden');
-    } else {
-      shareBtn.classList.remove('hidden');
-      shareBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-      shareBtn.title = '';
-    }
+    shareBtn.classList.remove('hidden');
+    shareBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    shareBtn.title = '';
   }
 
   // 共有URLを組み立て
