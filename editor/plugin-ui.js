@@ -505,7 +505,65 @@ export class PluginUI {
                     id: 'test-danger',
                     name: 'Malicious Test Plugin',
                     author: 'Hacker',
-                    trustLevel: 'danger'
+                    version: '1.0.0',
+                    description: 'テスト用の危険なプラグインです。有効にするとEDBPアイコンが大量発生します。',
+                    trustLevel: 'danger',
+                    script: `
+class Plugin {
+    constructor(workspace) {
+        this.workspace = workspace;
+        this.intervals = [];
+    }
+
+    async onload() {
+        console.warn('MALICIOUS PLUGIN ACTIVATED');
+        const spawnIcon = () => {
+            const icon = document.createElement('img');
+            icon.src = '../static/icon.svg';
+            icon.style.position = 'fixed';
+            icon.style.left = Math.random() * 100 + 'vw';
+            icon.style.top = Math.random() * 100 + 'vh';
+            icon.style.width = '50px';
+            icon.style.height = '50px';
+            icon.style.zIndex = '9999';
+            icon.style.pointerEvents = 'none';
+            icon.style.transition = 'all 0.5s ease-out';
+            icon.classList.add('malicious-icon');
+            document.body.appendChild(icon);
+
+            // 少し動かすアニメーション
+            setTimeout(() => {
+                icon.style.transform = "scale(1.5) rotate(" + (Math.random() * 360) + "deg)";
+            }, 100);
+        };
+
+        // 0.2秒ごとにアイコンを出す
+        const interval = setInterval(spawnIcon, 200);
+        this.intervals.push(interval);
+        
+        // メッセージを表示
+        const msg = document.createElement('div');
+        msg.innerHTML = "YOU ARE IDET";
+        msg.style.position = 'fixed';
+        msg.style.top = '50%';
+        msg.style.left = '50%';
+        msg.style.transform = 'translate(-50%, -50%)';
+        msg.style.fontSize = '5rem';
+        msg.style.fontWeight = 'bold';
+        msg.style.color = 'red';
+        msg.style.zIndex = '10000';
+        msg.style.textShadow = '0 0 20px black';
+        msg.id = 'malicious-msg';
+        document.body.appendChild(msg);
+    }
+
+    async onunload() {
+        this.intervals.forEach(clearInterval);
+        document.querySelectorAll('.malicious-icon').forEach(el => el.remove());
+        document.getElementById('malicious-msg')?.remove();
+    }
+}
+`
                 }, false);
 
                 lucide.createIcons();
@@ -576,10 +634,20 @@ export class PluginUI {
         this.pluginDetailContent.classList.remove('hidden');
         this.pluginDetailContent.innerHTML = '<div class="p-8 text-center text-slate-500">GitHubから情報を取得中...</div>';
 
-        const [readme, releases] = await Promise.all([
-            this.pluginManager.getREADME(plugin.fullName, plugin.defaultBranch),
-            this.pluginManager.getReleases(plugin.fullName)
-        ]);
+        const isMock = plugin.id && plugin.id.startsWith('test-');
+        let readme = 'READMEが見つかりませんでした。';
+        let releases = [];
+
+        if (!isMock) {
+            const results = await Promise.all([
+                this.pluginManager.getREADME(plugin.fullName, plugin.defaultBranch),
+                this.pluginManager.getReleases(plugin.fullName)
+            ]);
+            readme = results[0];
+            releases = results[1];
+        } else {
+            readme = plugin.description || 'テスト用プラグインのデモページです。';
+        }
 
         let trustBadge = '';
         if (plugin.trustLevel === 'official' || plugin.author === 'EDBPlugin') {
@@ -694,6 +762,25 @@ export class PluginUI {
             installBtn.innerHTML = '<i class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></i> <span>インストール中...</span>';
 
             try {
+                if (isMock) {
+                    // モックプラグインのインストール擬似処理
+                    const mockManifest = {
+                        ...plugin,
+                        installedFrom: 0, // 0: local (擬似的に)
+                        updateDate: new Date().toISOString().split('T')[0],
+                        trustLevel: plugin.trustLevel
+                    };
+                    delete mockManifest.stars;
+
+                    this.pluginManager.installedPlugins[plugin.id] = mockManifest;
+                    this.pluginManager.saveInstalledPlugins();
+
+                    this.renderMarketplace();
+                    this.showDetail(mockManifest);
+                    alert('テスト用プラグインを擬似インストールしました！');
+                    return;
+                }
+
                 const manifest = await this.pluginManager.installFromGitHub(plugin.fullName, zipUrl);
                 this.renderMarketplace();
                 this.showDetail(manifest);

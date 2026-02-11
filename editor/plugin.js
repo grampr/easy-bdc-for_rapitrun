@@ -140,9 +140,16 @@ export class PluginManager {
             console.warn('Failed to fetch blacklisted plugins list', e);
         }
 
-        const enablePromises = Array.from(this.enabledPlugins).map(pluginId =>
-            this.enablePlugin(pluginId).catch(err => console.error(`Failed to enable ${pluginId} during init`, err))
-        );
+        const enablePromises = Array.from(this.enabledPlugins).map(pluginId => {
+            // テスト用プラグインは再読み込み時に自動で無効化する
+            if (pluginId === 'test-danger') {
+                this.enabledPlugins.delete(pluginId);
+                this.saveState();
+                console.log('Test danger plugin auto-disabled on reload');
+                return Promise.resolve();
+            }
+            return this.enablePlugin(pluginId).catch(err => console.error(`Failed to enable ${pluginId} during init`, err));
+        });
         await Promise.all(enablePromises);
     }
 
