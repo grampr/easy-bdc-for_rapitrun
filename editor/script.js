@@ -1931,6 +1931,7 @@ const initializeApp = async () => {
   const codeGenErrorBox = document.getElementById('codeGenErrorBox');
   const codeGenErrorList = document.getElementById('codeGenErrorList');
   const copyCodeBtn = document.getElementById('copyCodeBtn');
+  const downloadZipBtn = document.getElementById('downloadZipBtn');
   const splitCodeBtn = document.getElementById('splitCodeBtn');
   const splitCodeModal = document.getElementById('splitCodeModal');
   const splitModalClose = document.getElementById('splitModalClose');
@@ -2514,6 +2515,22 @@ const initializeApp = async () => {
       const safeName = path.replace(/\//g, '__');
       downloadTextFile(safeName, content);
     });
+  });
+
+  downloadZipBtn?.addEventListener('click', async () => {
+    if (!validateBeforeCodegen()) return;
+    const code = generatePythonCode();
+    const zip = new JSZip();
+    zip.file('bot-project.py', code);
+    zip.file('.env', 'TOKEN=YOUR_TOKEN_HERE');
+
+    const content = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(content);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bot-project.zip';
+    a.click();
+    URL.revokeObjectURL(url);
   });
 
   copyCodeBtn.addEventListener('click', () => {
