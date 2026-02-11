@@ -974,9 +974,30 @@ const setupJsonDataManager = ({ workspace, storage, shareFeature }) => {
 
   let selectedDataset = '';
   let closeTimer = null;
+  let autoSaveTimer = null;
+  let hasPendingAutoSave = false;
+
+  const flushAutoSave = () => {
+    if (!hasPendingAutoSave) return;
+    hasPendingAutoSave = false;
+    storage?.save?.();
+  };
 
   const scheduleSave = () => {
-    storage?.save?.();
+    hasPendingAutoSave = true;
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      autoSaveTimer = null;
+      flushAutoSave();
+    }, 250);
+  };
+
+  const saveNow = () => {
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = null;
+    }
+    flushAutoSave();
   };
 
   const resolveDatasetSelection = () => {
@@ -1209,6 +1230,7 @@ const setupJsonDataManager = ({ workspace, storage, shareFeature }) => {
   };
 
   const closeModal = () => {
+    saveNow();
     if (!modal) return;
     modal.classList.remove('show-modal');
     if (closeTimer) clearTimeout(closeTimer);
@@ -1252,6 +1274,7 @@ const setupJsonDataManager = ({ workspace, storage, shareFeature }) => {
       closeModal();
     }
   });
+  window.addEventListener('beforeunload', saveNow);
 
   const applyShareViewState = (isViewOnly) => {
     if (!openBtn) return;
@@ -1280,7 +1303,7 @@ const setupJsonDataManager = ({ workspace, storage, shareFeature }) => {
     render();
   };
 
-  return { render };
+  return { render, saveNow };
 };
 
 const indentBlock = (block, spaces = 4) =>
