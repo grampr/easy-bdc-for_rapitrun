@@ -487,6 +487,31 @@ export class PluginUI {
 
         // 2. GitHub Marketplace (検索またはトピック表示)
         if (!this.isOnlyInstalled) {
+            // テストモード: "@test" でモックを表示
+            if (this.searchQuery === '@test') {
+                const header = document.createElement('div');
+                header.className = 'px-3 py-2 text-xs font-bold text-amber-500 uppercase tracking-wider mt-4';
+                header.textContent = 'UIテストモード';
+                this.pluginList.appendChild(header);
+
+                this.addPluginItem({
+                    id: 'test-certified',
+                    name: 'Test Certified Plugin',
+                    author: 'TrustedDev',
+                    trustLevel: 'certified'
+                }, false);
+
+                this.addPluginItem({
+                    id: 'test-danger',
+                    name: 'Malicious Test Plugin',
+                    author: 'Hacker',
+                    trustLevel: 'danger'
+                }, false);
+
+                lucide.createIcons();
+                return;
+            }
+
             const header = document.createElement('div');
             header.className = 'px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider mt-4 flex justify-between items-center';
 
