@@ -13,6 +13,8 @@ let workspace;
 let storage;
 
 const LIST_STORE_KEY = 'edbb_list_store';
+const JSON_DATA_STORE_KEY = 'edbb_json_store';
+const JSON_GUI_DATASET_LOCAL_KEY = 'edbb_json_gui_dataset_store_v1';
 
 const listStore = (() => {
   let lists = new Map();
@@ -127,6 +129,235 @@ const listStore = (() => {
     removeList,
     getEntries,
     getIds,
+    toJSON,
+    fromJSON,
+  };
+})();
+
+const toPythonJsonLiteral = (value) => {
+  if (value === null) return 'None';
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => toPythonJsonLiteral(item)).join(', ')}]`;
+  }
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '0';
+  if (typeof value === 'boolean') return value ? 'True' : 'False';
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value).map(
+      ([key, item]) => `${JSON.stringify(key)}: ${toPythonJsonLiteral(item)}`,
+    );
+    return `{${entries.join(', ')}}`;
+  }
+  return 'None';
+};
+
+const jsonDataStore = (() => {
+  const ALLOWED_TYPES = new Set(['string', 'number', 'boolean', 'null', 'object', 'array']);
+  let datasets = new Map();
+
+  const normalizeName = (name) => String(name ?? '').trim();
+  const normalizeType = (type) => (ALLOWED_TYPES.has(type) ? type : 'string');
+  const normalizeRow = (row) => ({
+    key: String(row?.key ?? '').trim(),
+    type: normalizeType(String(row?.type ?? 'string')),
+    value: String(row?.value ?? ''),
+  });
+  const normalizeRows = (rows) => (Array.isArray(rows) ? rows.map((row) => normalizeRow(row)) : []);
+  const cloneRows = (rows) => normalizeRows(rows);
+
+  const setRows = (name, rows) => {
+    const normalizedName = normalizeName(name);
+    if (!normalizedName) return false;
+    datasets.set(normalizedName, normalizeRows(rows));
+    return true;
+  };
+
+  const getRows = (name) => cloneRows(datasets.get(normalizeName(name)) || []);
+
+  const createDataset = (name, rows = []) => {
+    const normalizedName = normalizeName(name);
+    if (!normalizedName || datasets.has(normalizedName)) return false;
+    datasets.set(normalizedName, normalizeRows(rows));
+    return true;
+  };
+
+  const hasDataset = (name) => datasets.has(normalizeName(name));
+
+  const renameDataset = (fromName, toName) => {
+    const from = normalizeName(fromName);
+    const to = normalizeName(toName);
+    if (!from || !to || !datasets.has(from)) return false;
+    if (from !== to && datasets.has(to)) return false;
+    const rows = datasets.get(from) || [];
+    datasets.delete(from);
+    datasets.set(to, cloneRows(rows));
+    return true;
+  };
+
+  const removeDataset = (name) => {
+    const normalizedName = normalizeName(name);
+    if (!normalizedName) return false;
+    return datasets.delete(normalizedName);
+  };
+
+  const appendRow = (name, row = {}) => {
+    const normalizedName = normalizeName(name);
+    if (!normalizedName) return false;
+    const rows = getRows(normalizedName);
+    rows.push(normalizeRow(row));
+    datasets.set(normalizedName, rows);
+    return true;
+  };
+
+  const updateRow = (name, index, patch = {}) => {
+    const normalizedName = normalizeName(name);
+    if (!normalizedName) return false;
+    const rows = getRows(normalizedName);
+    if (index < 0 || index >= rows.length) return false;
+    rows[index] = normalizeRow({ ...rows[index], ...patch });
+    datasets.set(normalizedName, rows);
+    return true;
+  };
+
+  const removeRow = (name, index) => {
+    const normalizedName = normalizeName(name);
+    if (!normalizedName) return false;
+    const rows = getRows(normalizedName);
+    if (index < 0 || index >= rows.length) return false;
+    rows.splice(index, 1);
+    datasets.set(normalizedName, rows);
+    return true;
+  };
+
+  const parseBoolean = (rawValue) => {
+    const lowered = String(rawValue ?? '')
+      .trim()
+      .toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(lowered)) return { value: true, error: null };
+    if (['false', '0', 'no', 'off'].includes(lowered)) return { value: false, error: null };
+    return { value: false, error: '真偽値は true / false で入力してください' };
+  };
+
+  const parseJsonStructure = (rawValue, expected) => {
+    const fallback = expected === 'array' ? '[]' : '{}';
+    const source = String(rawValue ?? '').trim() || fallback;
+    try {
+      const parsed = JSON.parse(source);
+      if (expected === 'array' && !Array.isArray(parsed)) {
+        return { value: [], error: '値はJSON配列で入力してください' };
+      }
+      if (expected === 'object' && (!parsed || Array.isArray(parsed) || typeof parsed !== 'object')) {
+        return { value: {}, error: '値はJSONオブジェクトで入力してください' };
+      }
+      return { value: parsed, error: null };
+    } catch (error) {
+      return {
+        value: expected === 'array' ? [] : {},
+        error: expected === 'array' ? 'JSON配列の形式が不正です' : 'JSONオブジェクトの形式が不正です',
+      };
+    }
+  };
+
+  const buildDatasetData = (name) => {
+    const normalizedName = normalizeName(name);
+    const rows = datasets.get(normalizedName) || [];
+    const data = {};
+    const errors = [];
+
+    rows.forEach((row, index) => {
+      const key = normalizeName(row.key);
+      const type = normalizeType(row.type);
+      const valueText = String(row.value ?? '');
+
+      if (!key) {
+        errors.push(`${index + 1}行目: キーが空です`);
+        return;
+      }
+
+      let value = valueText;
+      let error = null;
+
+      if (type === 'number') {
+        const parsed = Number(valueText);
+        if (Number.isFinite(parsed)) {
+          value = parsed;
+        } else {
+          value = 0;
+          error = '数値の形式が不正です';
+        }
+      } else if (type === 'boolean') {
+        const parsed = parseBoolean(valueText);
+        value = parsed.value;
+        error = parsed.error;
+      } else if (type === 'null') {
+        value = null;
+      } else if (type === 'object') {
+        const parsed = parseJsonStructure(valueText, 'object');
+        value = parsed.value;
+        error = parsed.error;
+      } else if (type === 'array') {
+        const parsed = parseJsonStructure(valueText, 'array');
+        value = parsed.value;
+        error = parsed.error;
+      }
+
+      if (error) {
+        errors.push(`${index + 1}行目 (${key}): ${error}`);
+      }
+
+      data[key] = value;
+    });
+
+    return { data, errors };
+  };
+
+  const toPythonLiteral = (name) => {
+    const { data } = buildDatasetData(name);
+    return toPythonJsonLiteral(data);
+  };
+
+  const getDatasetNames = () => Array.from(datasets.keys());
+
+  const toJSON = () => ({
+    datasets: getDatasetNames().map((name) => ({
+      name,
+      rows: getRows(name),
+    })),
+  });
+
+  const fromJSON = (state) => {
+    datasets = new Map();
+    if (!state || typeof state !== 'object') return;
+
+    if (Array.isArray(state.datasets)) {
+      state.datasets.forEach((entry) => {
+        const name = normalizeName(entry?.name);
+        if (!name) return;
+        datasets.set(name, normalizeRows(entry?.rows));
+      });
+      return;
+    }
+
+    Object.entries(state).forEach(([name, rows]) => {
+      const normalizedName = normalizeName(name);
+      if (!normalizedName) return;
+      datasets.set(normalizedName, normalizeRows(rows));
+    });
+  };
+
+  return {
+    hasDataset,
+    createDataset,
+    renameDataset,
+    removeDataset,
+    getDatasetNames,
+    getRows,
+    setRows,
+    appendRow,
+    updateRow,
+    removeRow,
+    buildDatasetData,
+    toPythonLiteral,
     toJSON,
     fromJSON,
   };
@@ -260,10 +491,8 @@ const setupBlocklyEnvironment = () => {
   });
 
   // blocks.js has already extended the global Blockly object
-  // Just ensure Python.INDENT is set
-  if (!Blockly.Python.INDENT) {
-    Blockly.Python.INDENT = '    ';
-  }
+  // Keep indentation width fixed so generated function bodies are consistent.
+  Blockly.Python.INDENT = '    ';
 
   return { modernLightTheme, modernDarkTheme };
 };
@@ -445,22 +674,51 @@ const extractInteractionEventsSafe = (code) => {
 };
 
 // --- Code Generation & UI Sync ---
+const buildInlineRuntimeHelpers = ({ usesJson, usesModal, usesLogging }) => {
+  let helpers = '';
+
+  if (usesLogging) {
+    helpers += `logging.basicConfig(level = logging.INFO, format = '%(asctime)s - %(levelname)s - %(message)s')\n\n`;
+  }
+
+  if (usesJson) {
+    helpers += `def _load_json_data(filename):\n`;
+    helpers += `    if not os.path.exists(filename):\n`;
+    helpers += `        return {}\n`;
+    helpers += `    try:\n`;
+    helpers += `        with open(filename, 'r', encoding = 'utf-8') as f:\n`;
+    helpers += `            return json.load(f)\n`;
+    helpers += `    except Exception as e:\n`;
+    helpers += `        logging.error(f"JSON Load Error: {e}")\n`;
+    helpers += `        return {}\n\n`;
+    helpers += `def _save_json_data(filename, data):\n`;
+    helpers += `    try:\n`;
+    helpers += `        with open(filename, 'w', encoding = 'utf-8') as f:\n`;
+    helpers += `            json.dump(data, f, ensure_ascii = False, indent = 4)\n`;
+    helpers += `    except Exception as e:\n`;
+    helpers += `        logging.error(f"JSON Save Error: {e}")\n\n`;
+  }
+
+  if (usesModal) {
+    helpers += `class EasyModal(discord.ui.Modal):\n`;
+    helpers += `    def __init__(self, title, custom_id, inputs):\n`;
+    helpers += `        super().__init__(title = title, timeout = None, custom_id = custom_id)\n`;
+    helpers += `        for item in inputs:\n`;
+    helpers += `            self.add_item(discord.ui.TextInput(label = item['label'], custom_id = item['id']))\n\n`;
+  }
+
+  return helpers.trim();
+};
+
 const generatePythonCode = () => {
   if (!workspace) return '';
   const rawCode = Blockly.Python.workspaceToCode(workspace);
   const {
     cleanedCode,
-    componentEvents: componentEventsRaw,
-    modalEvents: modalEventsRaw,
     hasComponentEvents,
     hasModalEvents,
   } = extractInteractionEventsSafe(rawCode);
-  let componentEvents = componentEventsRaw;
-  let modalEvents = modalEventsRaw;
   const bodyCode = cleanedCode;
-
-  if (!componentEvents.trim()) componentEvents = '            pass';
-  if (!modalEvents.trim()) modalEvents = '            pass';
 
   // --- Dependency Analysis ---
   const usesJson = bodyCode.includes('_load_json_data') || bodyCode.includes('_save_json_data') || bodyCode.includes('json.');
@@ -490,6 +748,8 @@ const generatePythonCode = () => {
   if (usesLogging) imports.push('import logging');
 
   const header = imports.join('\n');
+  const inlineHelpers = buildInlineRuntimeHelpers({ usesJson, usesModal, usesLogging });
+  const helperSection = inlineHelpers ? `\n${inlineHelpers}\n` : '';
 
   const fullBoiler = `
 # Easy Discord Bot Builderによって作成されました！ 製作：@himais0giiiin
@@ -509,8 +769,8 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # ----------------------------
 
 # --- ユーザー作成部分 ---
-${rawCode}
-${rawCode}
+${helperSection}
+${bodyCode}
 # --------------------------
 
 if __name__ == "__main__":
@@ -697,6 +957,395 @@ const setupListManager = ({ workspace, storage, shareFeature, workspaceContainer
   renderListPanel();
 
   return { renderListPanel, scheduleListSave };
+};
+
+const setupJsonDataManager = ({ workspace, storage, shareFeature }) => {
+  const modal = document.getElementById('jsonGuiModal');
+  const openBtn = document.getElementById('jsonGuiBtn');
+  const closeBtn = document.getElementById('jsonGuiModalClose');
+  const cancelBtn = document.getElementById('jsonGuiCloseBtn');
+  const datasetSelect = document.getElementById('jsonGuiDatasetSelect');
+  const addDatasetBtn = document.getElementById('jsonGuiAddDatasetBtn');
+  const renameDatasetBtn = document.getElementById('jsonGuiRenameDatasetBtn');
+  const deleteDatasetBtn = document.getElementById('jsonGuiDeleteDatasetBtn');
+  const rowsBody = document.getElementById('jsonGuiRows');
+  const addRowBtn = document.getElementById('jsonGuiAddRowBtn');
+  const preview = document.getElementById('jsonGuiPreview');
+  const errorLabel = document.getElementById('jsonGuiError');
+
+  let selectedDataset = '';
+  let closeTimer = null;
+  let autoSaveTimer = null;
+  let hasPendingAutoSave = false;
+
+  const readJsonDatasetLocalState = () => {
+    try {
+      const raw = localStorage.getItem(JSON_GUI_DATASET_LOCAL_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const persistJsonDatasetLocalState = () => {
+    try {
+      localStorage.setItem(JSON_GUI_DATASET_LOCAL_KEY, JSON.stringify(jsonDataStore.toJSON()));
+    } catch (error) {
+      // ignore storage write failures
+    }
+  };
+
+  const flushAutoSave = () => {
+    if (!hasPendingAutoSave) return;
+    hasPendingAutoSave = false;
+    persistJsonDatasetLocalState();
+    storage?.save?.();
+  };
+
+  const scheduleSave = () => {
+    hasPendingAutoSave = true;
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      autoSaveTimer = null;
+      flushAutoSave();
+    }, 250);
+  };
+
+  const saveNow = () => {
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = null;
+    }
+    persistJsonDatasetLocalState();
+    flushAutoSave();
+  };
+
+  const resolveDatasetSelection = () => {
+    const names = jsonDataStore.getDatasetNames();
+    if (!names.length) {
+      selectedDataset = '';
+      return;
+    }
+    if (!selectedDataset || !names.includes(selectedDataset)) {
+      selectedDataset = names[0];
+    }
+  };
+
+  const ensureDefaultDataset = () => {
+    const names = jsonDataStore.getDatasetNames();
+    if (names.length) return;
+    jsonDataStore.createDataset('メイン', [{ key: 'message', type: 'string', value: 'こんにちは' }]);
+    selectedDataset = 'メイン';
+    scheduleSave();
+  };
+
+  const renderDatasetSelect = () => {
+    if (!datasetSelect) return;
+    resolveDatasetSelection();
+    datasetSelect.innerHTML = '';
+    const names = jsonDataStore.getDatasetNames();
+    if (!names.length) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'データセットがありません';
+      datasetSelect.appendChild(option);
+      datasetSelect.value = '';
+      return;
+    }
+
+    names.forEach((name) => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      datasetSelect.appendChild(option);
+    });
+    datasetSelect.value = selectedDataset;
+  };
+
+  const renderPreview = () => {
+    if (!preview || !errorLabel) return;
+    if (!selectedDataset) {
+      preview.value = '{}';
+      errorLabel.textContent = '';
+      errorLabel.classList.add('hidden');
+      return;
+    }
+    const { data, errors } = jsonDataStore.buildDatasetData(selectedDataset);
+    preview.value = JSON.stringify(data, null, 2);
+    if (errors.length) {
+      errorLabel.textContent = errors.join(' / ');
+      errorLabel.classList.remove('hidden');
+    } else {
+      errorLabel.textContent = '';
+      errorLabel.classList.add('hidden');
+    }
+  };
+
+  const createTypeSelect = (value) => {
+    const select = document.createElement('select');
+    select.className =
+      'json-gui__cell-select rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs';
+    const options = [
+      ['string', '文字列'],
+      ['number', '数値'],
+      ['boolean', '真偽値'],
+      ['null', 'ヌル(null)'],
+      ['object', 'オブジェクト'],
+      ['array', '配列'],
+    ];
+    options.forEach(([raw, label]) => {
+      const option = document.createElement('option');
+      option.value = raw;
+      option.textContent = label;
+      select.appendChild(option);
+    });
+    select.value = value;
+    return select;
+  };
+
+  const renderRows = () => {
+    if (!rowsBody) return;
+    rowsBody.innerHTML = '';
+    if (!selectedDataset) {
+      renderPreview();
+      return;
+    }
+
+    const rows = jsonDataStore.getRows(selectedDataset);
+    if (!rows.length) {
+      const emptyRow = document.createElement('tr');
+      emptyRow.innerHTML =
+        '<td colspan="4" class="px-3 py-4 text-center text-xs text-slate-500 dark:text-slate-400">行がありません。「行を追加」を押してください。</td>';
+      rowsBody.appendChild(emptyRow);
+      renderPreview();
+      return;
+    }
+
+    rows.forEach((row, index) => {
+      const tr = document.createElement('tr');
+      tr.className = 'border-b border-slate-100 dark:border-slate-800';
+
+      const keyCell = document.createElement('td');
+      keyCell.className = 'px-2 py-2 align-top';
+      const keyInput = document.createElement('input');
+      keyInput.type = 'text';
+      keyInput.value = row.key;
+      keyInput.placeholder = 'キー名';
+      keyInput.className =
+        'json-gui__cell-input w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs';
+      keyInput.addEventListener('input', () => {
+        jsonDataStore.updateRow(selectedDataset, index, { key: keyInput.value });
+        renderPreview();
+        scheduleSave();
+      });
+      keyCell.appendChild(keyInput);
+
+      const typeCell = document.createElement('td');
+      typeCell.className = 'px-2 py-2 align-top';
+      const typeSelect = createTypeSelect(row.type);
+      typeSelect.addEventListener('change', () => {
+        jsonDataStore.updateRow(selectedDataset, index, { type: typeSelect.value });
+        renderPreview();
+        scheduleSave();
+      });
+      typeCell.appendChild(typeSelect);
+
+      const valueCell = document.createElement('td');
+      valueCell.className = 'px-2 py-2 align-top';
+      const valueInput = document.createElement('input');
+      valueInput.type = 'text';
+      valueInput.value = row.value;
+      valueInput.placeholder =
+        row.type === 'object' ? '{"id": 1}' : row.type === 'array' ? '["a", "b"]' : '値';
+      valueInput.className =
+        'json-gui__cell-input w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs';
+      valueInput.addEventListener('input', () => {
+        jsonDataStore.updateRow(selectedDataset, index, { value: valueInput.value });
+        renderPreview();
+        scheduleSave();
+      });
+      valueCell.appendChild(valueInput);
+
+      const actionCell = document.createElement('td');
+      actionCell.className = 'px-2 py-2 align-top text-right';
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className =
+        'inline-flex items-center justify-center rounded-lg border border-rose-200 dark:border-rose-700 px-2 py-1 text-xs font-semibold text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20';
+      deleteBtn.textContent = '削除';
+      deleteBtn.addEventListener('click', () => {
+        jsonDataStore.removeRow(selectedDataset, index);
+        renderRows();
+        scheduleSave();
+      });
+      actionCell.appendChild(deleteBtn);
+
+      tr.appendChild(keyCell);
+      tr.appendChild(typeCell);
+      tr.appendChild(valueCell);
+      tr.appendChild(actionCell);
+      rowsBody.appendChild(tr);
+    });
+
+    renderPreview();
+  };
+
+  const render = () => {
+    renderDatasetSelect();
+    renderRows();
+  };
+
+  const createDatasetPrompt = () => {
+    const defaultName = `データセット_${jsonDataStore.getDatasetNames().length + 1}`;
+    const name = window.prompt('データセット名', defaultName);
+    const normalized = String(name || '').trim();
+    if (!normalized) return;
+    if (jsonDataStore.hasDataset(normalized)) {
+      window.alert('同名のデータセットが既に存在します。');
+      return;
+    }
+    jsonDataStore.createDataset(normalized, []);
+    selectedDataset = normalized;
+    render();
+    scheduleSave();
+  };
+
+  const renameDatasetPrompt = () => {
+    if (!selectedDataset) return;
+    const name = window.prompt('データセット名を変更', selectedDataset);
+    const normalized = String(name || '').trim();
+    if (!normalized || normalized === selectedDataset) return;
+    if (!jsonDataStore.renameDataset(selectedDataset, normalized)) {
+      window.alert('データセット名の変更に失敗しました。');
+      return;
+    }
+    selectedDataset = normalized;
+    render();
+    scheduleSave();
+  };
+
+  const deleteDataset = () => {
+    if (!selectedDataset) return;
+    const confirmed = window.confirm(`データセット「${selectedDataset}」を削除しますか？`);
+    if (!confirmed) return;
+    jsonDataStore.removeDataset(selectedDataset);
+    resolveDatasetSelection();
+    render();
+    scheduleSave();
+  };
+
+  const openModal = () => {
+    if (!modal) return;
+    ensureDefaultDataset();
+    render();
+    if (typeof Blockly !== 'undefined') Blockly.hideChaff();
+    if (closeTimer) {
+      clearTimeout(closeTimer);
+      closeTimer = null;
+    }
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    void modal.offsetWidth;
+    modal.classList.add('show-modal');
+  };
+
+  const closeModal = () => {
+    saveNow();
+    if (!modal) return;
+    modal.classList.remove('show-modal');
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      modal.classList.remove('flex');
+      modal.classList.add('hidden');
+      closeTimer = null;
+    }, 300);
+  };
+
+  if (openBtn) {
+    openBtn.addEventListener('click', () => {
+      if (shareFeature?.isShareViewMode?.()) return;
+      openModal();
+    });
+  }
+  closeBtn?.addEventListener('click', closeModal);
+  cancelBtn?.addEventListener('click', closeModal);
+  modal?.addEventListener('click', (event) => {
+    if (event.target === modal) closeModal();
+  });
+
+  datasetSelect?.addEventListener('change', () => {
+    selectedDataset = datasetSelect.value || '';
+    render();
+  });
+
+  addDatasetBtn?.addEventListener('click', createDatasetPrompt);
+  renameDatasetBtn?.addEventListener('click', renameDatasetPrompt);
+  deleteDatasetBtn?.addEventListener('click', deleteDataset);
+
+  addRowBtn?.addEventListener('click', () => {
+    if (!selectedDataset) return;
+    jsonDataStore.appendRow(selectedDataset, { key: '', type: 'string', value: '' });
+    renderRows();
+    scheduleSave();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+      closeModal();
+    }
+  });
+  window.addEventListener('beforeunload', saveNow);
+
+  const applyShareViewState = (isViewOnly) => {
+    if (!openBtn) return;
+    openBtn.disabled = Boolean(isViewOnly);
+    openBtn.classList.toggle('opacity-50', Boolean(isViewOnly));
+    openBtn.classList.toggle('cursor-not-allowed', Boolean(isViewOnly));
+    if (isViewOnly) closeModal();
+  };
+
+  shareFeature?.onShareViewModeChange?.(applyShareViewState);
+  applyShareViewState(shareFeature?.isShareViewMode?.() || false);
+
+  // Fallback source for legacy workspaces or save timing gaps.
+  const localState = readJsonDatasetLocalState();
+  if (localState) {
+    jsonDataStore.fromJSON(localState);
+    resolveDatasetSelection();
+    render();
+  }
+
+  const originalGetExtraState = workspace.getExtraState?.bind(workspace);
+  const originalSetExtraState = workspace.setExtraState?.bind(workspace);
+
+  workspace.getExtraState = () => {
+    const base = originalGetExtraState ? originalGetExtraState() : {};
+    const safeBase = base && typeof base === 'object' ? base : {};
+    return { ...safeBase, [JSON_DATA_STORE_KEY]: jsonDataStore.toJSON() };
+  };
+
+  workspace.setExtraState = (state) => {
+    if (originalSetExtraState) originalSetExtraState(state);
+    const hasJsonStore =
+      Boolean(state) &&
+      typeof state === 'object' &&
+      Object.prototype.hasOwnProperty.call(state, JSON_DATA_STORE_KEY);
+    if (hasJsonStore) {
+      jsonDataStore.fromJSON(state?.[JSON_DATA_STORE_KEY]);
+    } else {
+      const fallbackState = readJsonDatasetLocalState();
+      if (fallbackState) {
+        jsonDataStore.fromJSON(fallbackState);
+      }
+    }
+    persistJsonDatasetLocalState();
+    resolveDatasetSelection();
+    render();
+  };
+
+  return { render, saveNow };
 };
 
 const indentBlock = (block, spaces = 4) =>
@@ -1126,6 +1775,14 @@ const initializeApp = async () => {
   const splitCodeModal = document.getElementById('splitCodeModal');
   const splitModalClose = document.getElementById('splitModalClose');
   const splitDownloadAllBtn = document.getElementById('splitDownloadAllBtn');
+  const saveJsonModal = document.getElementById('saveJsonModal');
+  const saveJsonCloseBtn = document.getElementById('saveJsonCloseBtn');
+  const saveJsonCancelBtn = document.getElementById('saveJsonCancelBtn');
+  const saveJsonConfirmBtn = document.getElementById('saveJsonConfirmBtn');
+  const saveJsonFilenameInput = document.getElementById('saveJsonFilename');
+  const saveJsonPrettyCheckbox = document.getElementById('saveJsonPretty');
+  const saveJsonMethodSelect = document.getElementById('saveJsonMethod');
+  const saveJsonMethodHint = document.getElementById('saveJsonMethodHint');
 
   const importBtn = document.getElementById('importBtn');
   const exportBtn = document.getElementById('exportBtn');
@@ -1140,6 +1797,33 @@ const initializeApp = async () => {
 
   const resolveProjectTitle = () =>
     (projectTitleInput?.value || '').trim() || WorkspaceStorage.DEFAULT_TITLE;
+
+  const supportsSaveFilePicker =
+    typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function';
+
+  const getDefaultJsonFileName = () =>
+    storage?.getDefaultExportFileName?.() ||
+    WorkspaceStorage.buildDownloadName(resolveProjectTitle());
+
+  const normalizeJsonFileName = (rawName) =>
+    WorkspaceStorage.normalizeDownloadName(rawName, getDefaultJsonFileName());
+
+  const flashSaveStatus = (message = 'Saved') => {
+    const status = document.getElementById('saveStatus');
+    if (!status) return;
+    const label = status.querySelector('span');
+    const originalText = label?.textContent || 'Saved';
+    if (label) {
+      label.textContent = message;
+    }
+    status.setAttribute('data-show', 'true');
+    setTimeout(() => {
+      status.setAttribute('data-show', 'false');
+      if (label) {
+        label.textContent = originalText;
+      }
+    }, 2000);
+  };
 
   const hydrateProjectTitle = () => {
     if (!projectTitleInput) return;
@@ -1191,6 +1875,10 @@ const initializeApp = async () => {
   // --- ワークスペース保存クラスの初期化 ---
   storage = new WorkspaceStorage(workspace);
   storage.setTitleProvider(() => resolveProjectTitle());
+  if (typeof Blockly !== 'undefined') {
+    Blockly.edbbListStore = listStore;
+    Blockly.edbbJsonDataStore = jsonDataStore;
+  }
 
   if (projectTitleInput) {
     projectTitleInput.addEventListener('input', () => {
@@ -1212,6 +1900,11 @@ const initializeApp = async () => {
     storage,
     shareFeature,
     workspaceContainer,
+  });
+  setupJsonDataManager({
+    workspace,
+    storage,
+    shareFeature,
   });
   if (isMobileDevice && headerActions && mobileHeaderToggle) {
     mobileHeaderToggle.classList.remove('hidden');
@@ -1447,7 +2140,21 @@ const initializeApp = async () => {
   });
 
   exportBtn.addEventListener('click', () => {
-    storage?.exportFile();
+    if (!saveJsonModal || !storage) {
+      storage?.exportFile();
+      return;
+    }
+    if (saveJsonFilenameInput) {
+      saveJsonFilenameInput.value = getDefaultJsonFileName();
+    }
+    if (saveJsonMethodSelect && !supportsSaveFilePicker) {
+      saveJsonMethodSelect.value = 'download';
+    }
+    toggleModal(saveJsonModal, true);
+    setTimeout(() => {
+      saveJsonFilenameInput?.focus();
+      saveJsonFilenameInput?.select();
+    }, 0);
   });
 
   // --- モーダル表示ロジック (アニメーション付き) ---
@@ -1478,6 +2185,84 @@ const initializeApp = async () => {
       modalTimers.set(modal, timer);
     }
   };
+
+  const updateSaveJsonMethodHint = () => {
+    if (!saveJsonMethodHint) return;
+    const mode = saveJsonMethodSelect?.value || 'download';
+    if (mode === 'picker') {
+      saveJsonMethodHint.textContent = supportsSaveFilePicker
+        ? '保存ダイアログを開いて、任意のフォルダに直接保存します。'
+        : 'このブラウザでは「保存先を選んで保存」は使えません。通常ダウンロードを選んでください。';
+      return;
+    }
+    saveJsonMethodHint.textContent =
+      '通常のダウンロードとして保存します。ほぼ全ブラウザで利用できます。';
+  };
+
+  const closeSaveJsonModal = () => {
+    if (!saveJsonModal) return;
+    toggleModal(saveJsonModal, false);
+  };
+
+  const setSaveJsonBusy = (busy) => {
+    if (!saveJsonConfirmBtn) return;
+    saveJsonConfirmBtn.disabled = busy;
+    saveJsonConfirmBtn.classList.toggle('opacity-70', busy);
+    saveJsonConfirmBtn.classList.toggle('cursor-not-allowed', busy);
+  };
+
+  const handleSaveJsonConfirm = async () => {
+    if (!storage) return;
+
+    const pretty = Boolean(saveJsonPrettyCheckbox?.checked);
+    const fileName = normalizeJsonFileName(saveJsonFilenameInput?.value || '');
+    if (saveJsonFilenameInput) {
+      saveJsonFilenameInput.value = fileName;
+    }
+    const method = saveJsonMethodSelect?.value || 'download';
+
+    setSaveJsonBusy(true);
+    let saved = false;
+    try {
+      if (method === 'picker' && supportsSaveFilePicker) {
+        saved = await storage.saveFileWithPicker({ pretty, fileName });
+      } else {
+        saved = storage.exportFile({ pretty, fileName });
+      }
+    } finally {
+      setSaveJsonBusy(false);
+    }
+
+    if (!saved) return;
+    closeSaveJsonModal();
+    flashSaveStatus('JSONを保存しました');
+  };
+
+  if (saveJsonMethodSelect && !supportsSaveFilePicker) {
+    const pickerOption = saveJsonMethodSelect.querySelector('option[value="picker"]');
+    if (pickerOption) {
+      pickerOption.disabled = true;
+    }
+    saveJsonMethodSelect.value = 'download';
+  }
+  updateSaveJsonMethodHint();
+
+  saveJsonMethodSelect?.addEventListener('change', updateSaveJsonMethodHint);
+  saveJsonCloseBtn?.addEventListener('click', closeSaveJsonModal);
+  saveJsonCancelBtn?.addEventListener('click', closeSaveJsonModal);
+  saveJsonConfirmBtn?.addEventListener('click', () => {
+    void handleSaveJsonConfirm();
+  });
+  saveJsonFilenameInput?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    void handleSaveJsonConfirm();
+  });
+  saveJsonModal?.addEventListener('click', (event) => {
+    if (event.target === saveJsonModal) {
+      closeSaveJsonModal();
+    }
+  });
 
   showCodeBtn.addEventListener('click', () => {
     showCodeBtn.blur();
@@ -1522,11 +2307,6 @@ const initializeApp = async () => {
       downloadTextFile(safeName, content);
     });
   });
-
-  // Ensure listStore is attached to Blockly
-  if (typeof Blockly !== 'undefined') {
-    Blockly.edbbListStore = listStore;
-  }
 
   copyCodeBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(codeOutput.textContent);

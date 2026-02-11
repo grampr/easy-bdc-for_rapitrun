@@ -128,6 +128,21 @@ export default class WorkspaceStorage {
     return `EDBB-${safeTitle}-${timestamp}.json`;
   }
 
+  static normalizeDownloadName(rawName, fallbackName) {
+    const fallback =
+      typeof fallbackName === 'string' && fallbackName.trim()
+        ? fallbackName.trim()
+        : WorkspaceStorage.buildDownloadName(WorkspaceStorage.DEFAULT_TITLE);
+    if (!rawName || typeof rawName !== 'string') {
+      return fallback;
+    }
+    const cleaned = rawName.trim().replace(/[\\/:*?"<>|]/g, '');
+    if (!cleaned) {
+      return fallback;
+    }
+    return /\.json$/i.test(cleaned) ? cleaned : `${cleaned}.json`;
+  }
+
   #resolveTitle() {
     try {
       const provided = typeof this.#titleProvider === 'function' ? this.#titleProvider() : '';
@@ -136,6 +151,11 @@ export default class WorkspaceStorage {
       console.warn('Failed to resolve project title', error);
       return WorkspaceStorage.DEFAULT_TITLE;
     }
+  }
+
+  #resolveDownloadName(fileName) {
+    const fallback = WorkspaceStorage.buildDownloadName(this.#resolveTitle());
+    return WorkspaceStorage.normalizeDownloadName(fileName, fallback);
   }
 
   // XMLかどうかの大まかな判定
@@ -223,20 +243,59 @@ export default class WorkspaceStorage {
   }
 
   // JSONファイルとしてダウンロード
-  exportFile() {
-    const json = this.exportText({ pretty: true });
-    if (!json) return;
+  exportFile({ pretty = true, fileName } = {}) {
+    const json = this.exportText({ pretty });
+    if (!json) return false;
     try {
-      const fileName = WorkspaceStorage.buildDownloadName(this.#resolveTitle());
-      const blob = new Blob([json], { type: 'application/json' });
+      const resolvedName = this.#resolveDownloadName(fileName);
+      const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      a.download = resolvedName;
       a.click();
       URL.revokeObjectURL(url);
+      return true;
     } catch (error) {
       console.error('ワークスペースのエクスポートに失敗しました。', error);
+      return false;
+    }
+  }
+
+  getDefaultExportFileName() {
+    return this.#resolveDownloadName('');
+  }
+
+  async saveFileWithPicker({ pretty = true, fileName } = {}) {
+    if (typeof window === 'undefined' || typeof window.showSaveFilePicker !== 'function') {
+      return false;
+    }
+    const json = this.exportText({ pretty });
+    if (!json) return false;
+
+    const resolvedName = this.#resolveDownloadName(fileName);
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: resolvedName,
+        types: [
+          {
+            description: 'JSON Files',
+            accept: {
+              'application/json': ['.json'],
+            },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(new Blob([json], { type: 'application/json;charset=utf-8' }));
+      await writable.close();
+      return true;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return false;
+      }
+      console.error('ファイルピッカー経由の保存に失敗しました。', error);
+      return false;
     }
   }
 
