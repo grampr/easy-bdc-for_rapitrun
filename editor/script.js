@@ -813,7 +813,42 @@ const buildInlineRuntimeHelpers = ({ usesJson, usesModal, usesLogging }) => {
 
 const generatePythonCode = () => {
   if (!workspace) return '';
-  const rawCode = Blockly.Python.workspaceToCode(workspace);
+
+  // --- Filter top-level blocks (Issue #28) ---
+  // Only allow event-related blocks, procedures, and specifically allowed blocks at the top level.
+  const topBlocks = workspace.getTopBlocks(true);
+  const allowedTopBlockTypes = [
+    'on_ready',
+    'on_message_create',
+    'on_member_join',
+    'on_member_remove',
+    'on_command_executed',
+    'prefix_command',
+    'on_reaction_add',
+    'on_button_click',
+    'on_modal_submit',
+    'procedures_defnoreturn',
+    'procedures_defreturn',
+    'print_to_console',
+    'custom_python_code',
+  ];
+
+  Blockly.Python.init(workspace);
+  const codeParts = [];
+  topBlocks.forEach((block) => {
+    if (block && !block.isShadow() && allowedTopBlockTypes.includes(block.type)) {
+      let line = Blockly.Python.blockToCode(block);
+      if (Array.isArray(line)) {
+        // Value blocks return [code, order], but at the top level we only want the code.
+        line = line[0];
+      }
+      if (line) {
+        codeParts.push(line);
+      }
+    }
+  });
+  const rawCode = Blockly.Python.finish(codeParts.join('\n'));
+
   const {
     cleanedCode,
     hasComponentEvents,
