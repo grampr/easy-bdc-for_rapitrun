@@ -530,6 +530,8 @@ export class PluginUI {
             trustBadge = '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500 text-white leading-none">公式</span>';
         } else if (plugin.trustLevel === 'certified') {
             trustBadge = '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-green-500 text-white leading-none">公認</span>';
+        } else if (plugin.trustLevel === 'danger') {
+            trustBadge = '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white leading-none">危険</span>';
         }
 
         item.innerHTML = `
@@ -559,9 +561,22 @@ export class PluginUI {
             trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-blue-500 text-white font-bold leading-none shrink-0">公式プラグイン</span>';
         } else if (plugin.trustLevel === 'certified') {
             trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-green-500 text-white font-bold leading-none shrink-0">公認プラグイン</span>';
+        } else if (plugin.trustLevel === 'danger') {
+            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-red-500 text-white font-bold leading-none shrink-0">危険なプラグイン</span>';
         }
 
+        const dangerWarning = plugin.trustLevel === 'danger' ? `
+            <div class="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 flex items-start gap-3">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500 shrink-0 mt-0.5"></i>
+                <div class="text-sm">
+                    <div class="font-bold text-red-600 dark:text-red-400">警告: このプラグインはブラックリストに登録されています</div>
+                    <div class="text-red-500/80 dark:text-red-400/80 mt-1">悪意のあるコードが含まれているか、重大なセキュリティリスクがある可能性があるため、インストールは推奨されません。</div>
+                </div>
+            </div>
+        ` : '';
+
         this.pluginDetailContent.innerHTML = `
+            ${dangerWarning}
             <div class="flex flex-col mb-6">
                 <div class="flex justify-between items-start mb-4">
                     <div>
@@ -679,9 +694,22 @@ export class PluginUI {
             trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-blue-500 text-white font-bold leading-none shrink-0">公式プラグイン</span>';
         } else if (plugin.trustLevel === 'certified') {
             trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-green-500 text-white font-bold leading-none shrink-0">公認プラグイン</span>';
+        } else if (plugin.trustLevel === 'danger') {
+            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-red-500 text-white font-bold leading-none shrink-0">危険なプラグイン</span>';
         }
 
+        const dangerWarning = plugin.trustLevel === 'danger' ? `
+            <div class="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 flex items-start gap-3">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500 shrink-0 mt-0.5"></i>
+                <div class="text-sm">
+                    <div class="font-bold text-red-600 dark:text-red-400">警告: このプラグインはブラックリストに登録されています</div>
+                    <div class="text-red-500/80 dark:text-red-400/80 mt-1">このプラグインの使用は推奨されません。速やかにアンインストールすることを検討してください。</div>
+                </div>
+            </div>
+        ` : '';
+
         this.pluginDetailContent.innerHTML = `
+            ${dangerWarning}
             <div class="flex justify-between items-start mb-6">
                 <div>
                     <h1 class="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">${plugin.name} ${trustBadge}</h1>

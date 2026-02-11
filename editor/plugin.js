@@ -55,6 +55,8 @@ export class PluginManager {
 
         // 公認プラグインリストのキャッシュ
         this.certifiedPlugins = [];
+        // ブラックリストのキャッシュ
+        this.blacklistedPlugins = [];
 
         // 過去の負債を清算
         this._purgeLegacySystems();
@@ -128,6 +130,16 @@ export class PluginManager {
             console.warn('Failed to fetch certified plugins list', e);
         }
 
+        // ブラックリストの取得
+        try {
+            const response = await this.fetchWithRetry('https://raw.githubusercontent.com/EDBPlugin/Blacklist/main/plugins.json');
+            if (response.ok) {
+                this.blacklistedPlugins = await response.json();
+            }
+        } catch (e) {
+            console.warn('Failed to fetch blacklisted plugins list', e);
+        }
+
         const enablePromises = Array.from(this.enabledPlugins).map(pluginId =>
             this.enablePlugin(pluginId).catch(err => console.error(`Failed to enable ${pluginId} during init`, err))
         );
@@ -188,34 +200,52 @@ export class PluginManager {
 
     // 信頼レベルの判定 (GitHub Search Result用)
     getTrustLevel(repo) {
+        // ブラックリストチェックを優先
+        const isBlacklisted = this._isInList(this.blacklistedPlugins, repo.full_name, repo.html_url);
+        if (isBlacklisted) return 'danger';
+
         if (repo.owner.login === 'EDBPlugin') return 'official';
+
         // EDBP-APIのリストに含まれているかチェック
-        const isCertified = Array.isArray(this.certifiedPlugins) && this.certifiedPlugins.some(p => {
-            if (typeof p === 'string') {
-                return p === repo.full_name || repo.html_url.includes(p);
-            }
-            return p.URL === repo.html_url ||
-                p.URL === repo.url ||
-                (p.URL && p.URL.includes(repo.full_name));
-        });
+        const isCertified = this._isInList(this.certifiedPlugins, repo.full_name, repo.html_url);
         if (isCertified) return 'certified';
+
         return null;
     }
 
     // 信頼レベルの判定 (インストール済みマニフェスト用)
     getManifestTrustLevel(manifest) {
+        // ブラックリストチェックを優先
+        if (manifest.repo) {
+            const isBlacklisted = this._isInList(this.blacklistedPlugins, null, manifest.repo);
+            if (isBlacklisted) return 'danger';
+        }
+
         if (manifest.author === 'EDBPlugin') return 'official';
         if (!manifest.repo) return null;
 
-        const isCertified = Array.isArray(this.certifiedPlugins) && this.certifiedPlugins.some(p => {
-            if (typeof p === 'string') {
-                return manifest.repo.includes(p);
-            }
-            return p.URL === manifest.repo || (p.URL && manifest.repo.includes(p.URL));
-        });
-
+        const isCertified = this._isInList(this.certifiedPlugins, null, manifest.repo);
         if (isCertified) return 'certified';
+
         return null;
+    }
+
+    /**
+     * リスト（公認・ブラックリスト）に含まれているかチェックするヘルパー
+     */
+    _isInList(list, fullName, url) {
+        if (!Array.isArray(list)) return false;
+        return list.some(p => {
+            if (typeof p === 'string') {
+                return (fullName && p === fullName) || (url && url.includes(p));
+            }
+            // オブジェクト形式 (URLプロパティがある場合)
+            if (p && typeof p === 'object') {
+                const targetUrl = p.URL || p.url;
+                return targetUrl && url && (url === targetUrl || url.includes(targetUrl));
+            }
+            return false;
+        });
     }
 
     /**
