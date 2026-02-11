@@ -636,6 +636,12 @@ class ShareModalController {
     try {
       const { encoded, url } = this.exportSharePayload();
       this.toggle(true, url);
+
+      // 127.0.0.1 (ローカル開発環境) の場合は短縮URLの生成をスキップ
+      if (window.location.hostname === '127.0.0.1') {
+        return;
+      }
+
       try {
         const shortUrl = await this.createShortShareUrl(encoded);
         if (shortUrl && this.isModalOpen() && this.modalInput) {
