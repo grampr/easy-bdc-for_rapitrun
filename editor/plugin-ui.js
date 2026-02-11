@@ -487,7 +487,7 @@ export class PluginUI {
 
         // 2. GitHub Marketplace (検索またはトピック表示)
         if (!this.isOnlyInstalled) {
-            // テストモード: "@test" でモックを表示
+            // テストモード: "@test" で指定のリポジトリを表示
             if (this.searchQuery === '@test') {
                 const header = document.createElement('div');
                 header.className = 'px-3 py-2 text-xs font-bold text-amber-500 uppercase tracking-wider mt-4';
@@ -495,75 +495,18 @@ export class PluginUI {
                 this.pluginList.appendChild(header);
 
                 this.addPluginItem({
-                    id: 'test-certified',
-                    name: 'Test Certified Plugin',
-                    author: 'TrustedDev',
-                    trustLevel: 'certified'
-                }, false);
-
-                this.addPluginItem({
-                    id: 'test-danger',
-                    name: 'Malicious Test Plugin',
-                    author: 'Hacker',
-                    version: '1.0.0',
-                    description: 'テスト用の危険なプラグインです。有効にするとEDBPアイコンが大量発生します。',
-                    trustLevel: 'danger',
-                    script: `
-class Plugin {
-    constructor(workspace) {
-        this.workspace = workspace;
-        this.intervals = [];
-    }
-
-    async onload() {
-        console.warn('MALICIOUS PLUGIN ACTIVATED');
-        const spawnIcon = () => {
-            const icon = document.createElement('img');
-            icon.src = '../static/icon.svg';
-            icon.style.position = 'fixed';
-            icon.style.left = Math.random() * 100 + 'vw';
-            icon.style.top = Math.random() * 100 + 'vh';
-            icon.style.width = '50px';
-            icon.style.height = '50px';
-            icon.style.zIndex = '9999';
-            icon.style.pointerEvents = 'none';
-            icon.style.transition = 'all 0.5s ease-out';
-            icon.classList.add('malicious-icon');
-            document.body.appendChild(icon);
-
-            // 少し動かすアニメーション
-            setTimeout(() => {
-                icon.style.transform = "scale(1.5) rotate(" + (Math.random() * 360) + "deg)";
-            }, 100);
-        };
-
-        // 0.2秒ごとにアイコンを出す
-        const interval = setInterval(spawnIcon, 200);
-        this.intervals.push(interval);
-        
-        // メッセージを表示
-        const msg = document.createElement('div');
-        msg.innerHTML = "YOU ARE IDET";
-        msg.style.position = 'fixed';
-        msg.style.top = '50%';
-        msg.style.left = '50%';
-        msg.style.transform = 'translate(-50%, -50%)';
-        msg.style.fontSize = '5rem';
-        msg.style.fontWeight = 'bold';
-        msg.style.color = 'red';
-        msg.style.zIndex = '10000';
-        msg.style.textShadow = '0 0 20px black';
-        msg.id = 'malicious-msg';
-        document.body.appendChild(msg);
-    }
-
-    async onunload() {
-        this.intervals.forEach(clearInterval);
-        document.querySelectorAll('.malicious-icon').forEach(el => el.remove());
-        document.getElementById('malicious-msg')?.remove();
-    }
-}
-`
+                    id: 'malicious-test-plugin',
+                    name: 'Malicious-Test-Plugin',
+                    author: 'appipinopi',
+                    fullName: 'appipinopi/Malicious-Test-Plugin',
+                    repo: 'https://github.com/appipinopi/Malicious-Test-Plugin',
+                    description: 'GitHub連携テスト用の危険なプラグイン。',
+                    trustLevel: {
+                        level: 'danger',
+                        reason: 'トークン窃取の可能性があるため。'
+                    },
+                    stars: 0,
+                    defaultBranch: 'main'
                 }, false);
 
                 lucide.createIcons();
@@ -608,18 +551,24 @@ class Plugin {
         const item = document.createElement('div');
         item.className = `p-3 rounded-lg cursor-pointer transition-colors ${isEnabled ? 'bg-indigo-50/50 dark:bg-indigo-900/20' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`;
 
+        const trustLevelInfo = plugin.trustLevel;
+        const level = (typeof trustLevelInfo === 'object') ? trustLevelInfo.level : trustLevelInfo;
+
         let trustBadge = '';
-        if (plugin.author === 'EDBPlugin' || plugin.trustLevel === 'official') {
+        if (plugin.author === 'EDBPlugin' || level === 'official') {
             trustBadge = '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500 text-white leading-none">公式</span>';
-        } else if (plugin.trustLevel === 'certified') {
+        } else if (level === 'certified') {
             trustBadge = '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-green-500 text-white leading-none">公認</span>';
-        } else if (plugin.trustLevel === 'danger') {
-            trustBadge = '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white leading-none">危険</span>';
+        } else if (level === 'danger') {
+            const reason = (typeof trustLevelInfo === 'object' && trustLevelInfo.reason) ? trustLevelInfo.reason : '危険性が報告されています。';
+            trustBadge = `<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white leading-none cursor-help" title="危険の理由: ${reason}">危険</span>`;
         }
 
         item.innerHTML = `
             <div class="flex justify-between items-start">
-                <div class="font-bold text-sm text-slate-900 dark:text-white flex items-center">${plugin.name}${trustBadge}</div>
+                <div class="font-bold text-sm text-slate-900 dark:text-white flex items-center">
+                    ${plugin.name}${trustBadge}
+                </div>
                 ${isEnabled ? '<div class="w-2 h-2 rounded-full bg-indigo-500 mt-1.5"></div>' : ''}
                 ${!isInstalled ? '<i data-lucide="download-cloud" class="w-3.5 h-3.5 text-slate-300"></i>' : ''}
             </div>
@@ -658,12 +607,15 @@ class Plugin {
             trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-red-500 text-white font-bold leading-none shrink-0">危険なプラグイン</span>';
         }
 
-        const dangerWarning = plugin.trustLevel === 'danger' ? `
+        const trustLevel = plugin.trustLevel?.level || plugin.trustLevel;
+        const dangerReason = trustLevel === 'danger' ? (plugin.trustLevel?.reason || '悪意のあるコードが含まれているか、重大なセキュリティリスクがある可能性があるため、インストールは推奨されません。') : '';
+
+        const dangerWarning = trustLevel === 'danger' ? `
             <div class="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 flex items-start gap-3">
                 <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500 shrink-0 mt-0.5"></i>
                 <div class="text-sm">
                     <div class="font-bold text-red-600 dark:text-red-400">警告: このプラグインはブラックリストに登録されています</div>
-                    <div class="text-red-500/80 dark:text-red-400/80 mt-1">悪意のあるコードが含まれているか、重大なセキュリティリスクがある可能性があるため、インストールは推奨されません。</div>
+                    <div class="text-red-500/80 dark:text-red-400/80 mt-1">理由: ${dangerReason}</div>
                 </div>
             </div>
         ` : '';
@@ -810,12 +762,15 @@ class Plugin {
             trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-red-500 text-white font-bold leading-none shrink-0">危険なプラグイン</span>';
         }
 
-        const dangerWarning = plugin.trustLevel === 'danger' ? `
+        const trustLevel = plugin.trustLevel?.level || plugin.trustLevel;
+        const dangerReason = trustLevel === 'danger' ? (plugin.trustLevel?.reason || 'このプラグインの使用は推奨されません。速やかにアンインストールすることを検討してください。') : '';
+
+        const dangerWarning = trustLevel === 'danger' ? `
             <div class="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 flex items-start gap-3">
                 <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500 shrink-0 mt-0.5"></i>
                 <div class="text-sm">
                     <div class="font-bold text-red-600 dark:text-red-400">警告: このプラグインはブラックリストに登録されています</div>
-                    <div class="text-red-500/80 dark:text-red-400/80 mt-1">このプラグインの使用は推奨されません。速やかにアンインストールすることを検討してください。</div>
+                    <div class="text-red-500/80 dark:text-red-400/80 mt-1">理由: ${dangerReason}</div>
                 </div>
             </div>
         ` : '';

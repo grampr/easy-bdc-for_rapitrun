@@ -120,7 +120,7 @@ export class PluginManager {
     async init() {
         console.log('PluginManager initializing...');
 
-        // 公認プラグインリストの取得
+        // 公認プラグインリストを前の形で取得 (EDBP-API の plugins.json)
         try {
             const response = await this.fetchWithRetry('https://raw.githubusercontent.com/EDBPlugin/EDBP-API/main/plugins.json');
             if (response.ok) {
@@ -130,7 +130,7 @@ export class PluginManager {
             console.warn('Failed to fetch certified plugins list', e);
         }
 
-        // ブラックリストの取得
+        // ブラックリストを取得 (EDBPlugin/Blacklist の plugins.json)
         try {
             const response = await this.fetchWithRetry('https://raw.githubusercontent.com/EDBPlugin/Blacklist/main/plugins.json');
             if (response.ok) {
@@ -142,7 +142,7 @@ export class PluginManager {
 
         const enablePromises = Array.from(this.enabledPlugins).map(pluginId => {
             // テスト用プラグインは再読み込み時に自動で無効化する
-            if (pluginId === 'test-danger') {
+            if (pluginId === 'test-danger' || pluginId === 'malicious-test-plugin') {
                 this.enabledPlugins.delete(pluginId);
                 this.saveState();
                 console.log('Test danger plugin auto-disabled on reload');
@@ -208,14 +208,19 @@ export class PluginManager {
     // 信頼レベルの判定 (GitHub Search Result用)
     getTrustLevel(repo) {
         // ブラックリストチェックを優先
-        const isBlacklisted = this._isInList(this.blacklistedPlugins, repo.full_name, repo.html_url);
-        if (isBlacklisted) return 'danger';
+        const blacklistMatch = this._isInList(this.blacklistedPlugins, repo.full_name, repo.html_url);
+        if (blacklistMatch) {
+            return {
+                level: 'danger',
+                reason: typeof blacklistMatch === 'object' ? blacklistMatch.reason : null
+            };
+        }
 
-        if (repo.owner.login === 'EDBPlugin') return 'official';
+        if (repo.owner.login === 'EDBPlugin') return { level: 'official' };
 
         // EDBP-APIのリストに含まれているかチェック
         const isCertified = this._isInList(this.certifiedPlugins, repo.full_name, repo.html_url);
-        if (isCertified) return 'certified';
+        if (isCertified) return { level: 'certified' };
 
         return null;
     }
@@ -224,35 +229,41 @@ export class PluginManager {
     getManifestTrustLevel(manifest) {
         // ブラックリストチェックを優先
         if (manifest.repo) {
-            const isBlacklisted = this._isInList(this.blacklistedPlugins, null, manifest.repo);
-            if (isBlacklisted) return 'danger';
+            const blacklistMatch = this._isInList(this.blacklistedPlugins, null, manifest.repo);
+            if (blacklistMatch) {
+                return {
+                    level: 'danger',
+                    reason: typeof blacklistMatch === 'object' ? blacklistMatch.reason : null
+                };
+            }
         }
 
-        if (manifest.author === 'EDBPlugin') return 'official';
+        if (manifest.author === 'EDBPlugin') return { level: 'official' };
         if (!manifest.repo) return null;
 
         const isCertified = this._isInList(this.certifiedPlugins, null, manifest.repo);
-        if (isCertified) return 'certified';
+        if (isCertified) return { level: 'certified' };
 
         return null;
     }
 
     /**
      * リスト（公認・ブラックリスト）に含まれているかチェックするヘルパー
+     * 見つかった場合はそのエントリを、見つからない場合はnullを返します。
      */
     _isInList(list, fullName, url) {
-        if (!Array.isArray(list)) return false;
-        return list.some(p => {
+        if (!Array.isArray(list)) return null;
+        return list.find(p => {
             if (typeof p === 'string') {
                 return (fullName && p === fullName) || (url && url.includes(p));
             }
             // オブジェクト形式 (URLプロパティがある場合)
             if (p && typeof p === 'object') {
-                const targetUrl = p.URL || p.url;
+                const targetUrl = p.URL || p.url || p.repo || p.id;
                 return targetUrl && url && (url === targetUrl || url.includes(targetUrl));
             }
             return false;
-        });
+        }) || null;
     }
 
     /**
