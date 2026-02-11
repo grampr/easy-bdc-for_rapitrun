@@ -11,9 +11,11 @@
                     try {
                         return org.call(this, opts);
                     } catch (e) {
-                        if (e.name === 'NotSupportedError' && this.shadowRoot) {
-                            console.warn('Caught redundant attachShadow call on:', this);
-                            return this.shadowRoot;
+                        // Check for the specific error message even if shadowRoot is null (could be a closed shadow root)
+                        if (e.name === 'NotSupportedError' &&
+                            (e.message.includes('already hosts') || this.shadowRoot)) {
+                            console.warn('Prevented redundant attachShadow call on:', this);
+                            return this.shadowRoot; // Note: returns null if closed, but prevents the crash
                         }
                         throw e;
                     }
