@@ -40,9 +40,15 @@ class WorkspaceShareCodec {
     try {
       const text = lz.decompressFromEncodedURIComponent(encoded);
       if (!text) throw new Error('データを展開できませんでした。');
+
+      // 基本的な構造チェック (JSONの断片として妥当か)
+      if (!text.trim().startsWith('{') && !text.trim().startsWith('[')) {
+        throw new Error('復号されたデータ形式が不正です。');
+      }
+
       const payload = JSON.parse(text);
 
-      const isExtendedPayload = !!(payload.workspace && (payload.pluginUUIDs || payload.plugins || payload.pluginInfo));
+      const isExtendedPayload = !!(payload && typeof payload === 'object' && payload.workspace);
       const workspaceData = isExtendedPayload ? payload.workspace : payload;
 
       // プラグイン情報の処理を先に行う (Blockly読込前に定義を揃えるため)
@@ -54,11 +60,12 @@ class WorkspaceShareCodec {
         // インストール済みチェック
         if (pluginInfo.length > 0) {
           pluginInfo.forEach(entry => {
-            const [fullName] = entry.split('@');
-            const repoUrl = `https://github.com/${fullName}`;
-            const isInstalled = workspace.pluginManager.getRegistry().some(p =>
-              p.repo === repoUrl || p.repo === repoUrl + '.git'
-            );
+            // entry がリポジトリURLそのものになったため、正規化してチェック
+            const cleanUrl = entry.split('?')[0].replace(/\/$/, '').replace(/\.git$/, '');
+            const isInstalled = workspace.pluginManager.getRegistry().some(p => {
+              const pClean = p.repo?.split('?')[0].replace(/\/$/, '').replace(/\.git$/, '');
+              return pClean === cleanUrl;
+            });
             if (!isInstalled) {
               missingPlugins.push(entry);
             }
@@ -70,41 +77,41 @@ class WorkspaceShareCodec {
           const pluginId = workspace.pluginManager.getPluginIdByUUID(uuid);
           if (pluginId) {
             try {
-              await workspace.pluginManager.enablePlugin(pluginId);
+              // タイムアウト付きで有効化を試みる
+              const enablePromise = workspace.pluginManager.enablePlugin(pluginId);
+              const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 3000));
+              await Promise.race([enablePromise, timeoutPromise]);
             } catch (e) {
-              console.warn(`Plugin activation failed during share import: ${pluginId}`, e);
+              console.warn(`Plugin activation failed or timed out: ${pluginId}`, e);
             }
-          }
-        }
-
-        // 互換性のため古い形式もサポート
-        const oldPlugins = payload.plugins || [];
-        for (const pluginId of oldPlugins) {
-          try {
-            await workspace.pluginManager.enablePlugin(pluginId);
-          } catch (e) {
-            console.warn(`Old plugin activation failed: ${pluginId}`, e);
           }
         }
 
         // 未インストールがあれば後で促す
         if (missingPlugins.length > 0) {
-          // 非同期で提案 (読込完了後に表示されるように)
-          setTimeout(() => workspace.pluginManager.suggestPlugins(missingPlugins), 500);
+          // 確実にワークスペース読込が終わった後に表示させる
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              if (workspace.pluginManager.suggestPlugins) {
+                workspace.pluginManager.suggestPlugins(missingPlugins);
+              }
+            }, 1000);
+          });
         }
       }
 
       // 最後にワークスペースを読み込む
       try {
-        Blockly.serialization.workspaces.load(workspaceData, workspace);
+        if (workspaceData) {
+          Blockly.serialization.workspaces.load(workspaceData, workspace);
+        }
       } catch (loadError) {
         console.warn('Blockly load encountered errors (possibly missing block definitions):', loadError);
-        // 部分的に読み込める場合もあるため、致命的エラーにはしない
       }
 
       return true;
     } catch (error) {
-      console.error('圧縮ワークスペースの読み込みに失敗しました。', error);
+      console.error('圧縮ワークスペースの読込みに致命的な失敗が発生しました。', error);
       return false;
     }
   }
