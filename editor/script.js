@@ -1889,6 +1889,7 @@ const initializeApp = async () => {
   const mobileHeaderToggle = document.getElementById('mobileHeaderToggle');
   // ヘッダーのコード生成ボタン
   const showCodeBtn = document.getElementById('showCodeBtn');
+  const runBotBtn = document.getElementById('runBotBtn');
   // モーダル関連
   const codeModal = document.getElementById('codeModal');
   const closeModalBtn = document.getElementById('closeModalBtn');
@@ -2438,6 +2439,77 @@ const initializeApp = async () => {
     if (!validateBeforeCodegen()) return;
     codeOutput.textContent = generatePythonCode();
     toggleModal(codeModal, true);
+  });
+
+  // Run Bot Button - BOTの実行を開始
+  runBotBtn?.addEventListener('click', async () => {
+    runBotBtn.blur();
+    if (workspace) Blockly.hideChaff();
+    if (!validateBeforeCodegen()) return;
+
+    // Show toast with loading state
+    const runBotStatus = document.getElementById('runBotStatus');
+    const runBotStatusText = document.getElementById('runBotStatusText');
+    if (runBotStatus && runBotStatusText) {
+      runBotStatus.dataset.state = 'success';
+      runBotStatusText.textContent = 'BOTを起動中...';
+      runBotStatus.setAttribute('data-show', 'true');
+    }
+
+    try {
+      const botCode = generatePythonCode();
+      const response = await fetch('http://localhost:6859', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+        body: botCode,
+      });
+
+      // Parse JSON response
+      const responseData = await response.json();
+
+      if (response.ok && responseData.status === 'ok') {
+        // Success - show success toast
+        if (runBotStatus && runBotStatusText) {
+          runBotStatus.dataset.state = 'success';
+          runBotStatusText.textContent = 'BOTの実行を開始しました';
+          runBotStatus.setAttribute('data-show', 'true');
+          setTimeout(() => runBotStatus.setAttribute('data-show', 'false'), 3000);
+        }
+      } else {
+        throw new Error('Failed to start bot');
+      }
+    } catch (error) {
+      console.error('Failed to run bot:', error);
+
+      // Error - show error toast
+      if (runBotStatus && runBotStatusText) {
+        runBotStatus.dataset.state = 'error';
+        runBotStatusText.textContent = 'BOTの起動に失敗しました';
+        runBotStatus.setAttribute('data-show', 'true');
+        setTimeout(() => runBotStatus.setAttribute('data-show', 'false'), 3000);
+      }
+
+      // Show download dialog after a short delay
+      setTimeout(() => {
+        const hostname = window.location.hostname || '';
+        const isBetaHost = /^beta(\.|-)/i.test(hostname);
+        const downloadUrl = isBetaHost
+          ? 'https://github.com/himais0giiiin/edbb-runner/archive/refs/heads/beta.zip'
+          : 'https://github.com/himais0giiiin/edbb-runner/archive/refs/heads/main.zip';
+
+        const shouldDownload = confirm(
+          'edbb-runnerが起動していない可能性があります。\n\n' +
+          'edbb-runnerをダウンロードして実行してください。\n' +
+          'ダウンロードページを開きますか？'
+        );
+
+        if (shouldDownload) {
+          window.open(downloadUrl, '_blank');
+        }
+      }, 500);
+    }
   });
 
   const openSplitModal = () => {

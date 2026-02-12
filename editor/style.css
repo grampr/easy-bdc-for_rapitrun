@@ -862,15 +862,39 @@ main {
 }
 
 #saveStatus,
-#shareStatus {
+#shareStatus,
+#runBotStatus {
   background: rgba(236, 253, 245, 0.9);
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(10px);
 }
 
 .dark #saveStatus,
-.dark #shareStatus {
+.dark #shareStatus,
+.dark #runBotStatus {
   background: rgba(6, 78, 59, 0.6);
+}
+
+/* Run Bot Status - Success State */
+#runBotStatus[data-state="success"] {
+  background: rgba(236, 253, 245, 0.9);
+  color: rgb(6, 78, 59);
+}
+
+.dark #runBotStatus[data-state="success"] {
+  background: rgba(6, 78, 59, 0.6);
+  color: rgb(236, 253, 245);
+}
+
+/* Run Bot Status - Error State */
+#runBotStatus[data-state="error"] {
+  background: rgba(254, 242, 242, 0.9);
+  color: rgb(127, 29, 29);
+}
+
+.dark #runBotStatus[data-state="error"] {
+  background: rgba(127, 29, 29, 0.6);
+  color: rgb(254, 242, 242);
 }
 
 .blocklyToolboxDiv {
