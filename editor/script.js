@@ -2474,6 +2474,7 @@ const initializeApp = async () => {
           'Content-Type': 'text/plain',
         },
         body: botCode,
+        signal: AbortSignal.timeout(7000),
       });
 
       // Parse JSON response
