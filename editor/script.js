@@ -875,6 +875,7 @@ const generatePythonCode = () => {
     'import discord',
     'from discord import app_commands',
     'from discord.ext import commands',
+    'import os',
   ];
   if (needInteractionHandler || usesModal || bodyCode.includes('discord.ui')) imports.push('from discord import ui');
   if (usesRandom) imports.push('import random');
@@ -883,7 +884,6 @@ const generatePythonCode = () => {
   if (usesMath) imports.push('import math');
   if (usesJson) {
     imports.push('import json');
-    imports.push('import os');
   }
   if (usesLogging) imports.push('import logging');
 
@@ -914,12 +914,18 @@ ${bodyCode}
 # --------------------------
 
 if __name__ == "__main__":
-    # Token check
-    print('\\x1b[31m!!!!注意!!!! トークンを設定していない場合は、実行前にコードの最後にある"TOKEN"部分にトークンを記述してください。\\x1b[0m')
-    print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the token in the "TOKEN" section at the end of the code before running it.\\x1b[0m')
-    # トークン設定後は注意を削除しても問題ありません / After setting the token, you may safely remove this check.
+    # トークンの設定
+    # Set your token here
+    token = "TOKEN"
 
-    bot.run("TOKEN")
+    # Token check
+    token = os.getenv("DISCORD_TOKEN", token) # 環境変数DISCORD_TOKENがあればそちらを優先 (If DISCORD_TOKEN environment variable is set, it will be used)
+    if token == "TOKEN":
+        print('\\x1b[31m!!!!注意!!!! トークンを設定していない場合は、環境変数DISCORD_TOKENを設定するか、上のtoken変数を書き換えてください。\\x1b[0m')
+        print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the DISCORD_TOKEN environment variable or replace the token variable above.\\x1b[0m')
+        exit(1)
+
+    bot.run(token)
 `;
 
   return fullBoiler.trim();
@@ -1823,6 +1829,7 @@ const generateSplitPythonFiles = () => {
   const botFile = `
 # Easy Discord Bot Builder - Split Cogs Version
 
+import os
 import discord
 from discord.ext import commands
 
@@ -1839,8 +1846,18 @@ class EasyBot(commands.Bot):
 bot = EasyBot(command_prefix='!', intents=intents)
 
 if __name__ == "__main__":
-    print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the token in the "TOKEN" section at the end of the code before execution.\\x1b[0m')
-    bot.run('TOKEN')
+    # トークンの設定
+    # Set your token here
+    token = "TOKEN"
+
+    # Token check
+    token = os.getenv("DISCORD_TOKEN", token) # 環境変数DISCORD_TOKENがあればそちらを優先 (If DISCORD_TOKEN environment variable is set, it will be used)
+    if token == "TOKEN":
+        print('\\x1b[31m!!!!注意!!!! トークンを設定していない場合は、環境変数DISCORD_TOKENを設定するか、上のtoken変数を書き換えてください。\\x1b[0m')
+        print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the DISCORD_TOKEN environment variable or replace the token variable above.\\x1b[0m')
+        exit(1)
+
+    bot.run(token)
 `.trim();
 
   files['bot.py'] = botFile;
@@ -1924,6 +1941,7 @@ const initializeApp = async () => {
   const mobileHeaderToggle = document.getElementById('mobileHeaderToggle');
   // ヘッダーのコード生成ボタン
   const showCodeBtn = document.getElementById('showCodeBtn');
+  const runBotBtn = document.getElementById('runBotBtn');
   // モーダル関連
   const codeModal = document.getElementById('codeModal');
   const closeModalBtn = document.getElementById('closeModalBtn');
@@ -1944,6 +1962,10 @@ const initializeApp = async () => {
   const saveJsonPrettyCheckbox = document.getElementById('saveJsonPretty');
   const saveJsonMethodSelect = document.getElementById('saveJsonMethod');
   const saveJsonMethodHint = document.getElementById('saveJsonMethodHint');
+  const runnerDownloadModal = document.getElementById('runnerDownloadModal');
+  const runnerDownloadModalClose = document.getElementById('runnerDownloadModalClose');
+  const runnerDownloadCancelBtn = document.getElementById('runnerDownloadCancelBtn');
+  const runnerDownloadBtn = document.getElementById('runnerDownloadBtn');
 
   const importBtn = document.getElementById('importBtn');
   const exportBtn = document.getElementById('exportBtn');
@@ -2474,6 +2496,94 @@ const initializeApp = async () => {
     if (!validateBeforeCodegen()) return;
     codeOutput.textContent = generatePythonCode();
     toggleModal(codeModal, true);
+  });
+
+  // Run Bot Button - BOTの実行を開始
+  runBotBtn?.addEventListener('click', async () => {
+    runBotBtn.blur();
+    if (workspace) Blockly.hideChaff();
+    if (!validateBeforeCodegen()) return;
+
+    // Show toast with loading state
+    const runBotStatus = document.getElementById('runBotStatus');
+    const runBotStatusText = document.getElementById('runBotStatusText');
+    if (runBotStatus && runBotStatusText) {
+      runBotStatus.dataset.state = 'success';
+      runBotStatusText.textContent = 'BOTを起動中...';
+      runBotStatus.setAttribute('data-show', 'true');
+    }
+
+    try {
+      const botCode = generatePythonCode();
+      const response = await fetch('http://localhost:6859', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+        body: botCode,
+        signal: AbortSignal.timeout(7000),
+      });
+
+      // Parse JSON response
+      const responseData = await response.json();
+
+      if (response.ok && responseData.status === 'ok') {
+        // Success - show success toast
+        if (runBotStatus && runBotStatusText) {
+          runBotStatus.dataset.state = 'success';
+          runBotStatusText.textContent = 'BOTの起動を開始しました';
+          runBotStatus.setAttribute('data-show', 'true');
+          setTimeout(() => runBotStatus.setAttribute('data-show', 'false'), 3000);
+        }
+      } else {
+        throw new Error('Failed to start bot');
+      }
+    } catch (error) {
+      console.error('Failed to run bot:', error);
+
+      // Error - show error toast
+      if (runBotStatus && runBotStatusText) {
+        runBotStatus.dataset.state = 'error';
+        runBotStatusText.textContent = 'BOTの起動に失敗しました';
+        runBotStatus.setAttribute('data-show', 'true');
+        setTimeout(() => runBotStatus.setAttribute('data-show', 'false'), 3000);
+      }
+
+      // Show download modal after a short delay
+      setTimeout(() => {
+        if (runnerDownloadModal) {
+          toggleModal(runnerDownloadModal, true);
+        }
+      }, 500);
+    }
+  });
+
+  // Runner Download Modal handlers
+  const closeRunnerDownloadModal = () => {
+    if (runnerDownloadModal) {
+      toggleModal(runnerDownloadModal, false);
+    }
+  };
+
+  runnerDownloadModalClose?.addEventListener('click', closeRunnerDownloadModal);
+  runnerDownloadCancelBtn?.addEventListener('click', closeRunnerDownloadModal);
+
+  runnerDownloadBtn?.addEventListener('click', () => {
+    const hostname = window.location.hostname || '';
+    const isBetaHost = /^beta(\.|-)/i.test(hostname);
+    const downloadUrl = isBetaHost
+      ? 'https://github.com/himais0giiiin/edbb-runner/archive/refs/heads/beta.zip'
+      : 'https://github.com/himais0giiiin/edbb-runner/archive/refs/heads/main.zip';
+
+    window.open(downloadUrl, '_blank');
+    closeRunnerDownloadModal();
+  });
+
+  // Close modal on backdrop click
+  runnerDownloadModal?.addEventListener('click', (e) => {
+    if (e.target === runnerDownloadModal) {
+      closeRunnerDownloadModal();
+    }
   });
 
   const openSplitModal = () => {
