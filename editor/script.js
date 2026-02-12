@@ -840,6 +840,7 @@ const generatePythonCode = () => {
     'import discord',
     'from discord import app_commands',
     'from discord.ext import commands',
+    'import os',
   ];
   if (needInteractionHandler || usesModal || bodyCode.includes('discord.ui')) imports.push('from discord import ui');
   if (usesRandom) imports.push('import random');
@@ -848,7 +849,6 @@ const generatePythonCode = () => {
   if (usesMath) imports.push('import math');
   if (usesJson) {
     imports.push('import json');
-    imports.push('import os');
   }
   if (usesLogging) imports.push('import logging');
 
@@ -879,12 +879,18 @@ ${bodyCode}
 # --------------------------
 
 if __name__ == "__main__":
-    # Token check
-    print('\\x1b[31m!!!!注意!!!! トークンを設定していない場合は、実行前にコードの最後にある"TOKEN"部分にトークンを記述してください。\\x1b[0m')
-    print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the token in the "TOKEN" section at the end of the code before running it.\\x1b[0m')
-    # トークン設定後は注意を削除しても問題ありません / After setting the token, you may safely remove this check.
+    # トークンの設定
+    # Set your token here
+    token = "TOKEN"
 
-    bot.run("TOKEN")
+    # Token check
+    token = os.getenv("DISCORD_TOKEN", token) # 環境変数DISCORD_TOKENがあればそちらを優先 (If DISCORD_TOKEN environment variable is set, it will be used)
+    if token == "TOKEN":
+        print('\\x1b[31m!!!!注意!!!! トークンを設定していない場合は、環境変数DISCORD_TOKENを設定するか、上のtoken変数を書き換えてください。\\x1b[0m')
+        print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the DISCORD_TOKEN environment variable or replace the token variable above.\\x1b[0m')
+        exit(1)
+
+    bot.run(token)
 `;
 
   return fullBoiler.trim();
