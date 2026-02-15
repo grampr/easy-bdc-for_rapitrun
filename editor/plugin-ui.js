@@ -855,14 +855,16 @@ export class PluginUI {
         const isMock = plugin.id && plugin.id.startsWith('test-');
         let readme = 'READMEが見つかりませんでした。';
         let releases = [];
-
+        let showReadmeAd = false;
         if (!isMock) {
             const results = await Promise.all([
                 this.pluginManager.getREADME(plugin.fullName, plugin.defaultBranch),
-                this.pluginManager.getReleases(plugin.fullName)
+                this.pluginManager.getReleases(plugin.fullName),
+                this.pluginManager.hasExternalDocOverride(plugin.fullName)
             ]);
             readme = results[0];
             releases = results[1];
+            showReadmeAd = !!results[2];
         } else {
             readme = plugin.description || 'テスト用プラグインのデモページです。';
         }
@@ -967,10 +969,12 @@ export class PluginUI {
             <div class="prose dark:prose-invert max-w-none border-t border-slate-100 dark:border-slate-800 pt-6">
                 <div class="bg-slate-50 dark:bg-slate-950/50 rounded-xl p-6 border border-slate-100 dark:border-slate-800 font-sans text-sm leading-relaxed">
                     <div class="readme-content prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-h1:font-bold prose-h2:font-bold">${this.renderMarkdown(readme)}</div>
+                    ${showReadmeAd ? this.getReadmeAdHtml() : ''}
                 </div>
             </div>
         `;
         lucide.createIcons();
+        this.initReadmeAds(this.pluginDetailContent);
 
         const versionSelect = document.getElementById('ghVersionSelect');
         const fileSelect = document.getElementById('ghFileSelect');
@@ -1100,6 +1104,8 @@ export class PluginUI {
                 </div>
             </div>
         ` : '';
+
+        const sourceUrl = plugin.source || plugin.repo || '';
 
         this.pluginDetailContent.innerHTML = `
             ${dangerWarning}
@@ -1254,13 +1260,54 @@ export class PluginUI {
         const sourceUrl = plugin.source || plugin.repo;
         if (sourceUrl && /^https?:\/\//i.test(sourceUrl)) {
             // source/repo URL をそのまま渡して README を解決させる
-            const readme = await this.pluginManager.getREADME(sourceUrl, plugin.installRef || 'main');
-            container.innerHTML = `<div class="font-sans text-sm leading-relaxed"><div class="readme-content">${this.renderMarkdown(readme)}</div></div>`;
+            const [readme, showReadmeAd] = await Promise.all([
+                this.pluginManager.getREADME(sourceUrl, plugin.installRef || 'main'),
+                this.pluginManager.hasExternalDocOverride(sourceUrl)
+            ]);
+            container.innerHTML = `<div class="font-sans text-sm leading-relaxed"><div class="readme-content">${this.renderMarkdown(readme)}</div>${showReadmeAd ? this.getReadmeAdHtml() : ''}</div>`;
+            this.initReadmeAds(container);
         } else {
             container.innerHTML = `<p class="text-sm text-slate-500">${plugin.description}</p>`;
         }
     }
 
+    getReadmeAdHtml() {
+        const adClient = document.querySelector('meta[name="google-adsense-account"]')?.getAttribute('content') || '';
+        const adSlot = (typeof window !== 'undefined' && window.EDBB_ADSENSE_SLOT) ? String(window.EDBB_ADSENSE_SLOT) : '';
+
+        if (adClient && adSlot) {
+            return `
+                <div class="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+                    <ins class="adsbygoogle"
+                        style="display:block"
+                        data-ad-client="${this.escapeHtml(adClient)}"
+                        data-ad-slot="${this.escapeHtml(adSlot)}"
+                        data-ad-format="auto"
+                        data-full-width-responsive="true"></ins>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <div class="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 px-4 py-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                    Ad space
+                </div>
+            </div>
+        `;
+    }
+
+    initReadmeAds(rootElement) {
+        if (!rootElement || typeof window === 'undefined') return;
+        if (!window.adsbygoogle) return;
+
+        const adElements = rootElement.querySelectorAll('.adsbygoogle');
+        adElements.forEach(() => {
+            try {
+                (window.adsbygoogle = window.adsbygoogle || []).push({});
+            } catch (e) { }
+        });
+    }
 
     renderMarkdown(markdown) {
         if (typeof marked === 'undefined') return markdown;

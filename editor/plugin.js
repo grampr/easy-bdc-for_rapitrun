@@ -503,6 +503,22 @@ export class PluginManager {
         return this.externalManifestRepoSet.has(normalizedRepo);
     }
 
+    async hasExternalDocOverride(identifier) {
+        if (typeof identifier !== 'string') return false;
+
+        await this.ensureExternalRepoOverridesLoaded();
+
+        const normalizedRepo = this.normalizeRepoUrl(identifier);
+        if (normalizedRepo && this.externalDocRepoOverrideMap.has(normalizedRepo)) {
+            return true;
+        }
+
+        const normalizedIdentifier = this.normalizeExternalUrl(identifier);
+        return this.externalDocDatasets.some(
+            (dataset) => this.normalizeExternalUrl(dataset.jsonUrl) === normalizedIdentifier
+        );
+    }
+
     async fetchTextOrNull(url) {
         try {
             const response = await this.fetchWithRetry(url, {}, 2, 300);
