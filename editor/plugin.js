@@ -28,6 +28,21 @@ export class PluginManager {
     constructor(workspace) {
         this.workspace = workspace;
         this.plugins = new Map();
+        this.externalDocDatasets = [
+            {
+                key: 'manifest',
+                jsonUrl: 'https://github.com/EDBPlugin/not-cord/raw/refs/heads/main/manifest.json',
+                markdownUrl: 'https://github.com/EDBPlugin/ALL.md/raw/refs/heads/main/manifest.md'
+            },
+            {
+                key: 'readme',
+                jsonUrl: 'https://github.com/EDBPlugin/not-cord/raw/refs/heads/main/readme.json',
+                markdownUrl: 'https://github.com/EDBPlugin/ALL.md/raw/refs/heads/main/notreadme.md'
+            }
+        ];
+        this.externalDocRepoOverrideMap = new Map();
+        this.externalManifestRepoSet = new Set();
+        this.externalDocRepoOverrideLoadPromise = null;
         // インストール済みプラグインのメタデータ
         this.installedPlugins = JSON.parse(localStorage.getItem('edbb_installed_plugins') || '{}');
 
@@ -359,7 +374,184 @@ export class PluginManager {
     }
 
     // READMEの取得
+    normalizeExternalUrl(url) {
+        if (!url || typeof url !== 'string') return '';
+        const trimmed = url.trim().split('#')[0].split('?')[0].replace(/\/$/, '');
+
+        try {
+            const parsed = new URL(trimmed);
+            const host = parsed.hostname.toLowerCase();
+            const parts = parsed.pathname.split('/').filter(Boolean);
+
+            if (host === 'github.com' && parts.length >= 7 && parts[2] === 'raw' && parts[3] === 'refs' && parts[4] === 'heads') {
+                const owner = parts[0];
+                const repo = parts[1];
+                const branch = parts[5];
+                const filePath = parts.slice(6).join('/');
+                return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
+            }
+
+            if (host === 'raw.githubusercontent.com' && parts.length >= 4) {
+                const owner = parts[0];
+                const repo = parts[1];
+                const branch = parts[2];
+                const filePath = parts.slice(3).join('/');
+                return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
+            }
+
+            return parsed.toString().replace(/\/$/, '');
+        } catch (e) {
+            return trimmed;
+        }
+    }
+
+    normalizeRepoUrl(url) {
+        if (!url || typeof url !== 'string') return '';
+
+        // owner/repo form
+        const trimmed = url.trim().replace(/\.git$/, '').replace(/\/$/, '');
+        if (/^[^\/\s]+\/[^\/\s]+$/.test(trimmed)) {
+            return `https://github.com/${trimmed}`.toLowerCase();
+        }
+
+        // https://github.com/owner/repo form
+        if (!trimmed.includes('github.com')) return '';
+        const info = this.parseGitHubUrl(trimmed);
+        if (!info?.fullName) return '';
+        return `https://github.com/${info.fullName}`.toLowerCase();
+    }
+
+    collectGitHubReposFromJson(value, bucket = new Set()) {
+        if (typeof value === 'string') {
+            const normalized = this.normalizeRepoUrl(value);
+            if (normalized) bucket.add(normalized);
+            return bucket;
+        }
+
+        if (Array.isArray(value)) {
+            value.forEach((item) => this.collectGitHubReposFromJson(item, bucket));
+            return bucket;
+        }
+
+        if (value && typeof value === 'object') {
+            Object.values(value).forEach((item) => this.collectGitHubReposFromJson(item, bucket));
+        }
+
+        return bucket;
+    }
+
+    async ensureExternalRepoOverridesLoaded() {
+        if (this.externalDocRepoOverrideLoadPromise) {
+            return this.externalDocRepoOverrideLoadPromise;
+        }
+
+        this.externalDocRepoOverrideLoadPromise = (async () => {
+            const repoCategoryMap = new Map();
+
+            const tasks = this.externalDocDatasets.map(async (dataset) => {
+                const jsonUrl = this.normalizeExternalUrl(dataset.jsonUrl);
+
+                try {
+                    const response = await this.fetchWithRetry(jsonUrl, {}, 2, 300);
+                    if (!response?.ok) return;
+
+                    const data = await response.json();
+                    const repos = this.collectGitHubReposFromJson(data);
+                    repos.forEach((repoUrl) => {
+                        if (!repoCategoryMap.has(repoUrl)) repoCategoryMap.set(repoUrl, new Set());
+                        repoCategoryMap.get(repoUrl).add(dataset.key);
+                    });
+                } catch (e) {
+                    console.warn('Failed to build external repo override map', dataset.jsonUrl, e);
+                }
+            });
+
+            await Promise.all(tasks);
+
+            const markdownByKey = new Map(
+                this.externalDocDatasets.map((dataset) => [dataset.key, this.normalizeExternalUrl(dataset.markdownUrl)])
+            );
+
+            repoCategoryMap.forEach((keys, repoUrl) => {
+                if (keys.has('manifest')) {
+                    this.externalManifestRepoSet.add(repoUrl);
+                }
+
+                const hasManifest = keys.has('manifest');
+                const hasReadme = keys.has('readme');
+                let targetMarkdown = null;
+
+                if (hasReadme) {
+                    targetMarkdown = markdownByKey.get('readme');
+                } else if (hasManifest) {
+                    targetMarkdown = markdownByKey.get('manifest');
+                }
+
+                if (targetMarkdown) {
+                    this.externalDocRepoOverrideMap.set(repoUrl, targetMarkdown);
+                }
+            });
+        })();
+
+        return this.externalDocRepoOverrideLoadPromise;
+    }
+
+    async isInExternalManifestList(identifier) {
+        await this.ensureExternalRepoOverridesLoaded();
+        const normalizedRepo = this.normalizeRepoUrl(identifier);
+        if (!normalizedRepo) return false;
+        return this.externalManifestRepoSet.has(normalizedRepo);
+    }
+
+    async hasExternalDocOverride(identifier) {
+        if (typeof identifier !== 'string') return false;
+
+        await this.ensureExternalRepoOverridesLoaded();
+
+        const normalizedRepo = this.normalizeRepoUrl(identifier);
+        if (normalizedRepo && this.externalDocRepoOverrideMap.has(normalizedRepo)) {
+            return true;
+        }
+
+        const normalizedIdentifier = this.normalizeExternalUrl(identifier);
+        return this.externalDocDatasets.some(
+            (dataset) => this.normalizeExternalUrl(dataset.jsonUrl) === normalizedIdentifier
+        );
+    }
+
+    async fetchTextOrNull(url) {
+        try {
+            const response = await this.fetchWithRetry(url, {}, 2, 300);
+            if (!response?.ok) return null;
+            return await response.text();
+        } catch (e) {
+            return null;
+        }
+    }
+
     async getREADME(identifier, defaultBranch = 'main') {
+        if (typeof identifier === 'string') {
+            // Always build raw override map first; if matched, do not fetch repo README.
+            await this.ensureExternalRepoOverridesLoaded();
+            const normalizedRepo = this.normalizeRepoUrl(identifier);
+            if (normalizedRepo && this.externalDocRepoOverrideMap.has(normalizedRepo)) {
+                const markdown = await this.fetchTextOrNull(this.externalDocRepoOverrideMap.get(normalizedRepo));
+                if (markdown !== null) return markdown;
+            }
+
+            const normalizedIdentifier = this.normalizeExternalUrl(identifier);
+            const directDataset = this.externalDocDatasets.find((dataset) => this.normalizeExternalUrl(dataset.jsonUrl) === normalizedIdentifier);
+            if (directDataset) {
+                const markdown = await this.fetchTextOrNull(this.normalizeExternalUrl(directDataset.markdownUrl));
+                if (markdown !== null) return markdown;
+            }
+
+            if (/^https?:\/\/.+\.md$/i.test(identifier.trim())) {
+                const markdown = await this.fetchTextOrNull(identifier.trim());
+                if (markdown !== null) return markdown;
+            }
+        }
+
         const repoInfo = this.parseGitHubUrl(identifier);
 
         let fullName = identifier;
