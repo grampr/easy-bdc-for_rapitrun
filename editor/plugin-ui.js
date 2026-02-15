@@ -763,8 +763,11 @@ export class PluginUI {
 
                     // 非同期でマニフェストを確認して使用不可バッジを付与
                     try {
-                        const manifest = await this.pluginManager.getManifestFromGitHub(plugin.fullName, plugin.defaultBranch);
-                        const validation = manifest ? this.pluginManager.validateManifest(manifest) : { valid: false, missing: ['manifest.jsonが見つかりません'] };
+                        const skipManifestFetch = await this.pluginManager.isInExternalManifestList(plugin.fullName);
+                        const manifest = skipManifestFetch ? null : await this.pluginManager.getManifestFromGitHub(plugin.fullName, plugin.defaultBranch);
+                        const validation = skipManifestFetch
+                            ? { valid: true }
+                            : (manifest ? this.pluginManager.validateManifest(manifest) : { valid: false, missing: ['manifest.jsonが見つかりません'] });
 
                         if (!validation.valid) {
                             const nameEl = item.querySelector('.font-bold');
@@ -891,11 +894,14 @@ export class PluginUI {
         // マニフェスト取得とバリデーション
         let validation = { valid: true };
         if (!isMock) {
-            const manifest = await this.pluginManager.getManifestFromGitHub(plugin.fullName, plugin.defaultBranch);
-            if (manifest) {
-                validation = this.pluginManager.validateManifest(manifest);
-            } else {
-                validation = { valid: false, missing: ['manifest.jsonが見つかりません'] };
+            const skipManifestFetch = await this.pluginManager.isInExternalManifestList(plugin.fullName);
+            if (!skipManifestFetch) {
+                const manifest = await this.pluginManager.getManifestFromGitHub(plugin.fullName, plugin.defaultBranch);
+                if (manifest) {
+                    validation = this.pluginManager.validateManifest(manifest);
+                } else {
+                    validation = { valid: false, missing: ['manifest.jsonが見つかりません'] };
+                }
             }
         }
 
@@ -913,6 +919,8 @@ export class PluginUI {
                 </div>
             </div>
         ` : '';
+
+        const sourceUrl = plugin.source || plugin.repo || '';
 
         this.pluginDetailContent.innerHTML = `
             ${dangerWarning}
@@ -1105,8 +1113,8 @@ export class PluginUI {
                     </div>
                     <div class="mt-1 text-xs font-mono text-slate-400">UUID: ${plugin.uuid}</div>
                     <div class="mt-2 flex gap-2 items-center">
-                        ${plugin.repo ? `
-                        <a href="${plugin.repo}" target="_blank" class="text-xs text-indigo-500 hover:underline flex items-center gap-1">
+                        ${sourceUrl ? `
+                        <a href="${sourceUrl}" target="_blank" class="text-xs text-indigo-500 hover:underline flex items-center gap-1">
                             <i data-lucide="github" class="w-3 h-3"></i> リポジトリ
                         </a>` : ''}
                         <span class="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">
@@ -1243,9 +1251,10 @@ export class PluginUI {
         const container = document.getElementById('readme-container');
         if (!container) return;
 
-        if (plugin.repo && plugin.repo.includes('github.com')) {
-            // manifestに記載されているURLをそのまま渡してREADMEを解決させる
-            const readme = await this.pluginManager.getREADME(plugin.repo);
+        const sourceUrl = plugin.source || plugin.repo;
+        if (sourceUrl && /^https?:\/\//i.test(sourceUrl)) {
+            // source/repo URL をそのまま渡して README を解決させる
+            const readme = await this.pluginManager.getREADME(sourceUrl, plugin.installRef || 'main');
             container.innerHTML = `<div class="font-sans text-sm leading-relaxed"><div class="readme-content">${this.renderMarkdown(readme)}</div></div>`;
         } else {
             container.innerHTML = `<p class="text-sm text-slate-500">${plugin.description}</p>`;
