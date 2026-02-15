@@ -7,33 +7,6 @@ import { initShareFeature } from "./share.js";
 import { PluginManager } from "./plugin.js";
 import { PluginUI } from "./plugin-ui.js";
 
-// ========================================
-// OS検出 (プラットフォーム固有機能用)
-// ========================================
-// ユーザーのOSを検出します
-// 「起動」ボタンなど、プラットフォーム固有の機能の表示/非表示に使用されます
-// 将来的にLinux、macOSなどのサポートを追加する場合はここを更新してください
-const detectOS = () => {
-  const userAgent = window.navigator.userAgent.toLowerCase();
-  const platform = window.navigator.platform.toLowerCase();
-
-  if (userAgent.indexOf('win') !== -1 || platform.indexOf('win') !== -1) {
-    return 'windows';
-  } else if (userAgent.indexOf('mac') !== -1 || platform.indexOf('mac') !== -1) {
-    return 'macos';
-  } else if (userAgent.indexOf('android') !== -1 || platform.indexOf('android') !== -1) {
-    // Android検出（Linuxより先にチェック。AndroidのuserAgentにも'linux'が含まれるため）
-    return 'android';
-  } else if (userAgent.indexOf('linux') !== -1 || platform.indexOf('linux') !== -1) {
-    return 'linux';
-  } else {
-    return 'unknown';
-  }
-};
-
-const USER_OS = detectOS();
-const IS_WINDOWS = USER_OS === 'windows';
-// ========================================
 
 const PROJECT_TITLE_STORAGE_KEY = 'edbb_project_title';
 
@@ -2061,32 +2034,22 @@ const initializeApp = async () => {
   const showCodeBtn = document.getElementById('showCodeBtn');
   const runBotBtn = document.getElementById('runBotBtn');
   const runBotBtnLabel = runBotBtn?.querySelector('span');
+  const LOCAL_RUNNER_ORIGIN = 'http://localhost:6859';
+  const currentHost = String(window.location.hostname || '').toLowerCase();
+  const canDirectConnectLocalRunner =
+    window.location.protocol === 'http:' &&
+    (currentHost === 'localhost' || currentHost === '127.0.0.1' || currentHost === '[::1]');
+  const buildRunnerUrl = (path = '') => `${LOCAL_RUNNER_ORIGIN}${path}`;
+  const getRunnerConnectionHintLines = () => [
+    '[editor] この環境ではブラウザ制約により localhost:6859 へ直接接続できません。',
+    `[editor] 現在のオリジン: ${window.location.origin}`,
+    '[editor] http://localhost でエディタを開くか、同一オリジンのプロキシ経由で接続してください。',
+  ];
 
-  // ========================================
-  // OSベースの機能制御: Windowsのみ「起動」ボタンを表示
-  // 
-  // 【Linuxをサポートする場合の変更例】
-  // 以下の条件を変更してください：
-  //   if (IS_WINDOWS) {
-  // ↓ このように変更
-  //   if (IS_WINDOWS || USER_OS === 'linux') {
-  // 
-  // または、複数OSをサポートする場合：
-  //   const SUPPORTED_OS = ['windows', 'linux'];
-  //   if (SUPPORTED_OS.includes(USER_OS)) {
-  // ========================================
+  // Show run button on desktop regardless of client OS.
   if (runBotBtn) {
-    if (IS_WINDOWS) {
-      // Windowsでボタンを表示（デスクトップのみ）
-      // 'hidden' クラスは残してモバイルでは非表示、'md:inline-flex' でデスクトップのみ表示
-      runBotBtn.classList.add('md:inline-flex');
-    } else {
-      // Windows以外のシステムでボタンを完全に非表示
-      runBotBtn.classList.add('hidden');
-      runBotBtn.classList.remove('md:inline-flex');
-    }
+    runBotBtn.classList.add('md:inline-flex');
   }
-  // ========================================
 
   // モーダル関連
   const codeModal = document.getElementById('codeModal');
@@ -2711,8 +2674,15 @@ const initializeApp = async () => {
     if (!shouldPollRunnerConsole() || runnerConsolePollInFlight || session !== runnerConsolePollSession) return;
     runnerConsolePollInFlight = true;
     const requestOffset = runnerConsoleOffset;
+    if (!canDirectConnectLocalRunner) {
+      setRunnerConsoleState('Runner に接続できません');
+      appendRunnerConsoleLines(getRunnerConnectionHintLines());
+      setRunBotButtonState('idle');
+      stopRunnerConsolePolling();
+      return;
+    }
     try {
-      const response = await fetch(`http://localhost:6859/logs?offset=${requestOffset}`, {
+      const response = await fetch(buildRunnerUrl(`/logs?offset=${requestOffset}`), {
         method: 'GET',
         signal: AbortSignal.timeout(3500),
       });
@@ -2939,6 +2909,20 @@ const initializeApp = async () => {
     runBotBtn.blur();
     if (workspace) Blockly.hideChaff();
     if (!validateBeforeCodegen()) return;
+    if (!canDirectConnectLocalRunner) {
+      setRunBotButtonState('idle');
+      openRunnerConsole({ reset: true });
+      setRunnerConsoleState('Runner に接続できません');
+      const runBotStatus = document.getElementById('runBotStatus');
+      const runBotStatusText = document.getElementById('runBotStatusText');
+      if (runBotStatus && runBotStatusText) {
+        runBotStatus.dataset.state = 'error';
+        runBotStatusText.textContent = 'このURLでは localhost runner に接続できません';
+        runBotStatus.setAttribute('data-show', 'true');
+        setTimeout(() => runBotStatus.setAttribute('data-show', 'false'), 3500);
+      }
+      return;
+    }
     setRunBotButtonState('starting');
     openRunnerConsole({ reset: true });
     appendRunnerConsoleLines(['[editor] 起動リクエストを送信しています...']);
@@ -2954,7 +2938,7 @@ const initializeApp = async () => {
 
     try {
       const botCode = generatePythonCode();
-      const response = await fetch('http://localhost:6859', {
+      const response = await fetch(buildRunnerUrl(''), {
         method: 'POST',
         headers: {
           'Content-Type': 'text/plain',
