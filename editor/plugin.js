@@ -157,11 +157,31 @@ export class PluginManager {
     // GitHubから edbp-plugin タグ/トピックの付いたリポジトリを検索
     async searchGitHubPlugins(query = '') {
         try {
-            // 1. クエリがある場合は名前検索、ない場合はトピック検索
-            // topic:edbp-plugin は必須条件
             let q = 'topic:edbp-plugin';
+            let filterLevel = null;
+
             if (query) {
-                q = `${query} topic:edbp-plugin`;
+                const parts = query.split(/\s+/);
+                const queryParts = [];
+
+                parts.forEach(part => {
+                    if (part.startsWith('tag:')) {
+                        const tag = part.substring(4);
+                        if (tag) queryParts.push(`topic:${tag}`);
+                    } else if (part.startsWith('author:')) {
+                        const author = part.substring(7);
+                        if (author) queryParts.push(`user:${author}`);
+                    } else if (part.startsWith('badge:')) {
+                        // Badge filtering is done client-side after fetch
+                        filterLevel = part.split(':')[1].toLowerCase();
+                    } else {
+                        queryParts.push(part);
+                    }
+                });
+
+                if (queryParts.length > 0) {
+                    q = `${queryParts.join(' ')} topic:edbp-plugin`;
+                }
             }
 
             const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc`;
@@ -174,18 +194,8 @@ export class PluginManager {
 
             let data = await response.json();
 
-            // もしトピック検索でヒットしなかった場合、かつ検索クエリが空だった場合
-            // "edbp-plugin" というキーワードで広めに検索してみる
-            if (data.total_count === 0 && !query) {
-                const fallbackUrl = `https://api.github.com/search/repositories?q=edbp-plugin&sort=stars&order=desc`;
-                const fallbackRes = await fetch(fallbackUrl);
-                if (fallbackRes.ok) {
-                    data = await fallbackRes.json();
-                }
-            }
-
             // 検索結果の整形
-            return data.items.map(repo => {
+            let items = data.items.map(repo => {
                 const trustLevel = this.getTrustLevel(repo);
                 return {
                     id: repo.name,
@@ -199,6 +209,23 @@ export class PluginManager {
                     defaultBranch: repo.default_branch
                 };
             });
+
+            // バッジフィルタリング (クライアントサイド)
+            if (filterLevel) {
+                const badgeMap = {
+                    'official': 'official', '公式': 'official',
+                    'certified': 'certified', '公認': 'certified',
+                    'danger': 'danger', '危険': 'danger',
+                    'invalid': 'invalid', '使用不可': 'invalid', '不可': 'invalid'
+                };
+                const targetLevel = badgeMap[filterLevel] || filterLevel;
+                items = items.filter(item => {
+                    const level = item.trustLevel?.level ?? item.trustLevel;
+                    return level === targetLevel;
+                });
+            }
+
+            return items;
         } catch (e) {
             console.error('Failed to search GitHub plugins', e);
             return [];
@@ -227,24 +254,55 @@ export class PluginManager {
 
     // 信頼レベルの判定 (インストール済みマニフェスト用)
     getManifestTrustLevel(manifest) {
-        // ブラックリストチェックを優先
+        const validation = this.validateManifest(manifest);
+        let level = null;
+        let reason = null;
+
+        // ブラックリストチェック
         if (manifest.repo) {
             const blacklistMatch = this._isInList(this.blacklistedPlugins, null, manifest.repo);
             if (blacklistMatch) {
-                return {
-                    level: 'danger',
-                    reason: typeof blacklistMatch === 'object' ? blacklistMatch.reason : null
-                };
+                level = 'danger';
+                reason = typeof blacklistMatch === 'object' ? blacklistMatch.reason : null;
             }
         }
 
-        if (manifest.author === 'EDBPlugin') return { level: 'official' };
-        if (!manifest.repo) return null;
+        if (!level) {
+            if (manifest.author === 'EDBPlugin') {
+                level = 'official';
+            } else if (manifest.repo) {
+                const isCertified = this._isInList(this.certifiedPlugins, null, manifest.repo);
+                if (isCertified) level = 'certified';
+            }
+        }
 
-        const isCertified = this._isInList(this.certifiedPlugins, null, manifest.repo);
-        if (isCertified) return { level: 'certified' };
+        return {
+            level: level,
+            reason: reason,
+            invalid: !validation.valid,
+            invalidReason: validation.valid ? null : `必須項目が不足しています: ${validation.missing.join(', ')}`
+        };
+    }
 
-        return null;
+    /**
+     * マニフェストの必須項目をチェックします
+     * @param {object} manifest 
+     * @returns {object} { valid: boolean, missing: string[] }
+     */
+    validateManifest(manifest) {
+        const required = ['name', 'version', 'author', 'affectsStyle', 'affectsBlocks'];
+        const missing = [];
+
+        required.forEach(field => {
+            if (manifest[field] === undefined || manifest[field] === null || manifest[field] === '') {
+                missing.push(field);
+            }
+        });
+
+        return {
+            valid: missing.length === 0,
+            missing: missing
+        };
     }
 
     /**
@@ -347,6 +405,23 @@ export class PluginManager {
         }
     }
 
+    /**
+     * GitHubからmanifest.jsonを取得してオブジェクトとして返します
+     * APIではなく raw を使用することで、マーケットプレイス表示時のAPIレート制限を回避します。
+     */
+    async getManifestFromGitHub(fullName, ref = 'main') {
+        try {
+            const url = `https://raw.githubusercontent.com/${fullName}/${encodeURIComponent(ref)}/manifest.json`;
+            const response = await this.fetchWithRetry(url);
+            if (!response.ok) return null;
+
+            return await response.json();
+        } catch (e) {
+            console.warn('Failed to fetch manifest from GitHub (raw)', e);
+            return null;
+        }
+    }
+
     // GitHubから直接インストール
     async installFromGitHub(fullName, branchOrUrl = 'main') {
         try {
@@ -405,6 +480,12 @@ export class PluginManager {
             if (!manifestText) throw new Error('manifest.json not found at repository root for selected ref');
 
             const manifest = JSON.parse(manifestText);
+
+            // バリデーションチェック (新規追加)
+            const validation = this.validateManifest(manifest);
+            if (!validation.valid) {
+                throw new Error(`マニフェストの必須項目が不足しています: ${validation.missing.join(', ')}`);
+            }
 
             if (!manifest.uuid) {
                 manifest.uuid = this.generateUUID(manifest.author, manifest.name);
@@ -466,6 +547,12 @@ export class PluginManager {
             const manifestText = await manifestFile.async("string");
             const manifest = JSON.parse(manifestText);
 
+            // バリデーションチェック (新規追加)
+            const validation = this.validateManifest(manifest);
+            if (!validation.valid) {
+                throw new Error(`マニフェストの必須項目が不足しています: ${validation.missing.join(', ')}`);
+            }
+
             if (!manifest.name || !manifest.author) {
                 throw new Error("マニフェストに名前または開発者情報が不足しています。");
             }
@@ -501,6 +588,9 @@ export class PluginManager {
 
         const pluginMeta = this.installedPlugins[id];
         if (!pluginMeta) return;
+        const beforeBlockTypes = new Set(
+            Object.keys((typeof Blockly !== 'undefined' && Blockly?.Blocks) ? Blockly.Blocks : {})
+        );
 
         try {
             if (pluginMeta.script) {
@@ -523,6 +613,17 @@ export class PluginManager {
                 this.plugins.set(id, pluginClass);
             } else if (pluginMeta.affectsStyle) {
                 this.plugins.set(id, { onunload: () => { } });
+            }
+
+            const afterBlockTypes = Object.keys(
+                (typeof Blockly !== 'undefined' && Blockly?.Blocks) ? Blockly.Blocks : {}
+            );
+            const detectedTypes = afterBlockTypes.filter((type) => !beforeBlockTypes.has(type));
+            const existingTypes = Array.isArray(pluginMeta.blockTypes) ? pluginMeta.blockTypes : [];
+            const mergedTypes = Array.from(new Set([...existingTypes, ...detectedTypes]));
+            if (mergedTypes.length > 0) {
+                pluginMeta.blockTypes = mergedTypes;
+                this.saveInstalledPlugins();
             }
 
             this.enabledPlugins.add(id);
@@ -567,6 +668,11 @@ export class PluginManager {
     }
 
     // プラグインインストール用のURLを生成
+    getPluginBlockTypes(id) {
+        const plugin = this.installedPlugins[id];
+        return Array.isArray(plugin?.blockTypes) ? plugin.blockTypes : [];
+    }
+
     getInstallUrl(id) {
         const meta = this.installedPlugins[id];
         if (!meta || meta.installedFrom !== 1 || !meta.repo) return null;

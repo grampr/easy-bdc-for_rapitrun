@@ -3,6 +3,7 @@
  * Market-style plugin management with integrated search and uninstallation.
  */
 const PLUGIN_MOBILE_WARNING_SKIP_KEY = 'edbb_plugin_mobile_warning_skip';
+const PLUGIN_BLOCK_VISIBILITY_STORAGE_KEY = 'edbb_plugin_block_visibility_v1';
 
 export class PluginUI {
     constructor(pluginManager) {
@@ -30,6 +31,13 @@ export class PluginUI {
         this.bulkInstallConfirmBtn = document.getElementById('pluginBulkInstallConfirmBtn');
         this.bulkInstallCancelBtn = document.getElementById('pluginBulkInstallCancelBtn');
         this.bulkInstallCloseBtn = document.getElementById('pluginBulkInstallClose');
+        this.settingsModal = document.getElementById('pluginSettingsModal');
+        this.settingsCloseBtn = document.getElementById('pluginSettingsClose');
+        this.settingsSearchInput = document.getElementById('pluginSettingsSearchInput');
+        this.settingsResetBtn = document.getElementById('pluginSettingsResetBtn');
+        this.settingsList = document.getElementById('pluginSettingsList');
+        this.settingsTargetPluginId = null;
+        this.pluginBlockVisibility = this.loadPluginBlockVisibility();
 
         this.init();
     }
@@ -43,10 +51,11 @@ export class PluginUI {
         });
 
         // 検索・フィルターUIの取得
-        const searchInput = document.querySelector('input[placeholder="プラグインを検索..."]');
+        const searchInput = document.querySelector('input[placeholder="プラグインを検索..."], input[placeholder*="tag:"]');
         const filterToggle = this.modal?.querySelector('input[type="checkbox"]'); // インストール済みのみ表示
 
         if (searchInput) {
+            searchInput.placeholder = "検索 (例: tag:utility author:name badge:不可)";
             searchInput.addEventListener('input', (e) => {
                 this.searchQuery = e.target.value;
                 this.renderMarketplace();
@@ -110,6 +119,8 @@ export class PluginUI {
         this.bulkInstallModal?.addEventListener('click', (e) => {
             if (e.target === this.bulkInstallModal) this.closeBulkInstall();
         });
+        this.initSettingsModal();
+        this.applyBlockVisibilityConfig();
 
         // URLパラメータによるプラグインインストールのチェック
         this.handleUrlParams();
@@ -152,6 +163,165 @@ export class PluginUI {
                 });
             });
         }
+    }
+
+    initSettingsModal() {
+        this.settingsCloseBtn?.addEventListener('click', () => this.closeSettingsModal());
+        this.settingsModal?.addEventListener('click', (e) => {
+            if (e.target === this.settingsModal) this.closeSettingsModal();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && this.settingsModal && !this.settingsModal.classList.contains('hidden')) {
+                this.closeSettingsModal();
+            }
+        });
+        this.settingsSearchInput?.addEventListener('input', () => this.renderSettingsList());
+        this.settingsResetBtn?.addEventListener('click', () => {
+            if (!this.settingsTargetPluginId) return;
+            delete this.pluginBlockVisibility[this.settingsTargetPluginId];
+            this.savePluginBlockVisibility();
+            this.applyBlockVisibilityConfig();
+            this.renderSettingsList();
+        });
+    }
+
+    openSettingsModal(pluginId = null) {
+        this.settingsTargetPluginId = pluginId;
+        if (!this.settingsModal) return;
+        this.renderSettingsList();
+        this.settingsModal.classList.remove('hidden');
+        this.settingsModal.classList.add('flex');
+        this.settingsModal.setAttribute('aria-hidden', 'false');
+        void this.settingsModal.offsetWidth;
+        this.settingsModal.classList.add('show-modal');
+    }
+
+    closeSettingsModal() {
+        if (!this.settingsModal) return;
+        this.settingsModal.classList.remove('show-modal');
+        this.settingsModal.setAttribute('aria-hidden', 'true');
+        setTimeout(() => {
+            this.settingsModal?.classList.remove('flex');
+            this.settingsModal?.classList.add('hidden');
+        }, 300);
+    }
+
+    loadPluginBlockVisibility() {
+        try {
+            const raw = localStorage.getItem(PLUGIN_BLOCK_VISIBILITY_STORAGE_KEY);
+            const parsed = raw ? JSON.parse(raw) : {};
+            return (parsed && typeof parsed === 'object') ? parsed : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    savePluginBlockVisibility() {
+        localStorage.setItem(PLUGIN_BLOCK_VISIBILITY_STORAGE_KEY, JSON.stringify(this.pluginBlockVisibility));
+    }
+
+    getHiddenBlockSetForPlugin(pluginId) {
+        if (!pluginId) return new Set();
+        const raw = this.pluginBlockVisibility[pluginId];
+        if (!Array.isArray(raw)) return new Set();
+        return new Set(raw);
+    }
+
+    getHiddenBlockTypesUnion() {
+        const allHidden = new Set();
+        Object.values(this.pluginBlockVisibility).forEach((items) => {
+            if (!Array.isArray(items)) return;
+            items.forEach((type) => allHidden.add(type));
+        });
+        return allHidden;
+    }
+
+    getToolboxTemplate() {
+        const toolbox = document.getElementById('toolbox');
+        if (!toolbox) return null;
+        return toolbox.cloneNode(true);
+    }
+
+    applyBlockVisibilityConfig() {
+        const workspace = this.pluginManager.workspace;
+        const template = this.getToolboxTemplate();
+        if (!workspace || !template || typeof workspace.updateToolbox !== 'function') return;
+        const hiddenBlockTypes = this.getHiddenBlockTypesUnion();
+
+        const filtered = template.cloneNode(true);
+        const categories = Array.from(filtered.querySelectorAll('category'));
+        categories.forEach((category) => {
+            Array.from(category.querySelectorAll('block')).forEach((block) => {
+                const type = block.getAttribute('type');
+                if (type && hiddenBlockTypes.has(type)) {
+                    block.remove();
+                }
+            });
+
+            const hasCustom = category.hasAttribute('custom');
+            const hasBlocks = !!category.querySelector('block');
+            if (!hasCustom && !hasBlocks) {
+                category.remove();
+            }
+        });
+
+        const remainingCategories = filtered.querySelectorAll('category').length;
+        if (remainingCategories === 0) {
+            workspace.updateToolbox(template.cloneNode(true));
+            return;
+        }
+
+        workspace.updateToolbox(filtered);
+    }
+
+    renderSettingsList() {
+        if (!this.settingsList) return;
+        const query = (this.settingsSearchInput?.value || '').trim().toLowerCase();
+        this.settingsList.innerHTML = '';
+        const pluginId = this.settingsTargetPluginId;
+        if (!pluginId) {
+            this.settingsList.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-400">No plugin selected.</div>';
+            return;
+        }
+        const targetPlugin = this.pluginManager.getRegistry().find((item) => item.id === pluginId);
+        const pluginName = targetPlugin?.name || pluginId;
+        const titleEl = document.getElementById('pluginSettingsTargetLabel');
+        if (titleEl) titleEl.textContent = pluginName;
+        const blockTypes = (this.pluginManager.getPluginBlockTypes?.(pluginId) || []).filter(Boolean);
+        if (blockTypes.length === 0) {
+            this.settingsList.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-400">このプラグインのブロック情報がありません。プラグインを有効化してから再度開いてください。</div>';
+            return;
+        }
+        const hiddenSet = this.getHiddenBlockSetForPlugin(pluginId);
+        const visibleTypes = blockTypes.filter((type) => !query || String(type).toLowerCase().includes(query));
+        if (visibleTypes.length === 0) {
+            this.settingsList.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-400">検索結果がありません。</div>';
+            return;
+        }
+
+        const listHtml = visibleTypes.map((type) => {
+            const checked = hiddenSet.has(type) ? '' : 'checked';
+            return `
+                <label class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                    <input data-block-type="${this.escapeHtml(type)}" type="checkbox" ${checked} class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    <span class="font-mono">${this.escapeHtml(type)}</span>
+                </label>
+            `;
+        }).join('');
+        this.settingsList.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">${listHtml}</div>`;
+
+        this.settingsList.querySelectorAll('input[data-block-type]').forEach((el) => {
+            el.addEventListener('change', (event) => {
+                const type = event.target.getAttribute('data-block-type');
+                if (!type || !this.settingsTargetPluginId) return;
+                const mutableSet = this.getHiddenBlockSetForPlugin(this.settingsTargetPluginId);
+                if (event.target.checked) mutableSet.delete(type);
+                else mutableSet.add(type);
+                this.pluginBlockVisibility[this.settingsTargetPluginId] = Array.from(mutableSet);
+                this.savePluginBlockVisibility();
+                this.applyBlockVisibilityConfig();
+            });
+        });
     }
 
     async handleUrlParams() {
@@ -470,11 +640,58 @@ export class PluginUI {
         this.pluginList.innerHTML = '';
         const installed = this.pluginManager.getRegistry();
 
+        // クエリの解析
+        const parseQuery = (q) => {
+            const filter = { tags: [], authors: [], badges: [], text: [] };
+            if (!q) return filter;
+
+            const parts = q.split(/\s+/);
+            parts.forEach(part => {
+                if (part.startsWith('tag:')) {
+                    filter.tags.push(part.substring(4).toLowerCase());
+                } else if (part.startsWith('author:')) {
+                    filter.authors.push(part.substring(7).toLowerCase());
+                } else if (part.startsWith('badge:')) {
+                    const val = part.split(':')[1].toLowerCase();
+                    const badgeMap = {
+                        'official': 'official', '公式': 'official',
+                        'certified': 'certified', '公認': 'certified',
+                        'danger': 'danger', '危険': 'danger',
+                        'invalid': 'invalid', '使用不可': 'invalid', '不可': 'invalid'
+                    };
+                    filter.badges.push(badgeMap[val] || val);
+                } else {
+                    filter.text.push(part.toLowerCase());
+                }
+            });
+            return filter;
+        };
+
+        const filter = parseQuery(this.searchQuery);
+
         // 1. インストール済みプラグインの表示 (検索クエリがある場合はフィルタリング)
-        const filteredInstalled = installed.filter(p =>
-            p.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-            p.author.toLowerCase().includes(this.searchQuery.toLowerCase())
-        );
+        const filteredInstalled = installed.filter(p => {
+            // テキスト検索 (名前または作者)
+            const matchesText = filter.text.length === 0 || filter.text.every(txt =>
+                p.name.toLowerCase().includes(txt) || p.author.toLowerCase().includes(txt)
+            );
+
+            // 作者検索
+            const matchesAuthor = filter.authors.length === 0 || filter.authors.some(a =>
+                p.author.toLowerCase().includes(a)
+            );
+
+            // タグ検索
+            const matchesTag = filter.tags.length === 0 || (p.tags && filter.tags.every(t =>
+                p.tags.some(pt => pt.toLowerCase().includes(t))
+            ));
+
+            // バッジ検索
+            const level = p.trustLevel?.level ?? p.trustLevel;
+            const matchesBadge = filter.badges.length === 0 || filter.badges.includes(level);
+
+            return matchesText && matchesAuthor && matchesTag && matchesBadge;
+        });
 
         if (filteredInstalled.length > 0) {
             const header = document.createElement('div');
@@ -538,10 +755,31 @@ export class PluginUI {
                 empty.textContent = this.searchQuery ? '該当するリポジトリが見つかりませんでした' : '注目のプラグインがありません';
                 this.pluginList.appendChild(empty);
             } else {
-                results.forEach(plugin => {
+                results.forEach(async plugin => {
                     // すでにインストール済みのものは重複表示しない
                     if (installed.some(p => p.repo === plugin.repo)) return;
-                    this.addPluginItem(plugin, false);
+
+                    const item = this.addPluginItem(plugin, false);
+
+                    // 非同期でマニフェストを確認して使用不可バッジを付与
+                    try {
+                        const manifest = await this.pluginManager.getManifestFromGitHub(plugin.fullName, plugin.defaultBranch);
+                        const validation = manifest ? this.pluginManager.validateManifest(manifest) : { valid: false, missing: ['manifest.jsonが見つかりません'] };
+
+                        if (!validation.valid) {
+                            const nameEl = item.querySelector('.font-bold');
+                            if (nameEl && !nameEl.innerHTML.includes('不可')) {
+                                const reason = validation.missing ? `必須項目が不足しています: ${validation.missing.join(', ')}` : '必須項目が不足しています。';
+                                const badge = document.createElement('span');
+                                badge.className = 'ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-400 text-white leading-none cursor-help';
+                                badge.title = reason;
+                                badge.textContent = '不可';
+                                nameEl.appendChild(badge);
+                            }
+                        }
+                    } catch (e) {
+                        // レート制限などのエラーは無視
+                    }
                 });
             }
         }
@@ -555,28 +793,55 @@ export class PluginUI {
 
         const level = plugin.trustLevel?.level ?? plugin.trustLevel;
 
-        let trustBadge = '';
-        if (plugin.author === 'EDBPlugin' || level === 'official') {
-            trustBadge = '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500 text-white leading-none">公式</span>';
-        } else if (level === 'certified') {
-            trustBadge = '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-green-500 text-white leading-none">公認</span>';
-        } else if (level === 'danger') {
+        const badges = [];
+        const isOfficial = plugin.author === 'EDBPlugin' || level === 'official';
+        if (isOfficial) badges.push('<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500 text-white leading-none">公式</span>');
+        if (level === 'certified') badges.push('<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-green-500 text-white leading-none">公認</span>');
+        if (level === 'danger') {
             const reason = plugin.trustLevel?.reason ?? '危険性が報告されています。';
-            trustBadge = `<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white leading-none cursor-help" title="危険の理由: ${reason}">危険</span>`;
+            badges.push(`<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-red-500 text-white leading-none cursor-help" title="危険の理由: ${reason}">危険</span>`);
         }
 
+        // 不可バッジ (独立判定)
+        const isInvalid = level === 'invalid' || plugin.trustLevel?.invalid;
+        const validation = isInstalled ? this.pluginManager.validateManifest(plugin) : { valid: !isInvalid };
+        if (!validation.valid || isInvalid) {
+            const reason = validation.missing ? `必須項目が不足しています: ${validation.missing.join(', ')}` : (plugin.trustLevel?.invalidReason || plugin.trustLevel?.reason || '必須項目が不足しています。');
+            badges.push(`<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-400 text-white leading-none cursor-help" title="${reason}">不可</span>`);
+        }
+        const trustBadge = badges.join('');
+
+        // アイコンの処理
+        let iconHtml = '<div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg shrink-0 overflow-hidden">';
+        if (plugin.icon) {
+            if (plugin.icon.match(/^http|data:image/)) {
+                iconHtml += `<img src="${plugin.icon}" class="w-full h-full object-cover">`;
+            } else {
+                iconHtml += `<span>${plugin.icon}</span>`; // Emoji or character icon
+            }
+        } else {
+            iconHtml += '<i data-lucide="puzzle" class="w-4 h-4 text-slate-400"></i>';
+        }
+        iconHtml += '</div>';
+
         item.innerHTML = `
-            <div class="flex justify-between items-start">
-                <div class="font-bold text-sm text-slate-900 dark:text-white flex items-center">
-                    ${plugin.name}${trustBadge}
+            <div class="flex gap-3 items-center">
+                ${iconHtml}
+                <div class="flex-grow min-w-0">
+                    <div class="flex justify-between items-start">
+                        <div class="font-bold text-sm text-slate-900 dark:text-white flex flex-wrap items-center gap-y-1">
+                            <span class="break-words">${plugin.name}</span>${trustBadge}
+                        </div>
+                        ${isEnabled ? '<div class="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 ml-1 shrink-0"></div>' : ''}
+                        ${!isInstalled ? '<i data-lucide="download-cloud" class="w-3.5 h-3.5 text-slate-300 ml-1 shrink-0"></i>' : ''}
+                    </div>
+                    <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">開発者: ${plugin.author}</div>
                 </div>
-                ${isEnabled ? '<div class="w-2 h-2 rounded-full bg-indigo-500 mt-1.5"></div>' : ''}
-                ${!isInstalled ? '<i data-lucide="download-cloud" class="w-3.5 h-3.5 text-slate-300"></i>' : ''}
             </div>
-            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">開発者: ${plugin.author}</div>
         `;
         item.addEventListener('click', () => isInstalled ? this.showDetail(plugin) : this.showGitHubDetail(plugin));
         this.pluginList.appendChild(item);
+        return item;
     }
 
     async showGitHubDetail(plugin) {
@@ -600,14 +865,17 @@ export class PluginUI {
         }
 
         const level = plugin.trustLevel?.level ?? plugin.trustLevel;
-        let trustBadge = '';
+        const badges = [];
         if (plugin.author === 'EDBPlugin' || level === 'official') {
-            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-blue-500 text-white font-bold leading-none shrink-0">公式プラグイン</span>';
-        } else if (level === 'certified') {
-            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-green-500 text-white font-bold leading-none shrink-0">公認プラグイン</span>';
-        } else if (level === 'danger') {
-            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-red-500 text-white font-bold leading-none shrink-0">危険なプラグイン</span>';
+            badges.push('<span class="text-[10px] px-2 py-1 rounded bg-blue-500 text-white font-bold leading-none shrink-0">公式プラグイン</span>');
         }
+        if (level === 'certified') {
+            badges.push('<span class="text-[10px] px-2 py-1 rounded bg-green-500 text-white font-bold leading-none shrink-0">公認プラグイン</span>');
+        }
+        if (level === 'danger') {
+            badges.push('<span class="text-[10px] px-2 py-1 rounded bg-red-500 text-white font-bold leading-none shrink-0">危険なプラグイン</span>');
+        }
+
         const dangerReason = level === 'danger' ? (plugin.trustLevel?.reason || '悪意のあるコードが含まれているか、重大なセキュリティリスクがある可能性があるため、インストールは推奨されません。') : '';
 
         const dangerWarning = level === 'danger' ? `
@@ -620,12 +888,39 @@ export class PluginUI {
             </div>
         ` : '';
 
+        // マニフェスト取得とバリデーション
+        let validation = { valid: true };
+        if (!isMock) {
+            const manifest = await this.pluginManager.getManifestFromGitHub(plugin.fullName, plugin.defaultBranch);
+            if (manifest) {
+                validation = this.pluginManager.validateManifest(manifest);
+            } else {
+                validation = { valid: false, missing: ['manifest.jsonが見つかりません'] };
+            }
+        }
+
+        if (!validation.valid) {
+            badges.push('<span class="text-[10px] px-2 py-1 rounded bg-slate-400 text-white font-bold leading-none shrink-0">使用不可のプラグイン</span>');
+        }
+        const trustBadge = badges.join(' ');
+
+        const invalidWarning = !validation.valid ? `
+            <div class="mb-6 p-4 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-start gap-3">
+                <i data-lucide="slash" class="w-5 h-5 text-slate-500 shrink-0 mt-0.5"></i>
+                <div class="text-sm">
+                    <div class="font-bold text-slate-700 dark:text-slate-200">このプラグインは使用できません</div>
+                    <div class="text-slate-500 dark:text-slate-400 mt-1">理由: 必須項目（${validation.missing.join(', ')}）がマニフェストに含まれていません。</div>
+                </div>
+            </div>
+        ` : '';
+
         this.pluginDetailContent.innerHTML = `
             ${dangerWarning}
+            ${invalidWarning}
             <div class="flex flex-col mb-6">
                 <div class="flex justify-between items-start mb-4">
                     <div>
-                        <h1 class="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">${plugin.name} ${trustBadge}</h1>
+                        <h1 class="text-3xl font-bold text-slate-900 dark:text-white flex flex-wrap items-center gap-3">${plugin.name} ${trustBadge}</h1>
                         <div class="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500 dark:text-slate-400">
                             <span class="flex items-center gap-1"><i data-lucide="user" class="w-3.5 h-3.5"></i> 開発者: ${plugin.author}</span>
                             <span class="flex items-center gap-1"><i data-lucide="star" class="w-3.5 h-3.5"></i> ${plugin.stars} Stars</span>
@@ -655,8 +950,8 @@ export class PluginUI {
                             </select>
                         </div>
                     </div>
-                    <button id="installFromGhBtn" class="w-full py-3 rounded-lg font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-                        <i data-lucide="download" class="w-5 h-5"></i> <span>インストールを実行</span>
+                    <button id="installFromGhBtn" ${!validation.valid ? 'disabled' : ''} class="w-full py-3 rounded-lg font-bold ${!validation.valid ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20'} active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="${!validation.valid ? 'lock' : 'download'}" class="w-5 h-5"></i> <span>${!validation.valid ? 'インストール不可' : 'インストールを実行'}</span>
                     </button>
                 </div>
             </div>
@@ -754,14 +1049,26 @@ export class PluginUI {
         const isBuiltin = plugin.id === 'vanilla-plugin';
 
         const level = plugin.trustLevel?.level ?? plugin.trustLevel;
-        let trustBadge = '';
+        const badges = [];
         if (plugin.author === 'EDBPlugin' || level === 'official') {
-            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-blue-500 text-white font-bold leading-none shrink-0">公式プラグイン</span>';
-        } else if (level === 'certified') {
-            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-green-500 text-white font-bold leading-none shrink-0">公認プラグイン</span>';
-        } else if (level === 'danger') {
-            trustBadge = '<span class="text-[10px] px-2 py-1 rounded bg-red-500 text-white font-bold leading-none shrink-0">危険なプラグイン</span>';
+            badges.push('<span class="text-[10px] px-2 py-1 rounded bg-blue-500 text-white font-bold leading-none shrink-0">公式プラグイン</span>');
         }
+        if (level === 'certified') {
+            badges.push('<span class="text-[10px] px-2 py-1 rounded bg-green-500 text-white font-bold leading-none shrink-0">公認プラグイン</span>');
+        }
+        if (level === 'danger') {
+            badges.push('<span class="text-[10px] px-2 py-1 rounded bg-red-500 text-white font-bold leading-none shrink-0">危険なプラグイン</span>');
+        }
+
+        // 使用不可バッジ (独立判定)
+        const isInvalid = level === 'invalid' || plugin.trustLevel?.invalid;
+        const validation = this.pluginManager.validateManifest(plugin);
+        const invalidReason = !validation.valid ? `必須項目が不足しています: ${validation.missing.join(', ')}` : (plugin.trustLevel?.invalidReason || '');
+
+        if (!validation.valid || isInvalid) {
+            badges.push('<span class="text-[10px] px-2 py-1 rounded bg-slate-400 text-white font-bold leading-none shrink-0">使用不可のプラグイン</span>');
+        }
+        const trustBadge = badges.join(' ');
 
 
         const dangerReason = level === 'danger' ? (plugin.trustLevel?.reason || 'このプラグインの使用は推奨されません。速やかにアンインストールすることを検討してください。') : '';
@@ -776,11 +1083,22 @@ export class PluginUI {
             </div>
         ` : '';
 
+        const invalidWarning = (!validation.valid || isInvalid) ? `
+            <div class="mb-6 p-4 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-start gap-3">
+                <i data-lucide="slash" class="w-5 h-5 text-slate-500 shrink-0 mt-0.5"></i>
+                <div class="text-sm">
+                    <div class="font-bold text-slate-700 dark:text-slate-200">このプラグインは使用できません</div>
+                    <div class="text-slate-500 dark:text-slate-400 mt-1">理由: ${invalidReason}</div>
+                </div>
+            </div>
+        ` : '';
+
         this.pluginDetailContent.innerHTML = `
             ${dangerWarning}
+            ${invalidWarning}
             <div class="flex justify-between items-start mb-6">
-                <div>
-                    <h1 class="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">${plugin.name} ${trustBadge}</h1>
+                <div class="min-w-0 flex-grow">
+                    <h1 class="text-3xl font-bold text-slate-900 dark:text-white flex flex-wrap items-center gap-3 break-words">${plugin.name} ${trustBadge}</h1>
                     <div class="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500 dark:text-slate-400">
                         <span class="flex items-center gap-1"><i data-lucide="user" class="w-3.5 h-3.5"></i> 開発者: ${plugin.author}</span>
                         <span class="flex items-center gap-1"><i data-lucide="tag" class="w-3.5 h-3.5"></i> バージョン: ${plugin.version}</span>
@@ -800,8 +1118,8 @@ export class PluginUI {
                     <button id="sharePluginBtn" class="p-2 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:text-slate-400 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/20 transition-all" title="共有・エクスポート">
                         <i data-lucide="share-2" class="w-5 h-5"></i>
                     </button>
-                    <button id="togglePluginBtn" class="flex items-center justify-center gap-2 px-6 py-2 rounded-lg font-bold ${isEnabled ? 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200' : 'bg-indigo-600 text-white hover:bg-indigo-700'} transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span class="btn-text">${isEnabled ? '無効化' : '有効化'}</span>
+                    <button id="togglePluginBtn" ${(!validation.valid || isInvalid) ? 'disabled' : ''} class="flex items-center justify-center gap-2 px-6 py-2 rounded-lg font-bold ${(!validation.valid || isInvalid) ? 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600' : isEnabled ? 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200' : 'bg-indigo-600 text-white hover:bg-indigo-700'} transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span class="btn-text">${(!validation.valid || isInvalid) ? '使用不可' : isEnabled ? '無効化' : '有効化'}</span>
                     </button>
                     ${!isBuiltin ? `
                     <button id="uninstallPluginBtn" class="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all" title="削除">
@@ -822,6 +1140,17 @@ export class PluginUI {
             </div>
         `;
         lucide.createIcons();
+        const shareBtn = document.getElementById('sharePluginBtn');
+        if (shareBtn && shareBtn.parentElement) {
+            const settingsBtn = document.createElement('button');
+            settingsBtn.id = 'pluginSettingsBtn';
+            settingsBtn.className = 'p-2 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:text-slate-400 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/20 transition-all';
+            settingsBtn.title = 'Settings';
+            settingsBtn.innerHTML = '<i data-lucide="settings" class="w-5 h-5"></i>';
+            shareBtn.parentElement.insertBefore(settingsBtn, shareBtn);
+            settingsBtn.addEventListener('click', () => this.openSettingsModal(plugin.id));
+            lucide.createIcons();
+        }
 
         this.loadLocalREADME(plugin);
 

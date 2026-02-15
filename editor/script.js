@@ -7,6 +7,34 @@ import { initShareFeature } from "./share.js";
 import { PluginManager } from "./plugin.js";
 import { PluginUI } from "./plugin-ui.js";
 
+// ========================================
+// OS検出 (プラットフォーム固有機能用)
+// ========================================
+// ユーザーのOSを検出します
+// 「起動」ボタンなど、プラットフォーム固有の機能の表示/非表示に使用されます
+// 将来的にLinux、macOSなどのサポートを追加する場合はここを更新してください
+const detectOS = () => {
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  const platform = window.navigator.platform.toLowerCase();
+
+  if (userAgent.indexOf('win') !== -1 || platform.indexOf('win') !== -1) {
+    return 'windows';
+  } else if (userAgent.indexOf('mac') !== -1 || platform.indexOf('mac') !== -1) {
+    return 'macos';
+  } else if (userAgent.indexOf('android') !== -1 || platform.indexOf('android') !== -1) {
+    // Android検出（Linuxより先にチェック。AndroidのuserAgentにも'linux'が含まれるため）
+    return 'android';
+  } else if (userAgent.indexOf('linux') !== -1 || platform.indexOf('linux') !== -1) {
+    return 'linux';
+  } else {
+    return 'unknown';
+  }
+};
+
+const USER_OS = detectOS();
+const IS_WINDOWS = USER_OS === 'windows';
+// ========================================
+
 const PROJECT_TITLE_STORAGE_KEY = 'edbb_project_title';
 
 let workspace;
@@ -847,18 +875,26 @@ const buildInlineRuntimeHelpers = ({ usesJson, usesModal, usesLogging }) => {
   }
 
   if (usesJson) {
+    helpers += `_JSON_DATA_DIR = 'json'\n\n`;
+    helpers += `def _resolve_json_path(filename):\n`;
+    helpers += `    _raw_name = '' if filename is None else str(filename).strip()\n`;
+    helpers += `    _safe_name = os.path.basename(_raw_name) if _raw_name else 'dataset.json'\n`;
+    helpers += `    return os.path.join(_JSON_DATA_DIR, _safe_name)\n\n`;
     helpers += `def _load_json_data(filename):\n`;
-    helpers += `    if not os.path.exists(filename):\n`;
+    helpers += `    _path = _resolve_json_path(filename)\n`;
+    helpers += `    if not os.path.exists(_path):\n`;
     helpers += `        return {}\n`;
     helpers += `    try:\n`;
-    helpers += `        with open(filename, 'r', encoding = 'utf-8') as f:\n`;
+    helpers += `        with open(_path, 'r', encoding = 'utf-8') as f:\n`;
     helpers += `            return json.load(f)\n`;
     helpers += `    except Exception as e:\n`;
     helpers += `        logging.error(f"JSON Load Error: {e}")\n`;
     helpers += `        return {}\n\n`;
     helpers += `def _save_json_data(filename, data):\n`;
     helpers += `    try:\n`;
-    helpers += `        with open(filename, 'w', encoding = 'utf-8') as f:\n`;
+    helpers += `        _path = _resolve_json_path(filename)\n`;
+    helpers += `        os.makedirs(os.path.dirname(_path), exist_ok = True)\n`;
+    helpers += `        with open(_path, 'w', encoding = 'utf-8') as f:\n`;
     helpers += `            json.dump(data, f, ensure_ascii = False, indent = 4)\n`;
     helpers += `    except Exception as e:\n`;
     helpers += `        logging.error(f"JSON Save Error: {e}")\n\n`;
@@ -887,7 +923,42 @@ const buildInlineRuntimeHelpers = ({ usesJson, usesModal, usesLogging }) => {
 
 const generatePythonCode = () => {
   if (!workspace) return '';
-  const rawCode = workspaceToCodeExcludingOrphans(workspace);
+
+  // --- Filter top-level blocks (Issue #28) ---
+  // Only allow event-related blocks, procedures, and specifically allowed blocks at the top level.
+  const topBlocks = workspace.getTopBlocks(true);
+  const allowedTopBlockTypes = [
+    'on_ready',
+    'on_message_create',
+    'on_member_join',
+    'on_member_remove',
+    'on_command_executed',
+    'prefix_command',
+    'on_reaction_add',
+    'on_button_click',
+    'on_modal_submit',
+    'procedures_defnoreturn',
+    'procedures_defreturn',
+    'print_to_console',
+    'custom_python_code',
+  ];
+
+  Blockly.Python.init(workspace);
+  const codeParts = [];
+  topBlocks.forEach((block) => {
+    if (block && !block.isShadow() && allowedTopBlockTypes.includes(block.type)) {
+      let line = Blockly.Python.blockToCode(block);
+      if (Array.isArray(line)) {
+        // Value blocks return [code, order], but at the top level we only want the code.
+        line = line[0];
+      }
+      if (line) {
+        codeParts.push(line);
+      }
+    }
+  });
+  const rawCode = Blockly.Python.finish(codeParts.join('\n'));
+
   const {
     cleanedCode,
     hasComponentEvents,
@@ -914,6 +985,7 @@ const generatePythonCode = () => {
     'import discord',
     'from discord import app_commands',
     'from discord.ext import commands',
+    'import os',
   ];
   if (needInteractionHandler || usesModal || bodyCode.includes('discord.ui')) imports.push('from discord import ui');
   if (usesRandom) imports.push('import random');
@@ -922,7 +994,6 @@ const generatePythonCode = () => {
   if (usesMath) imports.push('import math');
   if (usesJson) {
     imports.push('import json');
-    imports.push('import os');
   }
   if (usesLogging) imports.push('import logging');
 
@@ -953,12 +1024,18 @@ ${bodyCode}
 # --------------------------
 
 if __name__ == "__main__":
-    # Token check
-    print('\\x1b[31m!!!!注意!!!! トークンを設定していない場合は、実行前にコードの最後にある"TOKEN"部分にトークンを記述してください。\\x1b[0m')
-    print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the token in the "TOKEN" section at the end of the code before running it.\\x1b[0m')
-    # トークン設定後は注意を削除しても問題ありません / After setting the token, you may safely remove this check.
+    # トークンの設定
+    # Set your token here
+    token = "TOKEN"
 
-    bot.run("TOKEN")
+    # Token check
+    token = os.getenv("DISCORD_TOKEN", token) # 環境変数DISCORD_TOKENがあればそちらを優先 (If DISCORD_TOKEN environment variable is set, it will be used)
+    if token == "TOKEN":
+        print('\\x1b[31m!!!!注意!!!! トークンを設定していない場合は、環境変数DISCORD_TOKENを設定するか、上のtoken変数を書き換えてください。\\x1b[0m')
+        print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the DISCORD_TOKEN environment variable or replace the token variable above.\\x1b[0m')
+        exit(1)
+
+    bot.run(token)
 `;
 
   return fullBoiler.trim();
@@ -1640,18 +1717,26 @@ const buildSharedModule = (bodyCode) => {
   }
   if (usesJson) {
     content += `import json\nimport os\n\n`;
+    content += `_JSON_DATA_DIR = 'json'\n\n`;
+    content += `def _resolve_json_path(filename): \n`;
+    content += `    _raw_name = '' if filename is None else str(filename).strip() \n`;
+    content += `    _safe_name = os.path.basename(_raw_name) if _raw_name else 'dataset.json' \n`;
+    content += `    return os.path.join(_JSON_DATA_DIR, _safe_name) \n\n`;
     content += `def _load_json_data(filename): \n`;
-    content += `    if not os.path.exists(filename): \n`;
+    content += `    _path = _resolve_json_path(filename) \n`;
+    content += `    if not os.path.exists(_path): \n`;
     content += `        return {}\n`;
     content += `    try: \n`;
-    content += `        with open(filename, 'r', encoding = 'utf-8') as f: \n`;
+    content += `        with open(_path, 'r', encoding = 'utf-8') as f: \n`;
     content += `            return json.load(f) \n`;
     content += `    except Exception as e: \n`;
     content += `        logging.error(f"JSON Load Error: {e}") \n`;
     content += `        return {}\n\n`;
     content += `def _save_json_data(filename, data): \n`;
     content += `    try: \n`;
-    content += `        with open(filename, 'w', encoding = 'utf-8') as f: \n`;
+    content += `        _path = _resolve_json_path(filename) \n`;
+    content += `        os.makedirs(os.path.dirname(_path), exist_ok = True) \n`;
+    content += `        with open(_path, 'w', encoding = 'utf-8') as f: \n`;
     content += `            json.dump(data, f, ensure_ascii = False, indent = 4) \n`;
     content += `    except Exception as e: \n`;
     content += `        logging.error(f"JSON Save Error: {e}") \n\n`;
@@ -1862,6 +1947,7 @@ const generateSplitPythonFiles = () => {
   const botFile = `
 # Easy Discord Bot Builder - Split Cogs Version
 
+import os
 import discord
 from discord.ext import commands
 
@@ -1878,8 +1964,18 @@ class EasyBot(commands.Bot):
 bot = EasyBot(command_prefix='!', intents=intents)
 
 if __name__ == "__main__":
-    print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the token in the "TOKEN" section at the end of the code before execution.\\x1b[0m')
-    bot.run('TOKEN')
+    # トークンの設定
+    # Set your token here
+    token = "TOKEN"
+
+    # Token check
+    token = os.getenv("DISCORD_TOKEN", token) # 環境変数DISCORD_TOKENがあればそちらを優先 (If DISCORD_TOKEN environment variable is set, it will be used)
+    if token == "TOKEN":
+        print('\\x1b[31m!!!!注意!!!! トークンを設定していない場合は、環境変数DISCORD_TOKENを設定するか、上のtoken変数を書き換えてください。\\x1b[0m')
+        print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the DISCORD_TOKEN environment variable or replace the token variable above.\\x1b[0m')
+        exit(1)
+
+    bot.run(token)
 `.trim();
 
   files['bot.py'] = botFile;
@@ -1963,6 +2059,35 @@ const initializeApp = async () => {
   const mobileHeaderToggle = document.getElementById('mobileHeaderToggle');
   // ヘッダーのコード生成ボタン
   const showCodeBtn = document.getElementById('showCodeBtn');
+  const runBotBtn = document.getElementById('runBotBtn');
+  const runBotBtnLabel = runBotBtn?.querySelector('span');
+
+  // ========================================
+  // OSベースの機能制御: Windowsのみ「起動」ボタンを表示
+  // 
+  // 【Linuxをサポートする場合の変更例】
+  // 以下の条件を変更してください：
+  //   if (IS_WINDOWS) {
+  // ↓ このように変更
+  //   if (IS_WINDOWS || USER_OS === 'linux') {
+  // 
+  // または、複数OSをサポートする場合：
+  //   const SUPPORTED_OS = ['windows', 'linux'];
+  //   if (SUPPORTED_OS.includes(USER_OS)) {
+  // ========================================
+  if (runBotBtn) {
+    if (IS_WINDOWS) {
+      // Windowsでボタンを表示（デスクトップのみ）
+      // 'hidden' クラスは残してモバイルでは非表示、'md:inline-flex' でデスクトップのみ表示
+      runBotBtn.classList.add('md:inline-flex');
+    } else {
+      // Windows以外のシステムでボタンを完全に非表示
+      runBotBtn.classList.add('hidden');
+      runBotBtn.classList.remove('md:inline-flex');
+    }
+  }
+  // ========================================
+
   // モーダル関連
   const codeModal = document.getElementById('codeModal');
   const closeModalBtn = document.getElementById('closeModalBtn');
@@ -1970,6 +2095,7 @@ const initializeApp = async () => {
   const codeGenErrorBox = document.getElementById('codeGenErrorBox');
   const codeGenErrorList = document.getElementById('codeGenErrorList');
   const copyCodeBtn = document.getElementById('copyCodeBtn');
+  const downloadZipBtn = document.getElementById('downloadZipBtn');
   const splitCodeBtn = document.getElementById('splitCodeBtn');
   const splitCodeModal = document.getElementById('splitCodeModal');
   const splitModalClose = document.getElementById('splitModalClose');
@@ -1982,6 +2108,21 @@ const initializeApp = async () => {
   const saveJsonPrettyCheckbox = document.getElementById('saveJsonPretty');
   const saveJsonMethodSelect = document.getElementById('saveJsonMethod');
   const saveJsonMethodHint = document.getElementById('saveJsonMethodHint');
+  const runnerDownloadModal = document.getElementById('runnerDownloadModal');
+  const runnerDownloadModalClose = document.getElementById('runnerDownloadModalClose');
+  const runnerDownloadCancelBtn = document.getElementById('runnerDownloadCancelBtn');
+  const runnerDownloadBtn = document.getElementById('runnerDownloadBtn');
+  const runnerConsoleModal = document.getElementById('runnerConsoleModal');
+  const runnerConsoleCloseBtn = document.getElementById('runnerConsoleCloseBtn');
+  const runnerConsoleClearBtn = document.getElementById('runnerConsoleClearBtn');
+  const runnerConsoleOutput = document.getElementById('runnerConsoleOutput');
+  const runnerConsoleStateText = document.getElementById('runnerConsoleStateText');
+  const splitViewTabCodeBtn = document.getElementById('splitViewTabCodeBtn');
+  const splitViewTabConsoleBtn = document.getElementById('splitViewTabConsoleBtn');
+  const splitViewCodePanel = document.getElementById('splitViewCodePanel');
+  const splitViewConsolePanel = document.getElementById('splitViewConsolePanel');
+  const splitRunnerConsoleOutput = document.getElementById('splitRunnerConsoleOutput');
+  const splitRunnerConsoleStateText = document.getElementById('splitRunnerConsoleStateText');
 
   const importBtn = document.getElementById('importBtn');
   const exportBtn = document.getElementById('exportBtn');
@@ -1989,6 +2130,8 @@ const initializeApp = async () => {
   const workspaceContainer = document.getElementById('workspace-container');
   const layoutBlockBtn = document.getElementById('layoutBlockBtn');
   const layoutSplitBtn = document.getElementById('layoutSplitBtn');
+  const hljsThemeLight = document.getElementById('hljsThemeLight');
+  const hljsThemeDark = document.getElementById('hljsThemeDark');
   const projectTitleInput = document.getElementById('projectTitleInput');
   const initialScale = isMobileDevice ? 0.85 : 1.0;
   const maxScale = isMobileDevice ? 2.2 : 3;
@@ -1999,6 +2142,18 @@ const initializeApp = async () => {
 
   const supportsSaveFilePicker =
     typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function';
+
+  const applyCodeTheme = (theme) => {
+    const useDark = theme === 'dark';
+    if (hljsThemeLight) hljsThemeLight.disabled = useDark;
+    if (hljsThemeDark) hljsThemeDark.disabled = !useDark;
+    const liveCodeOutput = document.getElementById('codePreviewContent');
+    if (liveCodeOutput?.textContent?.trim()) {
+      // Remove highlighted dataset to prevent re-highlighting warning
+      delete liveCodeOutput.dataset.highlighted;
+      hljs.highlightElement(liveCodeOutput);
+    }
+  };
 
   const getDefaultJsonFileName = () =>
     storage?.getDefaultExportFileName?.() ||
@@ -2044,6 +2199,7 @@ const initializeApp = async () => {
 
   const savedTheme = localStorage.getItem('theme');
   if (savedTheme === 'dark') html.classList.add('dark');
+  applyCodeTheme(savedTheme === 'dark' ? 'dark' : 'light');
   const initialTheme = savedTheme === 'dark' ? modernDarkTheme : modernLightTheme;
   applyMobileToolboxIcons(toolbox);
 
@@ -2176,9 +2332,15 @@ const initializeApp = async () => {
         'dark:text-indigo-400',
       );
       layoutSplitBtn.classList.add('text-slate-500', 'dark:text-slate-400');
+      if (!isRunnerConsoleModalOpen()) {
+        stopRunnerConsolePolling();
+      }
     }
     if (workspace) {
       setTimeout(() => Blockly.svgResize(workspace), 450);
+    }
+    if (mode === 'split') {
+      scheduleLiveCodeRefresh();
     }
   };
 
@@ -2187,14 +2349,87 @@ const initializeApp = async () => {
 
   // Live Preview Sync
   const liveCodeOutput = document.getElementById('codePreviewContent');
-  workspace.addChangeListener((e) => {
+  let livePreviewFrame = null;
+  const refreshLiveCodePreview = () => {
     if (
-      workspaceContainer.classList.contains('split-view') &&
-      !e.isUiEvent &&
-      liveCodeOutput
+      !workspaceContainer.classList.contains('split-view') ||
+      !liveCodeOutput
     ) {
+      return;
+    }
+    try {
       liveCodeOutput.textContent = generatePythonCode();
+      // Remove highlighted dataset to prevent re-highlighting warning
+      delete liveCodeOutput.dataset.highlighted;
       hljs.highlightElement(liveCodeOutput);
+    } catch (error) {
+      liveCodeOutput.textContent = `# Code preview update failed\n# ${error?.message || 'unknown error'}`;
+    }
+  };
+  const scheduleLiveCodeRefresh = () => {
+    if (livePreviewFrame != null) return;
+    livePreviewFrame = requestAnimationFrame(() => {
+      livePreviewFrame = null;
+      refreshLiveCodePreview();
+    });
+  };
+  let splitViewActiveTab = 'code';
+  const splitViewConsoleCloseBtn = document.getElementById('splitViewConsoleCloseBtn');
+
+  const setSplitViewTab = (tab) => {
+    splitViewActiveTab = tab === 'console' ? 'console' : 'code';
+    const showConsole = splitViewActiveTab === 'console';
+    splitViewCodePanel?.classList.toggle('hidden', showConsole);
+    splitViewConsolePanel?.classList.toggle('hidden', !showConsole);
+
+    // Always show close button when split view is active (not just on console tab)
+    // The button will close the entire split view panel
+    const isSplitView = workspaceContainer?.classList.contains('split-view');
+    splitViewConsoleCloseBtn?.classList.toggle('hidden', !isSplitView);
+
+    if (splitViewTabCodeBtn && splitViewTabConsoleBtn) {
+      splitViewTabCodeBtn.classList.toggle('bg-emerald-500/20', !showConsole);
+      splitViewTabCodeBtn.classList.toggle('border-emerald-400/30', !showConsole);
+      splitViewTabCodeBtn.classList.toggle('text-emerald-700', !showConsole);
+      splitViewTabCodeBtn.classList.toggle('dark:text-emerald-200', !showConsole);
+      splitViewTabCodeBtn.classList.toggle('text-slate-700', showConsole);
+      splitViewTabCodeBtn.classList.toggle('dark:text-slate-300', showConsole);
+      splitViewTabCodeBtn.classList.toggle('border-transparent', showConsole);
+      splitViewTabCodeBtn.classList.toggle('hover:bg-slate-100', showConsole);
+      splitViewTabCodeBtn.classList.toggle('dark:hover:bg-slate-800/60', showConsole);
+
+      splitViewTabConsoleBtn.classList.toggle('bg-emerald-500/20', showConsole);
+      splitViewTabConsoleBtn.classList.toggle('border-emerald-400/30', showConsole);
+      splitViewTabConsoleBtn.classList.toggle('text-emerald-700', showConsole);
+      splitViewTabConsoleBtn.classList.toggle('dark:text-emerald-200', showConsole);
+      splitViewTabConsoleBtn.classList.toggle('text-slate-700', !showConsole);
+      splitViewTabConsoleBtn.classList.toggle('dark:text-slate-300', !showConsole);
+      splitViewTabConsoleBtn.classList.toggle('border-transparent', !showConsole);
+      splitViewTabConsoleBtn.classList.toggle('hover:bg-slate-100', !showConsole);
+      splitViewTabConsoleBtn.classList.toggle('dark:hover:bg-slate-800/60', !showConsole);
+    }
+    if (!showConsole) {
+      scheduleLiveCodeRefresh();
+    }
+  };
+  splitViewTabCodeBtn?.addEventListener('click', () => setSplitViewTab('code'));
+  splitViewTabConsoleBtn?.addEventListener('click', () => {
+    if (splitViewActiveTab === 'console') {
+      setSplitViewTab('code');
+      return;
+    }
+    setSplitViewTab('console');
+    startRunnerConsolePolling(false);
+  });
+  splitViewConsoleCloseBtn?.addEventListener('click', () => {
+    // Close the entire split view (right panel)
+    setLayout('block');
+  });
+  setSplitViewTab('code');
+
+  workspace.addChangeListener((e) => {
+    if (workspaceContainer.classList.contains('split-view')) {
+      scheduleLiveCodeRefresh();
     }
 
     // Auto-save
@@ -2280,20 +2515,24 @@ const initializeApp = async () => {
   const pluginManager = new PluginManager(workspace);
   workspace.pluginManager = pluginManager; // storage.js からアクセスできるようにする
   storage.pluginManager = pluginManager; // share.js からアクセスできるようにする
+  let pluginUIRef = null;
 
   // プラグインの状態が変更されたら共有ボタンの状態を更新する
   const originalEnable = pluginManager.enablePlugin.bind(pluginManager);
   pluginManager.enablePlugin = async (id) => {
     await originalEnable(id);
+    pluginUIRef?.applyBlockVisibilityConfig?.();
     shareFeature?.updateShareButtonState?.();
   };
   const originalDisable = pluginManager.disablePlugin.bind(pluginManager);
   pluginManager.disablePlugin = async (id) => {
     await originalDisable(id);
+    pluginUIRef?.applyBlockVisibilityConfig?.();
     shareFeature?.updateShareButtonState?.();
   };
 
   const pluginUI = new PluginUI(pluginManager);
+  pluginUIRef = pluginUI;
   pluginManager.onPluginsSuggested((entries) => {
     pluginUI.handleBulkInstall(entries.join(','));
   });
@@ -2313,6 +2552,7 @@ const initializeApp = async () => {
     html.classList.remove(currentTheme);
     html.classList.add(newTheme);
     localStorage.setItem('theme', newTheme);
+    applyCodeTheme(newTheme);
     if (workspace) {
       workspace.setTheme(newTheme === 'dark' ? modernDarkTheme : modernLightTheme);
     }
@@ -2385,6 +2625,171 @@ const initializeApp = async () => {
         modalTimers.delete(modal);
       }, 300); // Wait for transition
       modalTimers.set(modal, timer);
+    }
+  };
+
+  const RUNNER_CONSOLE_MAX_LINES = 1500;
+  let runnerConsoleOffset = 0;
+  let runnerConsolePollTimer = null;
+  let runnerConsolePollInFlight = false;
+  let runnerConsolePollSession = 0;
+  let runnerConsoleBuffer = [];
+  let runBotButtonState = 'idle';
+
+  const setRunBotButtonState = (state) => {
+    if (!runBotBtn) return;
+    runBotButtonState = state;
+    const isBusy = state === 'starting' || state === 'running';
+    runBotBtn.classList.toggle('bg-amber-600', isBusy);
+    runBotBtn.classList.toggle('hover:bg-amber-700', isBusy);
+    runBotBtn.classList.toggle('shadow-amber-500/20', isBusy);
+    runBotBtn.classList.toggle('bg-emerald-600', !isBusy);
+    runBotBtn.classList.toggle('hover:bg-emerald-700', !isBusy);
+    runBotBtn.classList.toggle('shadow-emerald-500/20', !isBusy);
+    if (runBotBtnLabel) {
+      runBotBtnLabel.textContent =
+        state === 'running' ? '起動中' : state === 'starting' ? '起動中...' : '起動';
+    }
+  };
+  setRunBotButtonState('idle');
+
+  const setRunnerConsoleState = (text) => {
+    if (runnerConsoleStateText) runnerConsoleStateText.textContent = text;
+    if (splitRunnerConsoleStateText) splitRunnerConsoleStateText.textContent = text;
+  };
+
+  const appendRunnerConsoleLines = (lines = []) => {
+    if (!Array.isArray(lines) || !lines.length) return;
+    runnerConsoleBuffer.push(...lines.map((line) => String(line)));
+    if (runnerConsoleBuffer.length > RUNNER_CONSOLE_MAX_LINES) {
+      runnerConsoleBuffer.splice(0, runnerConsoleBuffer.length - RUNNER_CONSOLE_MAX_LINES);
+    }
+    const chunk = runnerConsoleBuffer.length ? `${runnerConsoleBuffer.join('\n')}\n` : '';
+    const outputs = [runnerConsoleOutput, splitRunnerConsoleOutput].filter(Boolean);
+    outputs.forEach((outputEl) => {
+      const autoScroll =
+        outputEl.scrollTop + outputEl.clientHeight >=
+        outputEl.scrollHeight - 24;
+      outputEl.textContent = chunk;
+      if (autoScroll) {
+        outputEl.scrollTop = outputEl.scrollHeight;
+      }
+    });
+  };
+
+  const clearRunnerConsoleView = () => {
+    runnerConsoleBuffer = [];
+    if (runnerConsoleOutput) runnerConsoleOutput.textContent = '';
+    if (splitRunnerConsoleOutput) splitRunnerConsoleOutput.textContent = '';
+  };
+
+  const isRunnerConsoleModalOpen = () => {
+    return !!runnerConsoleModal?.classList.contains('show-modal');
+  };
+
+  const isSplitConsoleVisible = () => {
+    return workspaceContainer?.classList.contains('split-view') && splitViewActiveTab === 'console';
+  };
+
+  const shouldPollRunnerConsole = () => {
+    return isRunnerConsoleModalOpen() || isSplitConsoleVisible();
+  };
+
+  const stopRunnerConsolePolling = () => {
+    if (runnerConsolePollTimer) {
+      clearInterval(runnerConsolePollTimer);
+      runnerConsolePollTimer = null;
+    }
+    runnerConsolePollSession += 1;
+    runnerConsolePollInFlight = false;
+  };
+
+  const pollRunnerConsoleLogs = async (session = runnerConsolePollSession) => {
+    if (!shouldPollRunnerConsole() || runnerConsolePollInFlight || session !== runnerConsolePollSession) return;
+    runnerConsolePollInFlight = true;
+    const requestOffset = runnerConsoleOffset;
+    try {
+      const response = await fetch(`http://localhost:6859/logs?offset=${requestOffset}`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3500),
+      });
+      if (session !== runnerConsolePollSession) return;
+      if (!response.ok) throw new Error('logs endpoint failed');
+      const payload = await response.json();
+      if (typeof payload.next_offset === 'number') {
+        runnerConsoleOffset = Math.max(runnerConsoleOffset, payload.next_offset);
+      }
+      if (Array.isArray(payload.logs) && payload.logs.length) {
+        appendRunnerConsoleLines(payload.logs);
+      }
+      if (payload.bot_running === true) {
+        setRunnerConsoleState('BOT 実行中');
+        setRunBotButtonState('running');
+      } else {
+        setRunnerConsoleState('Runner 接続中');
+        if (runBotButtonState === 'running') {
+          setRunBotButtonState('idle');
+        }
+      }
+    } catch (error) {
+      // Silently handle connection errors when runner is not available
+      // Only log if it's an unexpected error (not connection refused)
+      if (error.name !== 'TypeError' && !error.message?.includes('Failed to fetch')) {
+        console.warn('Runner console polling error:', error);
+      }
+      setRunnerConsoleState('Runner に接続できません');
+      if (runBotButtonState !== 'running') {
+        setRunBotButtonState('idle');
+      }
+    } finally {
+      if (session === runnerConsolePollSession) {
+        runnerConsolePollInFlight = false;
+      }
+    }
+  };
+
+  const startRunnerConsolePolling = (reset = false) => {
+    runnerConsolePollSession += 1;
+    const session = runnerConsolePollSession;
+    runnerConsolePollInFlight = false;
+    if (reset) {
+      runnerConsoleOffset = 0;
+      clearRunnerConsoleView();
+    }
+    if (runnerConsolePollTimer) {
+      clearInterval(runnerConsolePollTimer);
+      runnerConsolePollTimer = null;
+    }
+    void pollRunnerConsoleLogs(session);
+    runnerConsolePollTimer = setInterval(() => {
+      if (!shouldPollRunnerConsole()) {
+        stopRunnerConsolePolling();
+        return;
+      }
+      void pollRunnerConsoleLogs(session);
+    }, 1000);
+  };
+
+  const openRunnerConsole = ({ reset = false } = {}) => {
+    setLayout('split');
+    setSplitViewTab('console');
+    setRunnerConsoleState('接続中...');
+    startRunnerConsolePolling(reset);
+  };
+
+  const openRunnerConsoleModal = ({ reset = false } = {}) => {
+    if (!runnerConsoleModal) return;
+    toggleModal(runnerConsoleModal, true);
+    setRunnerConsoleState('接続中...');
+    startRunnerConsolePolling(reset);
+  };
+
+  const closeRunnerConsole = () => {
+    if (runnerConsoleModal) {
+      toggleModal(runnerConsoleModal, false);
+    }
+    if (!shouldPollRunnerConsole()) {
+      stopRunnerConsolePolling();
     }
   };
 
@@ -2514,6 +2919,121 @@ const initializeApp = async () => {
     toggleModal(codeModal, true);
   });
 
+  // Run Bot Button - BOTの実行を開始
+  runBotBtn?.addEventListener('click', async () => {
+    runBotBtn.blur();
+    if (workspace) Blockly.hideChaff();
+    if (!validateBeforeCodegen()) return;
+    setRunBotButtonState('starting');
+    openRunnerConsole({ reset: true });
+    appendRunnerConsoleLines(['[editor] 起動リクエストを送信しています...']);
+
+    // Show toast with loading state
+    const runBotStatus = document.getElementById('runBotStatus');
+    const runBotStatusText = document.getElementById('runBotStatusText');
+    if (runBotStatus && runBotStatusText) {
+      runBotStatus.dataset.state = 'success';
+      runBotStatusText.textContent = 'BOTを起動中...';
+      runBotStatus.setAttribute('data-show', 'true');
+    }
+
+    try {
+      const botCode = generatePythonCode();
+      const response = await fetch('http://localhost:6859', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+        body: botCode,
+        signal: AbortSignal.timeout(7000),
+      });
+
+      // Parse JSON response
+      const responseData = await response.json();
+
+      if (response.ok && responseData.status === 'ok') {
+        // Success - show success toast
+        if (runBotStatus && runBotStatusText) {
+          runBotStatus.dataset.state = 'success';
+          runBotStatusText.textContent = 'BOTの起動を開始しました';
+          runBotStatus.setAttribute('data-show', 'true');
+          setTimeout(() => runBotStatus.setAttribute('data-show', 'false'), 3000);
+        }
+      } else {
+        throw new Error('Failed to start bot');
+      }
+    } catch (error) {
+      console.error('Failed to run bot:', error);
+      setRunBotButtonState('idle');
+      appendRunnerConsoleLines([
+        `[editor] 起動に失敗しました: ${error?.message || 'unknown error'}`,
+        '[editor] edbb-runner が起動しているか確認してください。',
+      ]);
+
+      // Error - show error toast
+      if (runBotStatus && runBotStatusText) {
+        runBotStatus.dataset.state = 'error';
+        runBotStatusText.textContent = 'BOTの起動に失敗しました';
+        runBotStatus.setAttribute('data-show', 'true');
+        setTimeout(() => runBotStatus.setAttribute('data-show', 'false'), 3000);
+      }
+
+      // Show download modal after a short delay
+      setTimeout(() => {
+        if (runnerDownloadModal) {
+          // Stop polling when showing the download modal
+          stopRunnerConsolePolling();
+          setRunBotButtonState('idle');
+          toggleModal(runnerDownloadModal, true);
+        }
+      }, 500);
+    }
+  });
+
+  // Runner Download Modal handlers
+  const closeRunnerDownloadModal = () => {
+    if (runnerDownloadModal) {
+      toggleModal(runnerDownloadModal, false);
+    }
+  };
+
+  runnerConsoleCloseBtn?.addEventListener('click', closeRunnerConsole);
+  runnerConsoleClearBtn?.addEventListener('click', () => {
+    clearRunnerConsoleView();
+  });
+  runnerConsoleModal?.addEventListener('click', (event) => {
+    if (event.target === runnerConsoleModal) {
+      closeRunnerConsole();
+    }
+  });
+
+  runnerDownloadModalClose?.addEventListener('click', closeRunnerDownloadModal);
+  runnerDownloadCancelBtn?.addEventListener('click', closeRunnerDownloadModal);
+
+  runnerDownloadBtn?.addEventListener('click', () => {
+    const hostname = window.location.hostname || '';
+    const isBetaHost = /^beta(\.|-)/i.test(hostname);
+    const downloadUrl = isBetaHost
+      ? 'https://github.com/himais0giiiin/edbb-runner/archive/refs/heads/main.zip'
+      : 'https://github.com/himais0giiiin/edbb-runner/archive/refs/heads/main.zip';
+
+    // Use direct archive endpoint + anchor click to avoid popup blockers.
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    closeRunnerDownloadModal();
+  });
+
+  // Close modal on backdrop click
+  runnerDownloadModal?.addEventListener('click', (e) => {
+    if (e.target === runnerDownloadModal) {
+      closeRunnerDownloadModal();
+    }
+  });
+
   const openSplitModal = () => {
     if (!splitCodeModal) return;
     if (!validateBeforeCodegen()) return;
@@ -2553,6 +3073,43 @@ const initializeApp = async () => {
       const safeName = path.replace(/\//g, '__');
       downloadTextFile(safeName, content);
     });
+  });
+
+  downloadZipBtn?.addEventListener('click', async () => {
+    if (!validateBeforeCodegen()) return;
+    let code = generatePythonCode();
+
+    // Inject imports for .env support
+    if (!code.includes('from dotenv import load_dotenv')) {
+      code = code.replace('import discord', 'import os\nfrom dotenv import load_dotenv\nimport discord');
+    }
+
+    // Replace the main execution block to use .env
+    const mainBlockRegex = /if __name__ == "__main__":[\s\S]+?bot\.run\("TOKEN"\)/;
+    const newMainBlock = `if __name__ == "__main__":
+    load_dotenv()
+    token = os.getenv("TOKEN")
+    
+    if not token:
+        print("Error: TOKEN not found in .env file.")
+        print("Please set your bot token in the .env file: TOKEN=... ")
+    else:
+        bot.run(token)`;
+
+    code = code.replace(mainBlockRegex, newMainBlock);
+
+    const zip = new JSZip();
+    zip.file('bot.py', code);
+    zip.file('.env', 'TOKEN=YOUR_TOKEN_HERE');
+    zip.file('requirements.txt', 'discord.py[voice]\npython-dotenv');
+
+    const content = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(content);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bot-project.zip';
+    a.click();
+    URL.revokeObjectURL(url);
   });
 
   copyCodeBtn.addEventListener('click', () => {
