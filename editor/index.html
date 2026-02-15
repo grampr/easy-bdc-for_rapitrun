@@ -1263,6 +1263,49 @@
         </div>
     </div>
 
+    <!-- Local Network Modal -->
+    <div id="localNetworkModal"
+        class="modal-backdrop hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+        aria-hidden="true">
+        <div
+            class="flex flex-col w-full max-w-lg max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl bg-white dark:bg-slate-900 modal-content border border-white/20 dark:border-slate-800 ring-1 ring-black/5">
+            <div
+                class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm sticky top-0 z-10">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                        <i data-lucide="wifi-off" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900 dark:text-white">ローカルネットワーク接続がオフです</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                            起動ボタンから runner に接続できませんでした
+                        </p>
+                    </div>
+                </div>
+                <button id="localNetworkModalClose"
+                    class="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:text-slate-500 dark:hover:text-slate-100/80 dark:hover:bg-slate-800 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 bg-slate-50/60 dark:bg-slate-950/40 flex flex-col gap-4">
+                <p class="text-sm text-slate-700 dark:text-slate-300">
+                    ローカルネットワーク接続をオンにしてから、もう一度「起動」を押してください。
+                </p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                    改善しない場合は、edbb-runner が起動しているかも確認してください。
+                </p>
+            </div>
+            <div
+                class="flex flex-wrap items-center justify-end gap-3 px-6 py-4 bg-white/80 dark:bg-slate-900/80 border-t border-slate-100 dark:border-slate-800">
+                <button id="localNetworkModalCancelBtn" type="button"
+                    class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                    <span>閉じる</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         if (typeof window.extractInteractionEvents !== "function") {
             window.extractInteractionEvents = function (code) {

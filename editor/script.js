@@ -2038,6 +2038,9 @@ const initializeApp = async () => {
   const runnerDownloadModalClose = document.getElementById('runnerDownloadModalClose');
   const runnerDownloadCancelBtn = document.getElementById('runnerDownloadCancelBtn');
   const runnerDownloadBtn = document.getElementById('runnerDownloadBtn');
+  const localNetworkModal = document.getElementById('localNetworkModal');
+  const localNetworkModalClose = document.getElementById('localNetworkModalClose');
+  const localNetworkModalCancelBtn = document.getElementById('localNetworkModalCancelBtn');
   const runnerConsoleModal = document.getElementById('runnerConsoleModal');
   const runnerConsoleCloseBtn = document.getElementById('runnerConsoleCloseBtn');
   const runnerConsoleClearBtn = document.getElementById('runnerConsoleClearBtn');
@@ -2719,6 +2722,18 @@ const initializeApp = async () => {
     }
   };
 
+  const isLocalNetworkConnectionError = (error) => {
+    if (!error) return false;
+    const message = String(error?.message || '').toLowerCase();
+    const name = String(error?.name || '').toLowerCase();
+    return (
+      name === 'typeerror' ||
+      message.includes('failed to fetch') ||
+      message.includes('networkerror') ||
+      message.includes('load failed')
+    );
+  };
+
   const hideCodegenErrors = () => {
     if (!codeGenErrorBox || !codeGenErrorList) return;
     codeGenErrorList.innerHTML = '';
@@ -2904,12 +2919,18 @@ const initializeApp = async () => {
         setTimeout(() => runBotStatus.setAttribute('data-show', 'false'), 3000);
       }
 
-      // Show download modal after a short delay
+      // Show guidance modal after a short delay
       setTimeout(() => {
+        // Stop polling when showing any error modal.
+        stopRunnerConsolePolling();
+        setRunBotButtonState('idle');
+        if (isLocalNetworkConnectionError(error)) {
+          if (localNetworkModal) {
+            toggleModal(localNetworkModal, true);
+          }
+          return;
+        }
         if (runnerDownloadModal) {
-          // Stop polling when showing the download modal
-          stopRunnerConsolePolling();
-          setRunBotButtonState('idle');
           toggleModal(runnerDownloadModal, true);
         }
       }, 500);
@@ -2920,6 +2941,11 @@ const initializeApp = async () => {
   const closeRunnerDownloadModal = () => {
     if (runnerDownloadModal) {
       toggleModal(runnerDownloadModal, false);
+    }
+  };
+  const closeLocalNetworkModal = () => {
+    if (localNetworkModal) {
+      toggleModal(localNetworkModal, false);
     }
   };
 
@@ -2935,6 +2961,8 @@ const initializeApp = async () => {
 
   runnerDownloadModalClose?.addEventListener('click', closeRunnerDownloadModal);
   runnerDownloadCancelBtn?.addEventListener('click', closeRunnerDownloadModal);
+  localNetworkModalClose?.addEventListener('click', closeLocalNetworkModal);
+  localNetworkModalCancelBtn?.addEventListener('click', closeLocalNetworkModal);
 
   runnerDownloadBtn?.addEventListener('click', () => {
     const hostname = window.location.hostname || '';
@@ -2957,6 +2985,11 @@ const initializeApp = async () => {
   runnerDownloadModal?.addEventListener('click', (e) => {
     if (e.target === runnerDownloadModal) {
       closeRunnerDownloadModal();
+    }
+  });
+  localNetworkModal?.addEventListener('click', (e) => {
+    if (e.target === localNetworkModal) {
+      closeLocalNetworkModal();
     }
   });
 
