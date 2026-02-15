@@ -7,33 +7,6 @@ import { initShareFeature } from "./share.js";
 import { PluginManager } from "./plugin.js";
 import { PluginUI } from "./plugin-ui.js";
 
-// ========================================
-// OS検出 (プラットフォーム固有機能用)
-// ========================================
-// ユーザーのOSを検出します
-// 「起動」ボタンなど、プラットフォーム固有の機能の表示/非表示に使用されます
-// 将来的にLinux、macOSなどのサポートを追加する場合はここを更新してください
-const detectOS = () => {
-  const userAgent = window.navigator.userAgent.toLowerCase();
-  const platform = window.navigator.platform.toLowerCase();
-
-  if (userAgent.indexOf('win') !== -1 || platform.indexOf('win') !== -1) {
-    return 'windows';
-  } else if (userAgent.indexOf('mac') !== -1 || platform.indexOf('mac') !== -1) {
-    return 'macos';
-  } else if (userAgent.indexOf('android') !== -1 || platform.indexOf('android') !== -1) {
-    // Android検出（Linuxより先にチェック。AndroidのuserAgentにも'linux'が含まれるため）
-    return 'android';
-  } else if (userAgent.indexOf('linux') !== -1 || platform.indexOf('linux') !== -1) {
-    return 'linux';
-  } else {
-    return 'unknown';
-  }
-};
-
-const USER_OS = detectOS();
-const IS_WINDOWS = USER_OS === 'windows';
-// ========================================
 
 const PROJECT_TITLE_STORAGE_KEY = 'edbb_project_title';
 
@@ -2062,31 +2035,10 @@ const initializeApp = async () => {
   const runBotBtn = document.getElementById('runBotBtn');
   const runBotBtnLabel = runBotBtn?.querySelector('span');
 
-  // ========================================
-  // OSベースの機能制御: Windowsのみ「起動」ボタンを表示
-  // 
-  // 【Linuxをサポートする場合の変更例】
-  // 以下の条件を変更してください：
-  //   if (IS_WINDOWS) {
-  // ↓ このように変更
-  //   if (IS_WINDOWS || USER_OS === 'linux') {
-  // 
-  // または、複数OSをサポートする場合：
-  //   const SUPPORTED_OS = ['windows', 'linux'];
-  //   if (SUPPORTED_OS.includes(USER_OS)) {
-  // ========================================
+  // Show run button on desktop regardless of client OS.
   if (runBotBtn) {
-    if (IS_WINDOWS) {
-      // Windowsでボタンを表示（デスクトップのみ）
-      // 'hidden' クラスは残してモバイルでは非表示、'md:inline-flex' でデスクトップのみ表示
-      runBotBtn.classList.add('md:inline-flex');
-    } else {
-      // Windows以外のシステムでボタンを完全に非表示
-      runBotBtn.classList.add('hidden');
-      runBotBtn.classList.remove('md:inline-flex');
-    }
+    runBotBtn.classList.add('md:inline-flex');
   }
-  // ========================================
 
   // モーダル関連
   const codeModal = document.getElementById('codeModal');
