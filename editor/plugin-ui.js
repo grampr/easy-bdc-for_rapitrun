@@ -4,6 +4,8 @@
  */
 const PLUGIN_MOBILE_WARNING_SKIP_KEY = 'edbb_plugin_mobile_warning_skip';
 const PLUGIN_BLOCK_VISIBILITY_STORAGE_KEY = 'edbb_plugin_block_visibility_v1';
+const PLUGIN_NEWS_FEED_URL = 'https://raw.githubusercontent.com/EDBPlugin/News/refs/heads/main/news.json';
+const PLUGIN_NEWS_FETCH_TIMEOUT_MS = 5000;
 
 export class PluginUI {
     constructor(pluginManager) {
@@ -38,6 +40,10 @@ export class PluginUI {
         this.settingsList = document.getElementById('pluginSettingsList');
         this.settingsTargetPluginId = null;
         this.pluginBlockVisibility = this.loadPluginBlockVisibility();
+        this.newsItems = [];
+        this.newsFetchState = 'idle';
+        this.newsFetchError = '';
+        this.newsFetchedAt = 0;
 
         this.init();
     }
@@ -527,6 +533,7 @@ export class PluginUI {
         this.modal.setAttribute('aria-hidden', 'false');
         void this.modal.offsetWidth;
         this.modal.classList.add('show-modal');
+        void this.ensureNewsLoaded();
         this.renderMarketplace();
     }
 
@@ -633,6 +640,177 @@ export class PluginUI {
         const resolver = this.mobileWarningResolver;
         this.mobileWarningResolver = null;
         this.hideMobileWarning().then(() => resolver(accepted));
+    }
+
+    normalizeNewsItems(payload) {
+        const rawItems = Array.isArray(payload)
+            ? payload
+            : (Array.isArray(payload?.news) ? payload.news : []);
+        return rawItems
+            .map((raw, index) => {
+                if (!raw || typeof raw !== 'object') return null;
+                const title = String(raw.title || '').trim();
+                const content = String(raw.content || raw.message || '').trim();
+                if (!title && !content) return null;
+                const levelRaw = String(raw.level || raw.severity || 'info').toLowerCase();
+                const level = ['info', 'warning', 'danger'].includes(levelRaw) ? levelRaw : 'info';
+                const url = String(raw.url || raw.link || '').trim();
+                const pluginTargets = Array.isArray(raw.plugins)
+                    ? raw.plugins.map((item) => String(item || '').toLowerCase()).filter(Boolean)
+                    : [];
+                const id = String(raw.id || `news-${index}`);
+                const dateText = String(raw.date || raw.created_at || '').trim();
+                return {
+                    id,
+                    title,
+                    content,
+                    level,
+                    url,
+                    dateText,
+                    pluginTargets,
+                };
+            })
+            .filter(Boolean);
+    }
+
+    async ensureNewsLoaded(force = false) {
+        const cacheAge = Date.now() - this.newsFetchedAt;
+        const hasFreshCache = this.newsFetchState === 'ready' && cacheAge < 5 * 60 * 1000;
+        if (!force && (this.newsFetchState === 'loading' || hasFreshCache)) return;
+
+        this.newsFetchState = 'loading';
+        this.newsFetchError = '';
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), PLUGIN_NEWS_FETCH_TIMEOUT_MS);
+
+        try {
+            const response = await fetch(PLUGIN_NEWS_FEED_URL, {
+                method: 'GET',
+                signal: controller.signal,
+                cache: 'no-store',
+            });
+            if (!response.ok) throw new Error(`HTTP_${response.status}`);
+            const rawText = await response.text();
+            const payload = this.parseNewsPayload(rawText);
+            this.newsItems = this.normalizeNewsItems(payload);
+            this.newsFetchState = 'ready';
+            this.newsFetchedAt = Date.now();
+        } catch (error) {
+            this.newsItems = [];
+            this.newsFetchState = 'error';
+            this.newsFetchError = String(error?.message || 'failed');
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    parseNewsPayload(rawText) {
+        const source = String(rawText || '').trim();
+        if (!source) return [];
+
+        try {
+            return JSON.parse(source);
+        } catch (error) {
+            // Tolerate common hand-edited JSON mistakes: missing comma between objects in arrays.
+            const repaired = source
+                .replace(/^\uFEFF/, '')
+                .replace(/\}\s*\{/g, '},{');
+            return JSON.parse(repaired);
+        }
+    }
+
+    getNewsItemsForPlugin(plugin) {
+        const pluginKeys = new Set([
+            String(plugin?.id || '').toLowerCase(),
+            String(plugin?.name || '').toLowerCase(),
+            String(plugin?.fullName || '').toLowerCase(),
+        ].filter(Boolean));
+        return this.newsItems.filter((item) => {
+            if (!Array.isArray(item.pluginTargets) || !item.pluginTargets.length) return true;
+            return item.pluginTargets.some((target) => pluginKeys.has(String(target || '').toLowerCase()));
+        });
+    }
+
+    renderNewsPanelHtml(plugin) {
+        const levelClassMap = {
+            info: 'border-blue-200 bg-blue-50/70 text-blue-900 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-100',
+            warning: 'border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100',
+            danger: 'border-red-200 bg-red-50/80 text-red-900 dark:border-red-800 dark:bg-red-900/20 dark:text-red-100',
+        };
+
+        if (this.newsFetchState === 'loading' || this.newsFetchState === 'idle') {
+            return `
+                <div class="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-4">
+                    <div class="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">News</div>
+                    <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">ニュースを取得中...</div>
+                </div>
+            `;
+        }
+
+        if (this.newsFetchState === 'error') {
+            return `
+                <div class="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-4">
+                    <div class="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">News</div>
+                    <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">ニュースを読み込めませんでした。</div>
+                </div>
+            `;
+        }
+
+        const items = this.getNewsItemsForPlugin(plugin).slice(0, 3);
+        if (!items.length) {
+            return `
+                <div class="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-4">
+                    <div class="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">News</div>
+                    <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">現在表示できるニュースはありません。</div>
+                </div>
+            `;
+        }
+
+        const cards = items.map((item) => {
+            const toneClasses = levelClassMap[item.level] || levelClassMap.info;
+            const title = this.escapeHtml(item.title || 'お知らせ');
+            const content = this.escapeHtml(item.content || '');
+            const dateText = this.escapeHtml(item.dateText || '');
+            const link = item.url
+                ? `<a href="${this.escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" class="mt-2 inline-flex items-center gap-1 text-xs font-semibold underline underline-offset-2">詳細</a>`
+                : '';
+            const dateBadge = dateText
+                ? `<span class="text-[10px] font-semibold opacity-80">${dateText}</span>`
+                : '';
+            return `
+                <article class="rounded-lg border p-3 ${toneClasses}">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="text-sm font-bold">${title}</div>
+                        ${dateBadge}
+                    </div>
+                    ${content ? `<p class="mt-1 text-xs leading-relaxed opacity-90 whitespace-pre-wrap">${content}</p>` : ''}
+                    ${link}
+                </article>
+            `;
+        }).join('');
+
+        return `
+            <div class="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/70 p-4">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                    <div class="text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Plugin News</div>
+                    <button id="pluginNewsRefreshBtn" type="button" class="text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:underline">更新</button>
+                </div>
+                <div class="space-y-2">${cards}</div>
+            </div>
+        `;
+    }
+
+    bindNewsPanelEvents(plugin) {
+        const refreshBtn = document.getElementById('pluginNewsRefreshBtn');
+        if (!refreshBtn) return;
+        refreshBtn.addEventListener('click', async () => {
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '更新中...';
+            await this.ensureNewsLoaded(true);
+            const panel = document.getElementById('pluginNewsPanel');
+            if (panel) panel.innerHTML = this.renderNewsPanelHtml(plugin);
+            this.bindNewsPanelEvents(plugin);
+        });
     }
 
     async renderMarketplace() {
@@ -925,6 +1103,7 @@ export class PluginUI {
         const sourceUrl = plugin.source || plugin.repo || '';
 
         this.pluginDetailContent.innerHTML = `
+            <div id="pluginNewsPanel">${this.renderNewsPanelHtml(plugin)}</div>
             ${dangerWarning}
             ${invalidWarning}
             <div class="flex flex-col mb-6">
@@ -975,6 +1154,13 @@ export class PluginUI {
         `;
         lucide.createIcons();
         this.initReadmeAds(this.pluginDetailContent);
+        this.bindNewsPanelEvents(plugin);
+        void this.ensureNewsLoaded().then(() => {
+            const panel = document.getElementById('pluginNewsPanel');
+            if (!panel) return;
+            panel.innerHTML = this.renderNewsPanelHtml(plugin);
+            this.bindNewsPanelEvents(plugin);
+        });
 
         const versionSelect = document.getElementById('ghVersionSelect');
         const fileSelect = document.getElementById('ghFileSelect');
@@ -1108,6 +1294,7 @@ export class PluginUI {
         const sourceUrl = plugin.source || plugin.repo || '';
 
         this.pluginDetailContent.innerHTML = `
+            <div id="pluginNewsPanel">${this.renderNewsPanelHtml(plugin)}</div>
             ${dangerWarning}
             ${invalidWarning}
             <div class="flex justify-between items-start mb-6">
@@ -1154,6 +1341,13 @@ export class PluginUI {
             </div>
         `;
         lucide.createIcons();
+        this.bindNewsPanelEvents(plugin);
+        void this.ensureNewsLoaded().then(() => {
+            const panel = document.getElementById('pluginNewsPanel');
+            if (!panel) return;
+            panel.innerHTML = this.renderNewsPanelHtml(plugin);
+            this.bindNewsPanelEvents(plugin);
+        });
         const shareBtn = document.getElementById('sharePluginBtn');
         if (shareBtn && shareBtn.parentElement) {
             const settingsBtn = document.createElement('button');

@@ -2046,9 +2046,19 @@ const initializeApp = async () => {
     '[editor] http://localhost でエディタを開くか、同一オリジンのプロキシ経由で接続してください。',
   ];
 
-  // Show run button on desktop regardless of client OS.
+  // Show run button only on Windows desktop clients.
+  const clientPlatform = String(
+    navigator.userAgentData?.platform || navigator.platform || '',
+  ).toLowerCase();
+  const clientUserAgent = String(navigator.userAgent || '').toLowerCase();
+  const isWindowsClient = clientPlatform.includes('win') || clientUserAgent.includes('windows');
   if (runBotBtn) {
-    runBotBtn.classList.add('md:inline-flex');
+    if (isWindowsClient) {
+      runBotBtn.classList.add('md:inline-flex');
+    } else {
+      runBotBtn.classList.remove('md:inline-flex');
+      runBotBtn.classList.add('hidden');
+    }
   }
 
   // モーダル関連
@@ -2102,6 +2112,10 @@ const initializeApp = async () => {
   const initialScale = isMobileDevice ? 0.85 : 1.0;
   const maxScale = isMobileDevice ? 2.2 : 3;
   const minScale = isMobileDevice ? 0.5 : 0.3;
+  const SPLIT_LAYOUT_GAP = 12;
+  const SPLIT_LAYOUT_MIN_BLOCK_WIDTH = 620;
+  const SPLIT_LAYOUT_MIN_PREVIEW_WIDTH = 400;
+  const SPLIT_LAYOUT_MIN_ASPECT_RATIO = 1.5;
 
   const resolveProjectTitle = () =>
     (projectTitleInput?.value || '').trim() || WorkspaceStorage.DEFAULT_TITLE;
@@ -2127,6 +2141,37 @@ const initializeApp = async () => {
 
   const normalizeJsonFileName = (rawName) =>
     WorkspaceStorage.normalizeDownloadName(rawName, getDefaultJsonFileName());
+
+  const syncResponsiveSplitLayout = () => {
+    if (!workspaceContainer) return;
+    if (!workspaceContainer.classList.contains('split-view')) {
+      workspaceContainer.classList.remove('split-view-compact');
+      return;
+    }
+
+    const rect = workspaceContainer.getBoundingClientRect();
+    const safeHeight = Math.max(1, rect.height);
+    const availableWidth = Math.max(0, rect.width - SPLIT_LAYOUT_GAP);
+    const requiredWidth = SPLIT_LAYOUT_MIN_BLOCK_WIDTH + SPLIT_LAYOUT_MIN_PREVIEW_WIDTH;
+    const aspectRatio = rect.width / safeHeight;
+    const shouldUseCompactLayout =
+      availableWidth < requiredWidth || aspectRatio < SPLIT_LAYOUT_MIN_ASPECT_RATIO;
+
+    workspaceContainer.classList.toggle('split-view-compact', shouldUseCompactLayout);
+  };
+
+  const resizeWorkspace = (delayMs = 0) => {
+    if (!workspace) return;
+    const applyResize = () => {
+      syncResponsiveSplitLayout();
+      Blockly.svgResize(workspace);
+    };
+    if (delayMs > 0) {
+      setTimeout(applyResize, delayMs);
+      return;
+    }
+    applyResize();
+  };
 
   const flashSaveStatus = (message = 'Saved') => {
     const status = document.getElementById('saveStatus');
@@ -2237,9 +2282,7 @@ const initializeApp = async () => {
       if (label) label.textContent = headerExpanded ? '操作を閉じる' : '操作を表示';
       const icon = mobileHeaderToggle.querySelector('svg');
       if (icon) icon.style.transform = headerExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
-      if (workspace) {
-        setTimeout(() => Blockly.svgResize(workspace), 150);
-      }
+      resizeWorkspace(150);
     };
     syncHeaderVisibility();
     mobileHeaderToggle.addEventListener('click', () => {
@@ -2302,9 +2345,7 @@ const initializeApp = async () => {
         stopRunnerConsolePolling();
       }
     }
-    if (workspace) {
-      setTimeout(() => Blockly.svgResize(workspace), 450);
-    }
+    resizeWorkspace(450);
     if (mode === 'split') {
       scheduleLiveCodeRefresh();
     }
@@ -2451,7 +2492,7 @@ const initializeApp = async () => {
     const isVisible =
       typeof toolbox.isVisible === 'function' ? toolbox.isVisible() : toolbox.getWidth() > 0;
     if (typeof toolbox.setVisible === 'function') toolbox.setVisible(!isVisible);
-    Blockly.svgResize(workspace);
+    resizeWorkspace();
     setTimeout(updatePinState, 50);
   };
   document.getElementById('blocklyDiv').appendChild(pinBtn);
@@ -2470,7 +2511,7 @@ const initializeApp = async () => {
   syncPinVisibility();
   setTimeout(updatePinState, 100);
   window.addEventListener('resize', () => {
-    Blockly.svgResize(workspace);
+    resizeWorkspace();
     updatePinState();
   });
   workspace.addChangeListener((e) => {
@@ -2539,7 +2580,7 @@ const initializeApp = async () => {
       .then(() => {
         // Imported JSON/XML may contain stale block flags.
         shareFeature.applyUiState();
-        Blockly.svgResize(workspace);
+        resizeWorkspace();
       })
       .catch((err) => console.error(err))
       .finally(() => {
