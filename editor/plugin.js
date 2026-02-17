@@ -6,15 +6,6 @@ const EDBB_CURRENT_APP_VERSION = '1.0.0';
 const EDBB_PLUGIN_VERSION_PATTERN = /^\d+\.\d+\.[01]$/;
 
 export class PluginManager {
-    comparePluginVersions(leftVersion, rightVersion) {
-        const parse = (value) => String(value).split('.').map((part) => Number(part));
-        const [lMajor, lMinor, lRuntime] = parse(leftVersion);
-        const [rMajor, rMinor, rRuntime] = parse(rightVersion);
-
-        if (lMajor !== rMajor) return lMajor - rMajor;
-        if (lMinor !== rMinor) return lMinor - rMinor;
-        return lRuntime - rRuntime;
-    }
     /**
      * リトライ機能付きのfetch
      */
@@ -325,14 +316,6 @@ export class PluginManager {
             }
         });
 
-        if (manifest.version !== undefined && manifest.version !== null && manifest.version !== '') {
-            if (typeof manifest.version !== 'string') {
-                missing.push('version (must be a string in major.minor.runtime, runtime is 0=JavaScript or 1=PHP)');
-            } else if (!EDBB_PLUGIN_VERSION_PATTERN.test(manifest.version)) {
-                missing.push('version (must be major.minor.runtime, runtime is 0=JavaScript or 1=PHP)');
-            }
-        }
-
         if (manifest.minAppVersion !== undefined && manifest.minAppVersion !== null && manifest.minAppVersion !== '') {
             if (typeof manifest.minAppVersion !== 'string') {
                 missing.push('minAppVersion (must be a string in major.minor.runtime, runtime is 0=JavaScript or 1=PHP)');
@@ -341,12 +324,8 @@ export class PluginManager {
             }
         }
 
-        if (
-            typeof manifest.minAppVersion === 'string'
-            && EDBB_PLUGIN_VERSION_PATTERN.test(manifest.minAppVersion)
-            && this.comparePluginVersions(EDBB_CURRENT_APP_VERSION, manifest.minAppVersion) < 0
-        ) {
-            missing.push(`minAppVersion (requires >= ${manifest.minAppVersion})`);
+        if (typeof manifest.minAppVersion === 'string' && manifest.minAppVersion !== EDBB_CURRENT_APP_VERSION) {
+            missing.push(`minAppVersion (must be ${EDBB_CURRENT_APP_VERSION})`);
         }
 
         if (manifest.externalPackages !== undefined) {
