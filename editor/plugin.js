@@ -2,6 +2,8 @@
  * EDBP Plugin System
  * Plugin management with GitHub discovery, trust levels, and uninstallation.
  */
+const EDBB_CURRENT_APP_VERSION = '1.0.0';
+const EDBB_PLUGIN_VERSION_PATTERN = /^\d+\.\d+\.[01]$/;
 
 export class PluginManager {
     /**
@@ -305,7 +307,7 @@ export class PluginManager {
      * @returns {object} { valid: boolean, missing: string[] }
      */
     validateManifest(manifest) {
-        const required = ['name', 'version', 'author', 'affectsStyle', 'affectsBlocks'];
+        const required = ['name', 'version', 'author', 'affectsStyle', 'affectsBlocks', 'minAppVersion'];
         const missing = [];
 
         required.forEach(field => {
@@ -313,6 +315,52 @@ export class PluginManager {
                 missing.push(field);
             }
         });
+
+        if (manifest.minAppVersion !== undefined && manifest.minAppVersion !== null && manifest.minAppVersion !== '') {
+            if (typeof manifest.minAppVersion !== 'string') {
+                missing.push('minAppVersion (must be a string in major.minor.runtime, runtime is 0=JavaScript or 1=PHP)');
+            } else if (!EDBB_PLUGIN_VERSION_PATTERN.test(manifest.minAppVersion)) {
+                missing.push('minAppVersion (must be major.minor.runtime, runtime is 0=JavaScript or 1=PHP)');
+            }
+        }
+
+        if (typeof manifest.minAppVersion === 'string' && manifest.minAppVersion !== EDBB_CURRENT_APP_VERSION) {
+            missing.push(`minAppVersion (must be ${EDBB_CURRENT_APP_VERSION})`);
+        }
+
+        if (manifest.externalPackages !== undefined) {
+            const isValidExternalPackages = Array.isArray(manifest.externalPackages)
+                && manifest.externalPackages.every((pkg) => typeof pkg === 'string' && pkg.trim() !== '');
+            if (!isValidExternalPackages) {
+                missing.push('externalPackages (string[])');
+            }
+        }
+
+        if (manifest.requiredPlugins !== undefined) {
+            const isValidRequiredPlugins = Array.isArray(manifest.requiredPlugins)
+                && manifest.requiredPlugins.every((pluginId) => typeof pluginId === 'string' && pluginId.trim() !== '');
+            if (!isValidRequiredPlugins) {
+                missing.push('requiredPlugins (string[])');
+            }
+        }
+
+        if (manifest.api !== undefined) {
+            const api = manifest.api;
+            const isObject = api && typeof api === 'object' && !Array.isArray(api);
+            const hasValidName = typeof api?.name === 'string' && api.name.trim() !== '';
+            if (!isObject || !hasValidName) {
+                missing.push('api (object with non-empty name)');
+            } else if (api.baseUrl !== undefined) {
+                const isValidBaseUrl = typeof api.baseUrl === 'string' && /^https?:\/\//i.test(api.baseUrl);
+                if (!isValidBaseUrl) {
+                    missing.push('api.baseUrl (optional, but must be a valid http/https URL string)');
+                }
+            }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(manifest, 'license')) {
+            console.warn('manifest license field is deprecated and ignored.');
+        }
 
         return {
             valid: missing.length === 0,
@@ -775,14 +823,139 @@ export class PluginManager {
         }
     }
 
+    assertRequiredPluginsReady(pluginId, pluginMeta) {
+        const requiredPlugins = Array.isArray(pluginMeta?.requiredPlugins) ? pluginMeta.requiredPlugins : [];
+        if (!requiredPlugins.length) return;
+
+        const missing = requiredPlugins.filter((requiredId) => !this.installedPlugins[requiredId]);
+        if (missing.length) {
+            throw new Error(`Required plugins are not installed: ${missing.join(', ')}`);
+        }
+
+        const disabled = requiredPlugins.filter((requiredId) => !this.enabledPlugins.has(requiredId));
+        if (disabled.length) {
+            throw new Error(`Required plugins are not enabled: ${disabled.join(', ')}`);
+        }
+
+        if (requiredPlugins.includes(pluginId)) {
+            throw new Error('requiredPlugins must not include itself');
+        }
+    }
+
+    createPluginCapabilityGuard(pluginMeta) {
+        const restoreStack = [];
+        const win = (typeof window !== 'undefined') ? window : globalThis;
+        const workspace = this.workspace;
+
+        if (!pluginMeta?.api) {
+            if (typeof win.fetch === 'function') {
+                const originalFetch = win.fetch.bind(win);
+                win.fetch = (...args) => {
+                    throw new Error('This plugin is not allowed to call external APIs (missing "api" in manifest).');
+                };
+                restoreStack.push(() => { win.fetch = originalFetch; });
+            }
+
+            if (win.XMLHttpRequest && win.XMLHttpRequest.prototype) {
+                const xhrProto = win.XMLHttpRequest.prototype;
+                const originalXhrOpen = xhrProto.open;
+                xhrProto.open = function (...args) {
+                    throw new Error('This plugin is not allowed to call external APIs (missing "api" in manifest).');
+                };
+                restoreStack.push(() => { xhrProto.open = originalXhrOpen; });
+            }
+
+            if (typeof win.WebSocket === 'function') {
+                const originalWebSocket = win.WebSocket;
+                win.WebSocket = function () {
+                    throw new Error('This plugin is not allowed to open WebSocket connections (missing "api" in manifest).');
+                };
+                restoreStack.push(() => { win.WebSocket = originalWebSocket; });
+            }
+        }
+
+        if (!pluginMeta?.affectsStyle && win.document) {
+            const documentRef = win.document;
+            const originalCreateElement = documentRef.createElement.bind(documentRef);
+            documentRef.createElement = (tagName, ...rest) => {
+                const lower = String(tagName || '').toLowerCase();
+                if (lower === 'style' || lower === 'link') {
+                    throw new Error('This plugin is not allowed to modify styles/UI (affectsStyle=false).');
+                }
+                return originalCreateElement(tagName, ...rest);
+            };
+            restoreStack.push(() => { documentRef.createElement = originalCreateElement; });
+
+            if (win.Element && win.Element.prototype) {
+                const elementProto = win.Element.prototype;
+                const originalSetAttribute = elementProto.setAttribute;
+                elementProto.setAttribute = function (name, value) {
+                    if (String(name || '').toLowerCase() === 'style') {
+                        throw new Error('This plugin is not allowed to modify styles/UI (affectsStyle=false).');
+                    }
+                    return originalSetAttribute.call(this, name, value);
+                };
+                restoreStack.push(() => { elementProto.setAttribute = originalSetAttribute; });
+            }
+        }
+
+        if (!pluginMeta?.affectsBlocks && workspace && typeof workspace.updateToolbox === 'function') {
+            const originalUpdateToolbox = workspace.updateToolbox.bind(workspace);
+            workspace.updateToolbox = (...args) => {
+                throw new Error('This plugin is not allowed to modify Blockly blocks/toolbox (affectsBlocks=false).');
+            };
+            restoreStack.push(() => { workspace.updateToolbox = originalUpdateToolbox; });
+        }
+
+        return () => {
+            while (restoreStack.length) {
+                const restore = restoreStack.pop();
+                try {
+                    restore();
+                } catch (error) {
+                    console.warn('Failed to restore plugin capability guard', error);
+                }
+            }
+        };
+    }
+
+    validatePluginScriptCapabilities(pluginMeta) {
+        const script = String(pluginMeta?.script || '');
+        if (!script.trim()) return;
+
+        if (!pluginMeta?.affectsStyle) {
+            const stylePattern = /\bcreateElement\s*\(\s*['"`](style|link)['"`]|\bsetAttribute\s*\(\s*['"`]style['"`]|\.\s*style\s*\./i;
+            if (stylePattern.test(script)) {
+                throw new Error('This plugin script uses style/UI modification APIs but affectsStyle=false.');
+            }
+        }
+
+        if (!pluginMeta?.affectsBlocks) {
+            const blockPattern = /\bBlockly\.Blocks\b|\bupdateToolbox\s*\(/;
+            if (blockPattern.test(script)) {
+                throw new Error('This plugin script uses Blockly mutation APIs but affectsBlocks=false.');
+            }
+        }
+
+        if (!pluginMeta?.api) {
+            const apiPattern = /\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b|\bEventSource\b/;
+            if (apiPattern.test(script)) {
+                throw new Error('This plugin script uses external API/network features but "api" is not declared.');
+            }
+        }
+    }
+
     async enablePlugin(id) {
         if (this.plugins.has(id)) return;
 
         const pluginMeta = this.installedPlugins[id];
         if (!pluginMeta) return;
+        this.assertRequiredPluginsReady(id, pluginMeta);
+        this.validatePluginScriptCapabilities(pluginMeta);
         const beforeBlockTypes = new Set(
             Object.keys((typeof Blockly !== 'undefined' && Blockly?.Blocks) ? Blockly.Blocks : {})
         );
+        const restoreGuard = this.createPluginCapabilityGuard(pluginMeta);
 
         try {
             if (pluginMeta.script) {
@@ -806,11 +979,21 @@ export class PluginManager {
             } else if (pluginMeta.affectsStyle) {
                 this.plugins.set(id, { onunload: () => { } });
             }
+            restoreGuard();
 
             const afterBlockTypes = Object.keys(
                 (typeof Blockly !== 'undefined' && Blockly?.Blocks) ? Blockly.Blocks : {}
             );
             const detectedTypes = afterBlockTypes.filter((type) => !beforeBlockTypes.has(type));
+            if (!pluginMeta.affectsBlocks && detectedTypes.length > 0) {
+                const blocklyRef = (typeof Blockly !== 'undefined') ? Blockly : null;
+                detectedTypes.forEach((type) => {
+                    if (blocklyRef?.Blocks?.[type]) {
+                        delete blocklyRef.Blocks[type];
+                    }
+                });
+                throw new Error('This plugin added Blockly blocks while affectsBlocks=false.');
+            }
             const existingTypes = Array.isArray(pluginMeta.blockTypes) ? pluginMeta.blockTypes : [];
             const mergedTypes = Array.from(new Set([...existingTypes, ...detectedTypes]));
             if (mergedTypes.length > 0) {
@@ -821,10 +1004,9 @@ export class PluginManager {
             this.enabledPlugins.add(id);
             this.saveState();
         } catch (e) {
+            restoreGuard();
             console.error(`Failed to enable plugin ${id}:`, e);
-            // Re-throw if it's a critical error we want the UI to handle, 
-            // but for now, we just log it as the user requested "solution".
-            // Since the plugin code itself has the null error, we can catch it here.
+            throw e;
         }
 
     }
