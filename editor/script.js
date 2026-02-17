@@ -2036,9 +2036,16 @@ const initializeApp = async () => {
   const runBotBtnLabel = runBotBtn?.querySelector('span');
   const LOCAL_RUNNER_ORIGIN = 'http://localhost:6859';
   const currentHost = String(window.location.hostname || '').toLowerCase();
+  const runnerAllowedHosts = new Set([
+    'localhost',
+    '127.0.0.1',
+    '[::1]',
+    'himais0giiiin.com',
+    'beta.himais0giiiin.com',
+  ]);
   const canDirectConnectLocalRunner =
-    window.location.protocol === 'http:' &&
-    (currentHost === 'localhost' || currentHost === '127.0.0.1' || currentHost === '[::1]');
+    (window.location.protocol === 'http:' || window.location.protocol === 'https:') &&
+    runnerAllowedHosts.has(currentHost);
   const buildRunnerUrl = (path = '') => `${LOCAL_RUNNER_ORIGIN}${path}`;
   const getRunnerConnectionHintLines = () => [
     '[editor] この環境ではブラウザ制約により localhost:6859 へ直接接続できません。',
