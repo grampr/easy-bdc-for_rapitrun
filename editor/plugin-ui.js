@@ -79,8 +79,7 @@ export class PluginUI {
         if (this.pluginList) {
             this.pluginList.addEventListener('click', (event) => {
                 const clickedItem = event.target.closest('[data-plugin-key]');
-                if (clickedItem) return;
-                this.showEmptyDetail();
+                if (!clickedItem) return;
             });
         }
 
@@ -597,12 +596,12 @@ export class PluginUI {
                 <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
                     <i data-lucide="puzzle" class="w-8 h-8 text-slate-400"></i>
                 </div>
-                <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200">Plugin Detail</h3>
+                <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200">プラグイン詳細</h3>
                 <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    Select a plugin from the sidebar to open details.
+                    サイドバーからプラグインを選択して詳細を表示します。
                 </p>
                 <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                    Click the same plugin again to return to this screen.
+                    同じプラグインを再度クリックするとこの画面に戻ります。
                 </p>
             </div>
         `;
@@ -1077,8 +1076,6 @@ export class PluginUI {
                 this.showEmptyDetail();
                 return;
             }
-            this.currentDetailPluginKey = pluginKey;
-            this.updateSidebarSelectionState();
             if (isInstalled) {
                 this.showDetail(plugin);
             } else {
