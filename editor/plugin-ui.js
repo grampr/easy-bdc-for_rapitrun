@@ -44,6 +44,7 @@ export class PluginUI {
         this.newsFetchState = 'idle';
         this.newsFetchError = '';
         this.newsFetchedAt = 0;
+        this.currentDetailPluginKey = null;
 
         this.init();
     }
@@ -72,6 +73,14 @@ export class PluginUI {
             filterToggle.addEventListener('change', (e) => {
                 this.isOnlyInstalled = e.target.checked;
                 this.renderMarketplace();
+            });
+        }
+
+        if (this.pluginList) {
+            this.pluginList.addEventListener('click', (event) => {
+                const clickedItem = event.target.closest('[data-plugin-key]');
+                if (clickedItem) return;
+                this.showEmptyDetail();
             });
         }
 
@@ -562,6 +571,44 @@ export class PluginUI {
         }, 300);
     }
 
+    getPluginSelectionKey(plugin, isInstalled) {
+        if (isInstalled) return String(plugin?.id || '');
+        return String(plugin?.fullName || plugin?.repo || plugin?.name || '');
+    }
+
+    updateSidebarSelectionState() {
+        const nodes = this.pluginList?.querySelectorAll('[data-plugin-key]');
+        if (!nodes) return;
+        nodes.forEach((node) => {
+            const isActive = node.dataset.pluginKey === this.currentDetailPluginKey;
+            node.classList.toggle('ring-2', isActive);
+            node.classList.toggle('ring-indigo-500/60', isActive);
+            node.classList.toggle('dark:ring-indigo-400/60', isActive);
+        });
+    }
+
+    showEmptyDetail() {
+        this.currentDetailPluginKey = null;
+        this.updateSidebarSelectionState();
+        this.pluginDetailContent.classList.add('hidden');
+        this.pluginDetailEmpty.classList.remove('hidden');
+        this.pluginDetailEmpty.innerHTML = `
+            <div class="max-w-md text-center">
+                <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
+                    <i data-lucide="puzzle" class="w-8 h-8 text-slate-400"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200">Plugin Detail</h3>
+                <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                    Select a plugin from the sidebar to open details.
+                </p>
+                <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                    Click the same plugin again to return to this screen.
+                </p>
+            </div>
+        `;
+        lucide.createIcons();
+    }
+
     closeBulkInstall() {
         this.bulkInstallModal.classList.remove('show-modal');
         setTimeout(() => {
@@ -756,7 +803,7 @@ export class PluginUI {
             `;
         }
 
-        const items = this.getNewsItemsForPlugin(plugin).slice(0, 3);
+        const items = this.getNewsItemsForPlugin(plugin).slice(0, 1);
         if (!items.length) {
             return `
                 <div class="mb-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 p-4">
@@ -971,6 +1018,11 @@ export class PluginUI {
         const isEnabled = isInstalled && this.pluginManager.isPluginEnabled(plugin.id);
         const item = document.createElement('div');
         item.className = `p-3 rounded-lg cursor-pointer transition-colors ${isEnabled ? 'bg-indigo-50/50 dark:bg-indigo-900/20' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`;
+        const pluginKey = this.getPluginSelectionKey(plugin, isInstalled);
+        item.dataset.pluginKey = pluginKey;
+        if (pluginKey && pluginKey === this.currentDetailPluginKey) {
+            item.classList.add('ring-2', 'ring-indigo-500/60', 'dark:ring-indigo-400/60');
+        }
 
         const level = plugin.trustLevel?.level ?? plugin.trustLevel;
 
@@ -1020,12 +1072,26 @@ export class PluginUI {
                 </div>
             </div>
         `;
-        item.addEventListener('click', () => isInstalled ? this.showDetail(plugin) : this.showGitHubDetail(plugin));
+        item.addEventListener('click', () => {
+            if (this.currentDetailPluginKey && this.currentDetailPluginKey === pluginKey) {
+                this.showEmptyDetail();
+                return;
+            }
+            this.currentDetailPluginKey = pluginKey;
+            this.updateSidebarSelectionState();
+            if (isInstalled) {
+                this.showDetail(plugin);
+            } else {
+                this.showGitHubDetail(plugin);
+            }
+        });
         this.pluginList.appendChild(item);
         return item;
     }
 
     async showGitHubDetail(plugin) {
+        this.currentDetailPluginKey = this.getPluginSelectionKey(plugin, false);
+        this.updateSidebarSelectionState();
         this.pluginDetailEmpty.classList.add('hidden');
         this.pluginDetailContent.classList.remove('hidden');
         this.pluginDetailContent.innerHTML = '<div class="p-8 text-center text-slate-500">GitHubから情報を取得中...</div>';
@@ -1240,6 +1306,8 @@ export class PluginUI {
     }
 
     showDetail(plugin) {
+        this.currentDetailPluginKey = this.getPluginSelectionKey(plugin, true);
+        this.updateSidebarSelectionState();
         this.pluginDetailEmpty.classList.add('hidden');
         this.pluginDetailContent.classList.remove('hidden');
 
@@ -1436,8 +1504,7 @@ export class PluginUI {
                     try {
                         await this.pluginManager.uninstallPlugin(plugin.id);
                         this.renderMarketplace();
-                        this.pluginDetailContent.classList.add('hidden');
-                        this.pluginDetailEmpty.classList.remove('hidden');
+                        this.showEmptyDetail();
                         alert('プラグインを削除しました。');
                     } catch (err) {
                         alert('削除に失敗しました: ' + err.message);

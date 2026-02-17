@@ -2,6 +2,8 @@
  * EDBP Plugin System
  * Plugin management with GitHub discovery, trust levels, and uninstallation.
  */
+const EDBB_CURRENT_APP_VERSION = '1.0.0';
+const EDBB_PLUGIN_VERSION_PATTERN = /^\d+\.\d+\.[01]$/;
 
 export class PluginManager {
     /**
@@ -305,7 +307,7 @@ export class PluginManager {
      * @returns {object} { valid: boolean, missing: string[] }
      */
     validateManifest(manifest) {
-        const required = ['name', 'version', 'author', 'affectsStyle', 'affectsBlocks'];
+        const required = ['name', 'version', 'author', 'affectsStyle', 'affectsBlocks', 'minAppVersion'];
         const missing = [];
 
         required.forEach(field => {
@@ -313,6 +315,47 @@ export class PluginManager {
                 missing.push(field);
             }
         });
+
+        if (typeof manifest.version === 'string' && !EDBB_PLUGIN_VERSION_PATTERN.test(manifest.version)) {
+            missing.push('version (must be major.minor.runtime, runtime is 0=JavaScript or 1=PHP)');
+        }
+
+        if (typeof manifest.minAppVersion === 'string' && !EDBB_PLUGIN_VERSION_PATTERN.test(manifest.minAppVersion)) {
+            missing.push('minAppVersion (must be major.minor.runtime, runtime is 0=JavaScript or 1=PHP)');
+        }
+
+        if (typeof manifest.minAppVersion === 'string' && manifest.minAppVersion !== EDBB_CURRENT_APP_VERSION) {
+            missing.push(`minAppVersion (must be ${EDBB_CURRENT_APP_VERSION} for current app compatibility)`);
+        }
+
+        if (manifest.externalPackages !== undefined) {
+            const isValidExternalPackages = Array.isArray(manifest.externalPackages)
+                && manifest.externalPackages.every((pkg) => typeof pkg === 'string' && pkg.trim() !== '');
+            if (!isValidExternalPackages) {
+                missing.push('externalPackages (string[])');
+            }
+        }
+
+        if (manifest.requiredPlugins !== undefined) {
+            const isValidRequiredPlugins = Array.isArray(manifest.requiredPlugins)
+                && manifest.requiredPlugins.every((pluginId) => typeof pluginId === 'string' && pluginId.trim() !== '');
+            if (!isValidRequiredPlugins) {
+                missing.push('requiredPlugins (string[])');
+            }
+        }
+
+        if (manifest.api !== undefined) {
+            const api = manifest.api;
+            const isObject = api && typeof api === 'object' && !Array.isArray(api);
+            const hasValidName = typeof api?.name === 'string' && api.name.trim() !== '';
+            if (!isObject || !hasValidName) {
+                missing.push('api (object with non-empty name)');
+            }
+        }
+
+        if (Object.prototype.hasOwnProperty.call(manifest, 'license')) {
+            missing.push('license (removed field)');
+        }
 
         return {
             valid: missing.length === 0,
