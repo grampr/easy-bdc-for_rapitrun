@@ -30,6 +30,7 @@ export class PluginManager {
     constructor(workspace) {
         this.workspace = workspace;
         this.plugins = new Map();
+        this.warnedDeprecatedLicenseKeys = new Set();
         this.externalDocDatasets = [
             {
                 key: 'manifest',
@@ -60,6 +61,11 @@ export class PluginManager {
             } else if (p.installedFrom === undefined) {
                 // 明示されていない場合はlocal(0)
                 p.installedFrom = 0;
+                modified = true;
+            }
+            if (p && Object.prototype.hasOwnProperty.call(p, 'license')) {
+                this.warnDeprecatedLicense(p);
+                delete p.license;
                 modified = true;
             }
         });
@@ -306,15 +312,37 @@ export class PluginManager {
      * @param {object} manifest 
      * @returns {object} { valid: boolean, missing: string[] }
      */
+    warnDeprecatedLicense(manifest) {
+        const key = String(manifest?.uuid || manifest?.id || manifest?.name || 'unknown');
+        if (this.warnedDeprecatedLicenseKeys.has(key)) return;
+        this.warnedDeprecatedLicenseKeys.add(key);
+        console.warn('manifest license field is deprecated and ignored.');
+    }
+
     validateManifest(manifest) {
         const required = ['name', 'version', 'author', 'affectsStyle', 'affectsBlocks', 'minAppVersion'];
         const missing = [];
+
+        if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+            return {
+                valid: false,
+                missing: ['manifest (object)']
+            };
+        }
 
         required.forEach(field => {
             if (manifest[field] === undefined || manifest[field] === null || manifest[field] === '') {
                 missing.push(field);
             }
         });
+
+        if (manifest.affectsStyle !== undefined && typeof manifest.affectsStyle !== 'boolean') {
+            missing.push('affectsStyle (boolean)');
+        }
+
+        if (manifest.affectsBlocks !== undefined && typeof manifest.affectsBlocks !== 'boolean') {
+            missing.push('affectsBlocks (boolean)');
+        }
 
         if (manifest.minAppVersion !== undefined && manifest.minAppVersion !== null && manifest.minAppVersion !== '') {
             if (typeof manifest.minAppVersion !== 'string') {
@@ -359,7 +387,7 @@ export class PluginManager {
         }
 
         if (Object.prototype.hasOwnProperty.call(manifest, 'license')) {
-            console.warn('manifest license field is deprecated and ignored.');
+            this.warnDeprecatedLicense(manifest);
         }
 
         return {
@@ -739,6 +767,7 @@ export class PluginManager {
             if (scriptText) {
                 manifest.script = scriptText;
             }
+            this.validatePluginScriptCapabilities(manifest);
 
             manifest.installedFrom = 1; // 1: github
             manifest.installRef = ref; // インストール時のブランチ/タグ/URLを記録
@@ -809,6 +838,7 @@ export class PluginManager {
             if (scriptFile) {
                 manifest.script = await scriptFile.async("string");
             }
+            this.validatePluginScriptCapabilities(manifest);
 
             manifest.installedFrom = 0; // 0: local
             manifest.trustLevel = this.getManifestTrustLevel(manifest);
