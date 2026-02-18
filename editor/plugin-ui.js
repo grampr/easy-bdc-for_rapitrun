@@ -1310,6 +1310,7 @@ export class PluginUI {
 
         const isEnabled = this.pluginManager.isPluginEnabled(plugin.id);
         const isBuiltin = plugin.id === 'vanilla-plugin';
+        const repoInfo = this.pluginManager.parseGitHubUrl(plugin.source || plugin.repo || '');
 
         const level = plugin.trustLevel?.level ?? plugin.trustLevel;
         const badges = [];
@@ -1384,6 +1385,7 @@ export class PluginUI {
                     <button id="sharePluginBtn" class="p-2 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:text-slate-400 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/20 transition-all" title="共有・エクスポート">
                         <i data-lucide="share-2" class="w-5 h-5"></i>
                     </button>
+                    <span id="pluginUpdateBtnSlot"></span>
                     <button id="togglePluginBtn" ${(!validation.valid || isInvalid) ? 'disabled' : ''} class="flex items-center justify-center gap-2 px-6 py-2 rounded-lg font-bold ${(!validation.valid || isInvalid) ? 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600' : isEnabled ? 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-200' : 'bg-indigo-600 text-white hover:bg-indigo-700'} transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                         <span class="btn-text">${(!validation.valid || isInvalid) ? '使用不可' : isEnabled ? '無効化' : '有効化'}</span>
                     </button>
@@ -1426,6 +1428,8 @@ export class PluginUI {
         }
 
         this.loadLocalREADME(plugin);
+
+        void this.mountUpdateButtonIfNeeded(plugin, repoInfo);
 
         const toggleBtn = document.getElementById('togglePluginBtn');
         toggleBtn.addEventListener('click', async () => {
@@ -1508,6 +1512,117 @@ export class PluginUI {
                     }
                 }
             });
+        }
+    }
+
+    async resolveLatestRefForUpdate(fullName) {
+        const releases = await this.pluginManager.getReleases(fullName);
+        if (!Array.isArray(releases) || releases.length === 0) return 'main';
+
+        const stable = releases.find((release) => !release?.draft && !release?.prerelease && release?.tag_name);
+        if (stable?.tag_name) return stable.tag_name;
+
+        const firstTagged = releases.find((release) => !release?.draft && release?.tag_name);
+        return firstTagged?.tag_name || 'main';
+    }
+
+    compareVersionNumbers(currentVersion, latestVersion) {
+        const currentTokens = String(currentVersion || '').match(/\d+/g)?.map((n) => Number(n)) || [];
+        const latestTokens = String(latestVersion || '').match(/\d+/g)?.map((n) => Number(n)) || [];
+        if (currentTokens.length === 0 || latestTokens.length === 0) return null;
+
+        const maxLength = Math.max(currentTokens.length, latestTokens.length);
+        for (let i = 0; i < maxLength; i++) {
+            const current = currentTokens[i] ?? 0;
+            const latest = latestTokens[i] ?? 0;
+            if (latest > current) return 1;
+            if (latest < current) return -1;
+        }
+        return 0;
+    }
+
+    isUpdateAvailable(currentVersion, latestVersion) {
+        const currentText = String(currentVersion || '').trim();
+        const latestText = String(latestVersion || '').trim();
+        if (!currentText || !latestText) return false;
+        if (currentText === latestText) return false;
+
+        const compared = this.compareVersionNumbers(currentText, latestText);
+        if (compared === null) {
+            return true;
+        }
+        return compared > 0;
+    }
+
+    async mountUpdateButtonIfNeeded(plugin, repoInfo) {
+        if (plugin.installedFrom !== 1 || !repoInfo?.fullName) return;
+
+        const expectedDetailKey = this.getPluginSelectionKey(plugin, true);
+        const slot = document.getElementById('pluginUpdateBtnSlot');
+        if (!slot) return;
+        slot.innerHTML = '';
+
+        try {
+            const targetRef = await this.resolveLatestRefForUpdate(repoInfo.fullName);
+            const latestManifest = await this.pluginManager.getManifestFromGitHub(repoInfo.fullName, targetRef);
+            const latestVersion = latestManifest?.version;
+            const hasUpdate = this.isUpdateAvailable(plugin.version, latestVersion);
+
+            if (!hasUpdate) return;
+            if (this.currentDetailPluginKey !== expectedDetailKey) return;
+
+            slot.innerHTML = `
+                <button id="updatePluginBtn" class="flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all" title="GitHub から最新版に更新">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    <span>更新</span>
+                </button>
+            `;
+            lucide.createIcons();
+
+            const updateBtn = document.getElementById('updatePluginBtn');
+            if (!updateBtn) return;
+            updateBtn.addEventListener('click', async () => {
+                await this.updateInstalledPlugin(plugin, repoInfo.fullName, updateBtn);
+            });
+        } catch (error) {
+            // 更新判定の失敗は画面を壊さない
+        }
+    }
+
+    async updateInstalledPlugin(plugin, fullName, buttonElement) {
+        if (!buttonElement) return;
+
+        const wasEnabled = this.pluginManager.isPluginEnabled(plugin.id);
+        const originalHtml = buttonElement.innerHTML;
+        buttonElement.disabled = true;
+        buttonElement.innerHTML = '<i class="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></i><span>更新中...</span>';
+
+        try {
+            const targetRef = await this.resolveLatestRefForUpdate(fullName);
+            if (wasEnabled) {
+                await this.pluginManager.disablePlugin(plugin.id);
+            }
+
+            const manifest = await this.pluginManager.installFromGitHub(fullName, targetRef);
+            if (wasEnabled) {
+                await this.pluginManager.enablePlugin(manifest.id);
+            }
+
+            this.renderMarketplace();
+            this.showDetail(manifest);
+            alert(`プラグインを更新しました: ${plugin.version} -> ${manifest.version}`);
+        } catch (error) {
+            if (wasEnabled && !this.pluginManager.isPluginEnabled(plugin.id)) {
+                try {
+                    await this.pluginManager.enablePlugin(plugin.id);
+                } catch (restoreError) {
+                    console.error('Failed to restore plugin state after update failure:', restoreError);
+                }
+            }
+            alert('プラグインの更新に失敗しました: ' + error.message);
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = originalHtml;
+            lucide.createIcons();
         }
     }
 
