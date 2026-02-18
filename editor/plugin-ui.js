@@ -45,8 +45,142 @@ export class PluginUI {
         this.newsFetchError = '';
         this.newsFetchedAt = 0;
         this.currentDetailPluginKey = null;
+        this.sideErrorToast = null;
+        this.sideErrorToastTimer = null;
+        this.deleteAgreementModal = null;
 
         this.init();
+    }
+
+    showSideToast(message, state = 'success') {
+        if (!message) return;
+        if (!this.sideErrorToast) {
+            const toast = document.createElement('div');
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.style.position = 'fixed';
+            toast.style.top = '88px';
+            toast.style.right = '16px';
+            toast.style.maxWidth = 'min(420px, calc(100vw - 24px))';
+            toast.style.padding = '12px 14px';
+            toast.style.borderRadius = '10px';
+            toast.style.fontSize = '13px';
+            toast.style.fontWeight = '600';
+            toast.style.lineHeight = '1.4';
+            toast.style.boxShadow = '0 12px 28px -12px rgba(15, 23, 42, 0.65)';
+            toast.style.zIndex = '220';
+            toast.style.whiteSpace = 'pre-wrap';
+            toast.style.pointerEvents = 'none';
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(120%)';
+            toast.style.transition = 'opacity 220ms ease, transform 220ms ease';
+            document.body.appendChild(toast);
+            this.sideErrorToast = toast;
+        }
+
+        if (state === 'error') {
+            this.sideErrorToast.style.border = '1px solid rgba(248, 113, 113, 0.45)';
+            this.sideErrorToast.style.background = 'rgba(127, 29, 29, 0.95)';
+            this.sideErrorToast.style.color = '#fee2e2';
+        } else if (state === 'share') {
+            this.sideErrorToast.style.border = '1px solid rgba(96, 165, 250, 0.45)';
+            this.sideErrorToast.style.background = 'rgba(30, 64, 175, 0.95)';
+            this.sideErrorToast.style.color = '#dbeafe';
+        } else {
+            this.sideErrorToast.style.border = '1px solid rgba(74, 222, 128, 0.45)';
+            this.sideErrorToast.style.background = 'rgba(22, 101, 52, 0.95)';
+            this.sideErrorToast.style.color = '#dcfce7';
+        }
+
+        this.sideErrorToast.textContent = String(message);
+        this.sideErrorToast.style.opacity = '1';
+        this.sideErrorToast.style.transform = 'translateX(0)';
+
+        if (this.sideErrorToastTimer) {
+            clearTimeout(this.sideErrorToastTimer);
+        }
+        this.sideErrorToastTimer = setTimeout(() => {
+            if (!this.sideErrorToast) return;
+            this.sideErrorToast.style.opacity = '0';
+            this.sideErrorToast.style.transform = 'translateX(120%)';
+        }, 4200);
+    }
+
+    showSideError(message) {
+        this.showSideToast(message, 'error');
+    }
+
+    showSideSuccess(message) {
+        this.showSideToast(message, 'success');
+    }
+
+    showSideShare(message) {
+        this.showSideToast(message, 'share');
+    }
+
+    ensureDeleteAgreementModal() {
+        if (this.deleteAgreementModal) return this.deleteAgreementModal;
+        const modal = document.createElement('div');
+        modal.className = 'hidden fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm';
+        modal.innerHTML = `
+            <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">プラグインを削除</h3>
+                </div>
+                <div class="px-5 py-4 space-y-3">
+                    <p id="deleteAgreementText" class="text-sm text-slate-600 dark:text-slate-300"></p>
+                    <label class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+                        <input id="deleteAgreementCheckbox" type="checkbox" class="mt-0.5 w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500">
+                        <span>説明を確認し、削除に同意します</span>
+                    </label>
+                </div>
+                <div class="px-5 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+                    <button id="deleteAgreementCancelBtn" type="button" class="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">キャンセル</button>
+                    <button id="deleteAgreementConfirmBtn" type="button" disabled class="px-4 py-2 rounded-lg bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-700">削除する</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        this.deleteAgreementModal = modal;
+        return modal;
+    }
+
+    confirmDeleteWithAgreement(pluginName) {
+        const modal = this.ensureDeleteAgreementModal();
+        const text = modal.querySelector('#deleteAgreementText');
+        const checkbox = modal.querySelector('#deleteAgreementCheckbox');
+        const cancelBtn = modal.querySelector('#deleteAgreementCancelBtn');
+        const confirmBtn = modal.querySelector('#deleteAgreementConfirmBtn');
+        if (!text || !checkbox || !cancelBtn || !confirmBtn) return Promise.resolve(false);
+
+        text.textContent = `「${pluginName}」を削除します。削除後は元に戻せません。`;
+        checkbox.checked = false;
+        confirmBtn.disabled = true;
+        modal.classList.remove('hidden');
+
+        return new Promise((resolve) => {
+            const close = (result) => {
+                modal.classList.add('hidden');
+                checkbox.removeEventListener('change', onChange);
+                cancelBtn.removeEventListener('click', onCancel);
+                confirmBtn.removeEventListener('click', onConfirm);
+                modal.removeEventListener('click', onBackdrop);
+                resolve(result);
+            };
+            const onChange = () => {
+                confirmBtn.disabled = !checkbox.checked;
+            };
+            const onCancel = () => close(false);
+            const onConfirm = () => close(true);
+            const onBackdrop = (event) => {
+                if (event.target === modal) close(false);
+            };
+
+            checkbox.addEventListener('change', onChange);
+            cancelBtn.addEventListener('click', onCancel);
+            confirmBtn.addEventListener('click', onConfirm);
+            modal.addEventListener('click', onBackdrop);
+        });
     }
 
     init() {
@@ -107,9 +241,9 @@ export class PluginUI {
                 try {
                     await this.pluginManager.installFromZip(file);
                     this.renderMarketplace();
-                    alert('プラグインをインストールしました。');
+                    this.showSideSuccess('プラグインをインストールしました。');
                 } catch (err) {
-                    alert('プラグインのインストールに失敗しました: ' + err.message);
+                    this.showSideError('プラグインのインストールに失敗しました: ' + err.message);
                 }
                 e.target.value = '';
             });
@@ -123,7 +257,7 @@ export class PluginUI {
                 if (confirm('すべてのプラグインと設定を完全に削除し、初期状態に戻しますか？\nこの操作は取り消せません。')) {
                     this.pluginManager.resetSystem();
                     this.renderMarketplace();
-                    alert('システムが完全にリセットされました。');
+                    this.showSideSuccess('システムが完全にリセットされました。');
                 }
             });
         }
@@ -148,7 +282,7 @@ export class PluginUI {
                 );
 
                 if (enabledPlugins.length === 0) {
-                    alert('共有可能な有効なプラグインがありません。\n(GitHubからインストールされたものが対象です)');
+                    this.showSideError('共有可能な有効なプラグインがありません。\n(GitHubからインストールされたものが対象です)');
                     return;
                 }
 
@@ -163,7 +297,7 @@ export class PluginUI {
                 }).filter(name => name !== null);
 
                 if (repoNames.length === 0) {
-                    alert('共有可能なプラグインが見つかりませんでした。');
+                    this.showSideError('共有可能なプラグインが見つかりませんでした。');
                     return;
                 }
 
@@ -171,9 +305,9 @@ export class PluginUI {
                 const shareUrl = `${baseUrl}?install-plugins=${encodeURIComponent(repoNames.join(','))}`;
 
                 navigator.clipboard.writeText(shareUrl).then(() => {
-                    alert('有効なプラグインを一括インストールするためのURLをコピーしました！');
+                    this.showSideShare('有効なプラグインを一括インストールするためのURLをコピーしました！');
                 }).catch(err => {
-                    alert('URLのコピーに失敗しました。\n' + shareUrl);
+                    this.showSideError('URLのコピーに失敗しました。\n' + shareUrl);
                 });
             });
         }
@@ -410,7 +544,7 @@ export class PluginUI {
                 .map(cb => cb.value);
 
             if (selectedEntries.length === 0) {
-                alert('インストールするプラグインを選択してください。');
+                this.showSideError('インストールするプラグインを選択してください。');
                 return;
             }
 
@@ -436,7 +570,11 @@ export class PluginUI {
                 }
             }
 
-            alert(`${successCount}個のプラグインをインストールしました。${failCount > 0 ? `\n${failCount}個のインストールに失敗しました。` : ''}`);
+            if (failCount > 0) {
+                this.showSideError(`${successCount}個のプラグインをインストールしました。\n${failCount}個のインストールに失敗しました。`);
+            } else {
+                this.showSideSuccess(`${successCount}個のプラグインをインストールしました。`);
+            }
             this.bulkInstallConfirmBtn.disabled = false;
             this.bulkInstallConfirmBtn.innerHTML = originalText;
             this.closeBulkInstall();
@@ -1285,16 +1423,16 @@ export class PluginUI {
 
                     this.renderMarketplace();
                     this.showDetail(mockManifest);
-                    alert('テスト用プラグインを擬似インストールしました！');
+                    this.showSideSuccess('テスト用プラグインを擬似インストールしました！');
                     return;
                 }
 
                 const manifest = await this.pluginManager.installFromGitHub(plugin.fullName, zipUrl);
                 this.renderMarketplace();
                 this.showDetail(manifest);
-                alert('インストールが完了しました！');
+                this.showSideSuccess('インストールが完了しました！');
             } catch (err) {
-                alert('インストールに失敗しました: ' + err.message);
+                this.showSideError('インストールに失敗しました: ' + err.message);
                 installBtn.disabled = false;
                 installBtn.innerHTML = originalContent;
                 lucide.createIcons();
@@ -1458,7 +1596,7 @@ export class PluginUI {
                 this.showDetail(plugin);
             } catch (error) {
                 console.error('Plugin toggle failed:', error);
-                alert('プラグインの切り替えに失敗しました: ' + error.message);
+                this.showSideError('プラグインの切り替えに失敗しました: ' + error.message);
                 btnText.textContent = originalText;
                 toggleBtn.disabled = false;
             }
@@ -1473,17 +1611,17 @@ export class PluginUI {
                 if (installUrl) {
                     try {
                         await navigator.clipboard.writeText(installUrl);
-                        alert('このプラグインを共有するためのURLをコピーしました！\nこのリンクを開くと、直接インストール画面が表示されます。');
+                        this.showSideShare('このプラグインを共有するためのURLをコピーしました！\nこのリンクを開くと、直接インストール画面が表示されます。');
                     } catch (e) {
-                        alert('URLのコピーに失敗しました: ' + installUrl);
+                        this.showSideError('URLのコピーに失敗しました: ' + installUrl);
                     }
                 } else if (plugin.repo) {
                     // フォールバック: リポジトリURL
                     try {
                         await navigator.clipboard.writeText(plugin.repo);
-                        alert('リポジトリのURLをコピーしました！');
+                        this.showSideShare('リポジトリのURLをコピーしました！');
                     } catch (e) {
-                        alert('URLのコピーに失敗しました: ' + plugin.repo);
+                        this.showSideError('URLのコピーに失敗しました: ' + plugin.repo);
                     }
                 }
             } else if (!isSharable) {
@@ -1492,7 +1630,7 @@ export class PluginUI {
                     try {
                         await this.pluginManager.exportPluginAsZip(plugin.id);
                     } catch (e) {
-                        alert('エクスポートに失敗しました: ' + e.message);
+                        this.showSideError('エクスポートに失敗しました: ' + e.message);
                     }
                 }
             }
@@ -1501,15 +1639,15 @@ export class PluginUI {
         const uninstallBtn = document.getElementById('uninstallPluginBtn');
         if (uninstallBtn) {
             uninstallBtn.addEventListener('click', async () => {
-                if (confirm(`プラグイン「${plugin.name}」を削除してもよろしいですか？`)) {
-                    try {
-                        await this.pluginManager.uninstallPlugin(plugin.id);
-                        this.renderMarketplace();
-                        this.showEmptyDetail();
-                        alert('プラグインを削除しました。');
-                    } catch (err) {
-                        alert('削除に失敗しました: ' + err.message);
-                    }
+                const agreed = await this.confirmDeleteWithAgreement(plugin.name);
+                if (!agreed) return;
+                try {
+                    await this.pluginManager.uninstallPlugin(plugin.id);
+                    this.renderMarketplace();
+                    this.showEmptyDetail();
+                    this.showSideSuccess('プラグインを削除しました。');
+                } catch (err) {
+                    this.showSideError('削除に失敗しました: ' + err.message);
                 }
             });
         }
@@ -1610,7 +1748,7 @@ export class PluginUI {
 
             this.renderMarketplace();
             this.showDetail(manifest);
-            alert(`プラグインを更新しました: ${plugin.version} -> ${manifest.version}`);
+            this.showSideSuccess(`プラグインを更新しました: ${plugin.version} -> ${manifest.version}`);
         } catch (error) {
             if (wasEnabled && !this.pluginManager.isPluginEnabled(plugin.id)) {
                 try {
@@ -1619,7 +1757,7 @@ export class PluginUI {
                     console.error('Failed to restore plugin state after update failure:', restoreError);
                 }
             }
-            alert('プラグインの更新に失敗しました: ' + error.message);
+            this.showSideError('プラグインの更新に失敗しました: ' + error.message);
             buttonElement.disabled = false;
             buttonElement.innerHTML = originalHtml;
             lucide.createIcons();
