@@ -45,6 +45,8 @@ export class PluginUI {
         this.newsFetchError = '';
         this.newsFetchedAt = 0;
         this.currentDetailPluginKey = null;
+        this.updateCheckCache = new Map();
+        this.updateCheckTtlMs = 5 * 60 * 1000;
         this.sideErrorToast = null;
         this.sideErrorToastTimer = null;
         this.deleteAgreementModal = null;
@@ -1209,6 +1211,15 @@ export class PluginUI {
                 </div>
             </div>
         `;
+        if (isInstalled && plugin.installedFrom === 1) {
+            const content = item.querySelector('.flex-grow.min-w-0');
+            if (content) {
+                const badgeWrap = document.createElement('div');
+                badgeWrap.className = 'mt-1';
+                badgeWrap.innerHTML = '<span data-update-badge class="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">checking...</span>';
+                content.appendChild(badgeWrap);
+            }
+        }
         item.addEventListener('click', () => {
             if (this.currentDetailPluginKey && this.currentDetailPluginKey === pluginKey) {
                 this.showEmptyDetail();
@@ -1221,7 +1232,67 @@ export class PluginUI {
             }
         });
         this.pluginList.appendChild(item);
+        if (isInstalled) {
+            void this.refreshInstalledUpdateBadge(plugin, item, pluginKey);
+        }
         return item;
+    }
+
+    getInstalledUpdateCacheKey(plugin, fullName) {
+        return [
+            plugin?.id || '',
+            plugin?.version || '',
+            plugin?.installRef || 'main',
+            fullName || ''
+        ].join('::');
+    }
+
+    applyInstalledUpdateBadge(item, pluginKey, status) {
+        if (!item?.isConnected) return;
+        if (item.dataset.pluginKey !== pluginKey) return;
+        const badge = item.querySelector('[data-update-badge]');
+        if (!badge) return;
+
+        if (!status?.hasUpdate) {
+            badge.parentElement?.remove();
+            return;
+        }
+
+        badge.className = 'inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300';
+        badge.textContent = 'update';
+        badge.title = status?.title || 'Update available';
+    }
+
+    async refreshInstalledUpdateBadge(plugin, item, pluginKey) {
+        if (!plugin || plugin.installedFrom !== 1) return;
+        const repoInfo = this.pluginManager.parseGitHubUrl(plugin.source || plugin.repo || '');
+        if (!repoInfo?.fullName) return;
+
+        const cacheKey = this.getInstalledUpdateCacheKey(plugin, repoInfo.fullName);
+        const now = Date.now();
+        const cached = this.updateCheckCache.get(cacheKey);
+        if (cached && (now - cached.checkedAt) < this.updateCheckTtlMs) {
+            this.applyInstalledUpdateBadge(item, pluginKey, cached);
+            return;
+        }
+
+        try {
+            const updateContext = await this.resolveUpdateContext(repoInfo.fullName, plugin);
+            const latestManifest = await this.pluginManager.getManifestFromGitHub(repoInfo.fullName, updateContext.targetRef);
+            const latestVersion = latestManifest?.version;
+            const hasUpdate = updateContext.forceShowUpdate || this.isUpdateAvailable(plugin.version, latestVersion);
+            const status = {
+                hasUpdate,
+                title: latestVersion ? `current: ${plugin.version} / latest: ${latestVersion}` : 'Update candidate available',
+                checkedAt: now
+            };
+            this.updateCheckCache.set(cacheKey, status);
+            this.applyInstalledUpdateBadge(item, pluginKey, status);
+        } catch (error) {
+            const status = { hasUpdate: false, checkedAt: now };
+            this.updateCheckCache.set(cacheKey, status);
+            this.applyInstalledUpdateBadge(item, pluginKey, status);
+        }
     }
 
     async showGitHubDetail(plugin) {
@@ -1653,15 +1724,46 @@ export class PluginUI {
         }
     }
 
-    async resolveLatestRefForUpdate(fullName) {
+    async resolveUpdateContext(fullName, plugin) {
         const releases = await this.pluginManager.getReleases(fullName);
-        if (!Array.isArray(releases) || releases.length === 0) return 'main';
+        const releaseTags = Array.isArray(releases)
+            ? releases
+                .filter((release) => !release?.draft && release?.tag_name)
+                .map((release) => String(release.tag_name))
+            : [];
+
+        const installRef = String(plugin?.installRef || '').trim();
+        const hasPinnedRef = Boolean(installRef) && installRef !== 'main';
+        const isReleaseTagRef = hasPinnedRef && releaseTags.includes(installRef);
+
+        // ブランチ指定で導入されたプラグインは、同じrefを追従する。
+        if (hasPinnedRef && !isReleaseTagRef) {
+            return {
+                targetRef: installRef,
+                forceShowUpdate: true
+            };
+        }
+
+        if (!Array.isArray(releases) || releases.length === 0) {
+            return {
+                targetRef: 'main',
+                forceShowUpdate: false
+            };
+        }
 
         const stable = releases.find((release) => !release?.draft && !release?.prerelease && release?.tag_name);
-        if (stable?.tag_name) return stable.tag_name;
+        if (stable?.tag_name) {
+            return {
+                targetRef: stable.tag_name,
+                forceShowUpdate: false
+            };
+        }
 
         const firstTagged = releases.find((release) => !release?.draft && release?.tag_name);
-        return firstTagged?.tag_name || 'main';
+        return {
+            targetRef: firstTagged?.tag_name || 'main',
+            forceShowUpdate: false
+        };
     }
 
     compareVersionNumbers(currentVersion, latestVersion) {
@@ -1701,10 +1803,11 @@ export class PluginUI {
         slot.innerHTML = '';
 
         try {
-            const targetRef = await this.resolveLatestRefForUpdate(repoInfo.fullName);
+            const updateContext = await this.resolveUpdateContext(repoInfo.fullName, plugin);
+            const targetRef = updateContext.targetRef;
             const latestManifest = await this.pluginManager.getManifestFromGitHub(repoInfo.fullName, targetRef);
             const latestVersion = latestManifest?.version;
-            const hasUpdate = this.isUpdateAvailable(plugin.version, latestVersion);
+            const hasUpdate = updateContext.forceShowUpdate || this.isUpdateAvailable(plugin.version, latestVersion);
 
             if (!hasUpdate) return;
             if (this.currentDetailPluginKey !== expectedDetailKey) return;
@@ -1736,7 +1839,8 @@ export class PluginUI {
         buttonElement.innerHTML = '<i class="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></i><span>更新中...</span>';
 
         try {
-            const targetRef = await this.resolveLatestRefForUpdate(fullName);
+            const updateContext = await this.resolveUpdateContext(fullName, plugin);
+            const targetRef = updateContext.targetRef;
             if (wasEnabled) {
                 await this.pluginManager.disablePlugin(plugin.id);
             }
