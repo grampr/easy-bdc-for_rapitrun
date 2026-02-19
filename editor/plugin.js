@@ -38,6 +38,7 @@ export class PluginManager {
                 await new Promise(r => setTimeout(r, backoff * (i + 1)));
             }
         }
+        throw new Error('fetchWithRetry exhausted retries without a response');
     }
 
     constructor(workspace) {
@@ -222,6 +223,9 @@ export class PluginManager {
 
             const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc`;
             const response = await this.fetchWithRetry(url);
+            if (!response) {
+                throw new Error('GitHub API request failed: no response');
+            }
 
             if (!response.ok) {
                 if (response.status === 403) throw new Error('GitHub API Rate Limit Exceeded');
@@ -229,6 +233,9 @@ export class PluginManager {
             }
 
             let data = await response.json();
+            if (!data || !Array.isArray(data.items)) {
+                return [];
+            }
 
             // 検索結果の整形
             let items = data.items.map(repo => {
