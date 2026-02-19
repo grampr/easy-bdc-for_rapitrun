@@ -3,7 +3,20 @@
  * Plugin management with GitHub discovery, trust levels, and uninstallation.
  */
 const EDBB_CURRENT_APP_VERSION = '1.0.0';
-const EDBB_PLUGIN_VERSION_PATTERN = /^\d+\.\d+\.[01]$/;
+const EDBB_PLUGIN_VERSION_PATTERN = /^(\d+)\.(\d+)\.([01])$/;
+const EDBB_SUPPORTED_PLUGIN_RUNTIMES = new Set(['0', '1']);
+
+const parsePluginVersion = (versionText) => {
+    const match = String(versionText || '').match(EDBB_PLUGIN_VERSION_PATTERN);
+    if (!match) return null;
+    return {
+        major: Number(match[1]),
+        minor: Number(match[2]),
+        runtime: match[3]
+    };
+};
+
+const EDBB_CURRENT_APP_VERSION_INFO = parsePluginVersion(EDBB_CURRENT_APP_VERSION);
 
 export class PluginManager {
     /**
@@ -344,16 +357,30 @@ export class PluginManager {
             missing.push('affectsBlocks (boolean)');
         }
 
+        const minAppVersionText = String(manifest.minAppVersion || '');
+        const parsedMinAppVersion = parsePluginVersion(minAppVersionText);
+
         if (manifest.minAppVersion !== undefined && manifest.minAppVersion !== null && manifest.minAppVersion !== '') {
             if (typeof manifest.minAppVersion !== 'string') {
                 missing.push('minAppVersion (must be a string in major.minor.runtime, runtime is 0=JavaScript or 1=PHP)');
-            } else if (!EDBB_PLUGIN_VERSION_PATTERN.test(manifest.minAppVersion)) {
+            } else if (!parsedMinAppVersion) {
                 missing.push('minAppVersion (must be major.minor.runtime, runtime is 0=JavaScript or 1=PHP)');
             }
         }
 
-        if (typeof manifest.minAppVersion === 'string' && manifest.minAppVersion !== EDBB_CURRENT_APP_VERSION) {
-            missing.push(`minAppVersion (must be ${EDBB_CURRENT_APP_VERSION})`);
+        if (parsedMinAppVersion && EDBB_CURRENT_APP_VERSION_INFO) {
+            if (!EDBB_SUPPORTED_PLUGIN_RUNTIMES.has(parsedMinAppVersion.runtime)) {
+                missing.push('minAppVersion runtime (must be 0=JavaScript or 1=PHP)');
+            }
+
+            if (
+                parsedMinAppVersion.major !== EDBB_CURRENT_APP_VERSION_INFO.major
+                || parsedMinAppVersion.minor !== EDBB_CURRENT_APP_VERSION_INFO.minor
+            ) {
+                missing.push(
+                    `minAppVersion (must be ${EDBB_CURRENT_APP_VERSION_INFO.major}.${EDBB_CURRENT_APP_VERSION_INFO.minor}.0 or ${EDBB_CURRENT_APP_VERSION_INFO.major}.${EDBB_CURRENT_APP_VERSION_INFO.minor}.1)`
+                );
+            }
         }
 
         if (manifest.externalPackages !== undefined) {
