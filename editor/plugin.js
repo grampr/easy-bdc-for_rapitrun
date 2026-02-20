@@ -691,6 +691,41 @@ export class PluginManager {
         }
     }
 
+    async getBranches(fullName) {
+        try {
+            const response = await fetch(`https://api.github.com/repos/${fullName}/branches?per_page=100`);
+            if (!response.ok) return [];
+            const payload = await response.json();
+            if (!Array.isArray(payload)) return [];
+            return payload
+                .map((item) => String(item?.name || '').trim())
+                .filter(Boolean);
+        } catch (e) {
+            console.error('Failed to fetch branches', e);
+            return [];
+        }
+    }
+
+    async getLatestCommitSha(fullName, ref = 'main') {
+        try {
+            const response = await this.fetchWithRetry(
+                `https://api.github.com/repos/${fullName}/commits/${encodeURIComponent(ref)}`,
+                {
+                    headers: { Accept: 'application/vnd.github+json' }
+                },
+                2,
+                300
+            );
+            if (!response.ok) return null;
+            const payload = await response.json();
+            const sha = String(payload?.sha || '').trim();
+            return sha || null;
+        } catch (e) {
+            console.warn('Failed to fetch latest commit sha', fullName, ref, e);
+            return null;
+        }
+    }
+
     /**
      * GitHubからmanifest.jsonを取得してオブジェクトとして返します
      * APIではなく raw を使用することで、マーケットプレイス表示時のAPIレート制限を回避します。
@@ -711,6 +746,7 @@ export class PluginManager {
     // GitHubから直接インストール
     async installFromGitHub(fullName, branchOrUrl = 'main') {
         try {
+            const installInput = String(branchOrUrl || 'main').trim() || 'main';
             const parseRefFromInput = (value) => {
                 if (!value || !value.startsWith('http')) return (value || 'main').replace(/\.zip$/, '');
                 const normalizedUrl = value.split('?')[0];
@@ -734,10 +770,34 @@ export class PluginManager {
                 return null;
             };
 
-            const ref = parseRefFromInput(branchOrUrl);
+            const ref = parseRefFromInput(installInput);
             if (!ref) {
                 throw new Error('Unsupported ZIP URL in browser. Choose Source code (zip) or install from local ZIP.');
             }
+
+            const inferInstallChannel = async () => {
+                const isUrlInput = installInput.startsWith('http');
+                const normalizedUrl = isUrlInput ? installInput.split('?')[0] : '';
+
+                if (isUrlInput) {
+                    if (/\/releases\/download\/[^\/]+\//.test(normalizedUrl)) return 'release';
+                    if (/\/archive\/refs\/tags\/.+\.zip$/.test(normalizedUrl) || /\/zip\/refs\/tags\/.+$/.test(normalizedUrl)) return 'release';
+                    if (/\/archive\/refs\/heads\/.+\.zip$/.test(normalizedUrl) || /\/zip\/refs\/heads\/.+$/.test(normalizedUrl)) return 'branch';
+                    const repoInfo = this.parseGitHubUrl(installInput);
+                    if (repoInfo?.branch && repoInfo.branch !== 'main') return 'branch';
+                }
+
+                const releases = await this.getReleases(fullName);
+                const releaseTagSet = new Set(
+                    Array.isArray(releases)
+                        ? releases
+                            .filter((release) => !release?.draft && release?.tag_name)
+                            .map((release) => String(release.tag_name))
+                        : []
+                );
+                return releaseTagSet.has(ref) ? 'release' : 'branch';
+            };
+            const installChannel = await inferInstallChannel();
 
             const decodeBase64Utf8 = (encoded) => {
                 const binary = atob(encoded.replace(/\n/g, ''));
@@ -789,6 +849,21 @@ export class PluginManager {
 
             manifest.installedFrom = 1; // 1: github
             manifest.installRef = ref; // インストール時のブランチ/タグ/URLを記録
+            manifest.installChannel = installChannel; // branch | release
+            if (installChannel === 'release') {
+                manifest.installReleaseTag = ref;
+                delete manifest.installBranch;
+                delete manifest.installCommitSha;
+            } else {
+                manifest.installBranch = ref;
+                const latestCommitSha = await this.getLatestCommitSha(fullName, ref);
+                if (latestCommitSha) {
+                    manifest.installCommitSha = latestCommitSha;
+                } else {
+                    delete manifest.installCommitSha;
+                }
+                delete manifest.installReleaseTag;
+            }
 
             // manifest.repo を実際のインストール元URLに強制的に書き換える
             const repoUrl = `https://github.com/${fullName}`;
