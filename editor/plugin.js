@@ -2,7 +2,7 @@
  * EDBP Plugin System
  * Plugin management with GitHub discovery, trust levels, and uninstallation.
  */
-const EDBB_CURRENT_APP_VERSION = '1.0.0';
+const EDBB_CURRENT_APP_VERSION = '1.1.0';
 const EDBB_PLUGIN_VERSION_PATTERN = /^(\d+)\.(\d+)\.([01])$/;
 const EDBB_APP_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const EDBB_SUPPORTED_PLUGIN_RUNTIMES = new Set(['0', '1']);
@@ -371,6 +371,14 @@ export class PluginManager {
                 && manifest.externalPackages.every((pkg) => typeof pkg === 'string' && pkg.trim() !== '');
             if (!isValidExternalPackages) {
                 missing.push('externalPackages (string[])');
+            }
+        }
+
+        if (manifest.pipInstall !== undefined) {
+            const isValidPipInstall = Array.isArray(manifest.pipInstall)
+                && manifest.pipInstall.every((pkg) => typeof pkg === 'string' && pkg.trim() !== '' && !/\s/.test(pkg.trim()));
+            if (!isValidPipInstall) {
+                missing.push('pipInstall (string[]: package name only, no "pip install")');
             }
         }
 

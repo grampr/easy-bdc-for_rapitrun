@@ -66,8 +66,9 @@ Blocklyとdiscord.pyの両方に精通しており、既存の `editor/blocks.js
    - `version` の書き方は自由。
    - `affectsStyle`: CSSを追加する場合は `true`、しない場合は `false`。
    - `affectsBlocks`: ブロックを追加する場合は `true`、しない場合は `false`。
-   - `minAppVersion` は必須で、必ず `1.0.0` を使うこと（未指定・不一致は非互換）。
-   - `externalPackages` / `requiredPlugins` / `api` を必要に応じて使い、`license` は manifest に含めない。
+   - `minAppVersion` は必須で、JavaScript プラグインは `1.1.0` を使うこと（`1.0.0` は後方互換として許可）。
+   - `externalPackages` / `pipInstall` / `requiredPlugins` / `api` を必要に応じて使い、`license` は manifest に含めない。
+   - `pipInstall` は任意。`pip install ○○` の `○○` 部分だけを書く（`pip install` は書かない）。
 2. **plugin.js**: `Plugin` クラスを実装。クリーンアップ（`onunload`）を忘れずに。
 3. **README.md**: 
    - ユーザーが直接保存できるよう、**必ずコードブロック（\```markdown ... \```）で囲って出力してください。**
@@ -183,8 +184,9 @@ ${branch}
   "tags": ["utility"],
   "affectsStyle": false,
   "affectsBlocks": true,
-  "minAppVersion": "1.0.0",
+  "minAppVersion": "1.1.0",
   "externalPackages": ["requests", "aiohttp"],
+  "pipInstall": ["discord.py[voice]", "aiohttp"],
   "requiredPlugins": ["core-utils-plugin"],
   "api": {
     "name": "Example API",
