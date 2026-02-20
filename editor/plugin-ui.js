@@ -1401,12 +1401,16 @@ export class PluginUI {
 
         try {
             const updateContext = await this.resolveUpdateContext(repoInfo.fullName, plugin);
-            const latestManifest = await this.pluginManager.getManifestFromGitHub(repoInfo.fullName, updateContext.targetRef);
-            const latestVersion = latestManifest?.version;
-            const hasUpdate = updateContext.forceShowUpdate || this.isUpdateAvailable(plugin.version, latestVersion);
+            const hasUpdate = Boolean(updateContext?.hasUpdate);
+            const latestVersion = updateContext?.latestVersion || null;
+            const title = updateContext?.branchMissing
+                ? `branch missing: ${updateContext?.targetRef || 'unknown'}`
+                : updateContext?.installChannel === 'branch'
+                ? `branch: ${updateContext.targetRef} / latest: ${String(updateContext?.latestCommitSha || '').slice(0, 7) || 'unknown'}`
+                : `release: ${String(plugin?.installReleaseTag || plugin?.installRef || 'unknown')} -> ${updateContext?.targetRef || 'unknown'}`;
             const status = {
                 hasUpdate,
-                title: latestVersion ? `current: ${plugin.version} / latest: ${latestVersion}` : 'Update candidate available',
+                title: latestVersion ? `current: ${plugin.version} / latest: ${latestVersion}` : title,
                 checkedAt: now
             };
             this.updateCheckCache.set(cacheKey, status);
@@ -1428,16 +1432,19 @@ export class PluginUI {
         const isMock = plugin.id && plugin.id.startsWith('test-');
         let readme = 'READMEが見つかりませんでした。';
         let releases = [];
+        let branches = [];
         let showReadmeAd = false;
         if (!isMock) {
             const results = await Promise.all([
                 this.pluginManager.getREADME(plugin.fullName, plugin.defaultBranch),
                 this.pluginManager.getReleases(plugin.fullName),
+                this.pluginManager.getBranches(plugin.fullName),
                 this.pluginManager.hasExternalDocOverride(plugin.fullName)
             ]);
             readme = results[0];
             releases = results[1];
-            showReadmeAd = !!results[2];
+            branches = Array.isArray(results[2]) ? results[2] : [];
+            showReadmeAd = !!results[3];
         } else {
             readme = plugin.description || 'テスト用プラグインのデモページです。';
         }
@@ -1484,6 +1491,10 @@ export class PluginUI {
             badges.push('<span class="text-[10px] px-2 py-1 rounded bg-slate-400 text-white font-bold leading-none shrink-0">使用不可のプラグイン</span>');
         }
         const trustBadge = badges.join(' ');
+        const branchOptions = branches
+            .filter((branchName) => branchName && branchName !== plugin.defaultBranch)
+            .map((branchName) => `<option value="branch:${this.escapeHtml(branchName)}">Branch: ${this.escapeHtml(branchName)}</option>`)
+            .join('');
 
         const invalidWarning = !validation.valid ? `
             <div class="mb-6 p-4 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-start gap-3">
@@ -1524,7 +1535,8 @@ export class PluginUI {
                             <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">バージョン (リリース)</label>
                             <select id="ghVersionSelect" class="w-full pl-3 pr-10 py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20stroke%3D%22%236b7280%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-width%3D%221.5%22%20d%3D%22m6%208%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-[length:1.25rem_1.25rem] bg-[right_0.5rem_center] bg-no-repeat transition-all">
                                 <option value="default">デフォルト (${plugin.defaultBranch})</option>
-                                ${releases.map(r => `<option value="${r.tag_name}">${r.tag_name} ${r.prerelease ? '(Pre-release)' : ''}</option>`).join('')}
+                                ${branchOptions}
+                                ${releases.map(r => `<option value="release:${r.tag_name}">${r.tag_name} ${r.prerelease ? '(Pre-release)' : ''}</option>`).join('')}
                             </select>
                         </div>
                         <div>
@@ -1562,13 +1574,14 @@ export class PluginUI {
         const installBtn = document.getElementById('installFromGhBtn');
 
         const updateFiles = () => {
-            const tag = versionSelect.value;
+            const selectedRef = String(versionSelect.value || '');
             fileSelect.innerHTML = '';
 
-            if (tag === 'default') {
+            if (selectedRef === 'default' || selectedRef.startsWith('branch:')) {
                 fileSelect.innerHTML = '<option value="default-zip">Source code (zip)</option>';
             } else {
-                const release = releases.find(r => r.tag_name === tag);
+                const releaseTag = selectedRef.startsWith('release:') ? selectedRef.substring(8) : selectedRef;
+                const release = releases.find(r => r.tag_name === releaseTag);
                 if (release) {
                     // ZIPアセットのみ抽出 (tar.gzは除外)
                     const assets = release.assets.filter(a => a.name.toLowerCase().endsWith('.zip'));
@@ -1594,7 +1607,12 @@ export class PluginUI {
         installBtn.addEventListener('click', async () => {
             let zipUrl = fileSelect.value;
             if (zipUrl === 'default-zip') {
-                zipUrl = plugin.defaultBranch;
+                const selectedRef = String(versionSelect.value || '');
+                if (selectedRef.startsWith('branch:')) {
+                    zipUrl = selectedRef.substring(7) || plugin.defaultBranch;
+                } else {
+                    zipUrl = plugin.defaultBranch;
+                }
             }
 
             installBtn.disabled = true;
@@ -1854,38 +1872,91 @@ export class PluginUI {
                 .filter((release) => !release?.draft && release?.tag_name)
                 .map((release) => String(release.tag_name))
             : [];
+        const releaseTagSet = new Set(releaseTags);
 
-        const installRef = String(plugin?.installRef || '').trim();
-        const hasPinnedRef = Boolean(installRef) && installRef !== 'main';
-        const isReleaseTagRef = hasPinnedRef && releaseTags.includes(installRef);
+        const installRef = String(plugin?.installRef || 'main').trim() || 'main';
+        const storedInstallChannel = String(plugin?.installChannel || '').trim().toLowerCase();
+        const installChannel = (storedInstallChannel === 'release' || storedInstallChannel === 'branch')
+            ? storedInstallChannel
+            : (releaseTagSet.has(installRef) ? 'release' : 'branch');
 
-        // ブランチ指定で導入されたプラグインは、同じrefを追従する。
-        if (hasPinnedRef && !isReleaseTagRef) {
+        if (installChannel === 'branch') {
+            const targetRef = String(plugin?.installBranch || installRef || 'main').trim() || 'main';
+            const stable = releases.find((release) => !release?.draft && !release?.prerelease && release?.tag_name);
+            const firstTagged = releases.find((release) => !release?.draft && release?.tag_name);
+            const latestReleaseRef = String(stable?.tag_name || firstTagged?.tag_name || '').trim();
+            const [branches, latestManifest, latestCommitSha] = await Promise.all([
+                this.pluginManager.getBranches(fullName),
+                this.pluginManager.getManifestFromGitHub(fullName, targetRef),
+                this.pluginManager.getLatestCommitSha(fullName, targetRef)
+            ]);
+            const branchSet = new Set(Array.isArray(branches) ? branches : []);
+            const branchExists = branchSet.has(targetRef);
+            const latestVersion = latestManifest?.version;
+            const currentCommitSha = String(plugin?.installCommitSha || '').trim();
+            const hasCommitUpdate = Boolean(currentCommitSha && latestCommitSha && currentCommitSha !== latestCommitSha);
+
+            if (!branchExists) {
+                const fallbackBranch = String(
+                    plugin?.defaultBranch
+                    || (Array.isArray(branches) && branches.length > 0 ? branches[0] : '')
+                    || 'main'
+                ).trim() || 'main';
+                return {
+                    installChannel,
+                    targetRef,
+                    hasUpdate: true,
+                    branchMissing: true,
+                    fallbackBranch,
+                    fallbackReleaseRef: latestReleaseRef || null,
+                    latestVersion: null,
+                    latestCommitSha: null
+                };
+            }
+
             return {
-                targetRef: installRef,
-                forceShowUpdate: true
+                installChannel,
+                targetRef,
+                hasUpdate: hasCommitUpdate || this.isUpdateAvailable(plugin.version, latestVersion),
+                branchMissing: false,
+                latestVersion,
+                latestCommitSha: latestCommitSha || null
             };
         }
 
         if (!Array.isArray(releases) || releases.length === 0) {
             return {
-                targetRef: 'main',
-                forceShowUpdate: false
+                installChannel: 'release',
+                targetRef: installRef,
+                hasUpdate: false,
+                latestVersion: null,
+                latestCommitSha: null
             };
         }
 
         const stable = releases.find((release) => !release?.draft && !release?.prerelease && release?.tag_name);
-        if (stable?.tag_name) {
+        const firstTagged = releases.find((release) => !release?.draft && release?.tag_name);
+        const latestReleaseRef = String(stable?.tag_name || firstTagged?.tag_name || '').trim();
+        if (!latestReleaseRef) {
             return {
-                targetRef: stable.tag_name,
-                forceShowUpdate: false
+                installChannel: 'release',
+                targetRef: installRef,
+                hasUpdate: false,
+                latestVersion: null,
+                latestCommitSha: null
             };
         }
 
-        const firstTagged = releases.find((release) => !release?.draft && release?.tag_name);
+        const latestManifest = await this.pluginManager.getManifestFromGitHub(fullName, latestReleaseRef);
+        const latestVersion = latestManifest?.version;
+        const currentReleaseRef = String(plugin?.installReleaseTag || installRef).trim();
+
         return {
-            targetRef: firstTagged?.tag_name || 'main',
-            forceShowUpdate: false
+            installChannel: 'release',
+            targetRef: latestReleaseRef,
+            hasUpdate: currentReleaseRef !== latestReleaseRef,
+            latestVersion,
+            latestCommitSha: null
         };
     }
 
@@ -1927,10 +1998,7 @@ export class PluginUI {
 
         try {
             const updateContext = await this.resolveUpdateContext(repoInfo.fullName, plugin);
-            const targetRef = updateContext.targetRef;
-            const latestManifest = await this.pluginManager.getManifestFromGitHub(repoInfo.fullName, targetRef);
-            const latestVersion = latestManifest?.version;
-            const hasUpdate = updateContext.forceShowUpdate || this.isUpdateAvailable(plugin.version, latestVersion);
+            const hasUpdate = Boolean(updateContext?.hasUpdate);
 
             if (!hasUpdate) return;
             if (this.currentDetailPluginKey !== expectedDetailKey) return;
@@ -1963,7 +2031,26 @@ export class PluginUI {
 
         try {
             const updateContext = await this.resolveUpdateContext(fullName, plugin);
-            const targetRef = updateContext.targetRef;
+            let targetRef = updateContext.targetRef;
+
+            if (updateContext?.branchMissing) {
+                const fallbackBranch = String(updateContext?.fallbackBranch || 'main').trim() || 'main';
+                const fallbackReleaseRef = String(updateContext?.fallbackReleaseRef || '').trim();
+                if (!fallbackReleaseRef) {
+                    const useFallbackBranch = confirm(`インストール元ブランチ「${updateContext.targetRef}」は存在しません。\n代わりにブランチ「${fallbackBranch}」を使用して更新しますか？`);
+                    if (!useFallbackBranch) {
+                        buttonElement.disabled = false;
+                        buttonElement.innerHTML = originalHtml;
+                        lucide.createIcons();
+                        return;
+                    }
+                    targetRef = fallbackBranch;
+                } else {
+                    const useRelease = confirm(`インストール元ブランチ「${updateContext.targetRef}」は存在しません。\nOK: リリース「${fallbackReleaseRef}」で更新\nキャンセル: ブランチ「${fallbackBranch}」で更新`);
+                    targetRef = useRelease ? fallbackReleaseRef : fallbackBranch;
+                }
+            }
+
             if (wasEnabled) {
                 await this.pluginManager.disablePlugin(plugin.id);
             }
@@ -1973,9 +2060,16 @@ export class PluginUI {
                 await this.pluginManager.enablePlugin(manifest.id);
             }
 
+            const beforeLabel = updateContext.installChannel === 'branch'
+                ? (String(plugin?.installCommitSha || '').slice(0, 7) || plugin.version)
+                : (String(plugin?.installReleaseTag || plugin?.installRef || plugin.version));
+            const afterLabel = updateContext.installChannel === 'branch'
+                ? (String(manifest?.installCommitSha || '').slice(0, 7) || manifest.version)
+                : (String(manifest?.installReleaseTag || manifest?.installRef || manifest.version));
+
             this.renderMarketplace();
             this.showDetail(manifest);
-            this.showSideSuccess(`プラグインを更新しました: ${plugin.version} -> ${manifest.version}`);
+            this.showSideSuccess(`プラグインを更新しました: ${beforeLabel} -> ${afterLabel}`);
         } catch (error) {
             if (wasEnabled && !this.pluginManager.isPluginEnabled(plugin.id)) {
                 try {

@@ -10,7 +10,7 @@
 
 ### 作り方
 1. プラグイン用フォルダを作る
-2. `manifest.json` を作成する（JS向けは `minAppVersion: "1.0.0"`）
+2. `manifest.json` を作成する（JS向けは `minAppVersion: "1.1.0"` 推奨、`1.0.0` 互換あり）
 3. `plugin.js` を作成して `class Plugin` を実装する
 4. `onload()` でブロック登録やUI変更を行う
 5. `onunload()` で登録解除や後片付けを行う
@@ -27,9 +27,11 @@
   "description": "Example JS plugin",
   "affectsStyle": false,
   "affectsBlocks": true,
-  "minAppVersion": "1.0.0"
+  "minAppVersion": "1.1.0",
+  "pipInstall": ["discord.py[voice]"]
 }
 ```
+`pipInstall` は任意で、`pip install` コマンドの引数部分だけを記載します。
 
 `plugin.js`
 ```javascript
@@ -89,9 +91,11 @@ class Plugin {
   "description": "Example PHP plugin",
   "affectsStyle": false,
   "affectsBlocks": true,
-  "minAppVersion": "1.0.1"
+  "minAppVersion": "1.0.1",
+  "pipInstall": ["discord.py"]
 }
 ```
+`pipInstall` は任意で、`pip install` まで含めた文字列は書かないでください。
 
 `plugin.js`
 ```javascript
@@ -130,4 +134,3 @@ if (!function_exists('my_php_helper')) {
     }
 }
 ```
-
