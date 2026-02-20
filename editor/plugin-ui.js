@@ -1,6 +1,6 @@
 /**
  * EDBP Plugin UI
- * Market-style plugin management with integrated search and uninstallation.
+ * Market-style plugin management with uninstallation.
  */
 const PLUGIN_MOBILE_WARNING_SKIP_KEY = 'edbb_plugin_mobile_warning_skip';
 const PLUGIN_BLOCK_VISIBILITY_STORAGE_KEY = 'edbb_plugin_block_visibility_v1';
@@ -25,7 +25,9 @@ export class PluginUI {
         this.isOnlyInstalled = false;
         this.searchQuery = '';
         this.githubResults = [];
-        this.currentSearchId = 0;
+        this.githubManifestTagCache = new Map();
+        this.quickTagDisplayLimit = 30;
+        this.quickTagExpanded = false;
         this.mobileWarningResolver = null;
 
         this.bulkInstallModal = document.getElementById('pluginBulkInstallModal');
@@ -35,7 +37,6 @@ export class PluginUI {
         this.bulkInstallCloseBtn = document.getElementById('pluginBulkInstallClose');
         this.settingsModal = document.getElementById('pluginSettingsModal');
         this.settingsCloseBtn = document.getElementById('pluginSettingsClose');
-        this.settingsSearchInput = document.getElementById('pluginSettingsSearchInput');
         this.settingsResetBtn = document.getElementById('pluginSettingsResetBtn');
         this.settingsList = document.getElementById('pluginSettingsList');
         this.settingsTargetPluginId = null;
@@ -193,17 +194,8 @@ export class PluginUI {
             if (e.target === this.modal) this.close();
         });
 
-        // 検索・フィルターUIの取得
-        const searchInput = document.querySelector('input[placeholder="プラグインを検索..."], input[placeholder*="tag:"]');
+        // フィルターUIの取得
         const filterToggle = this.modal?.querySelector('input[type="checkbox"]'); // インストール済みのみ表示
-
-        if (searchInput) {
-            searchInput.placeholder = "検索 (例: tag:utility author:name badge:不可)";
-            searchInput.addEventListener('input', (e) => {
-                this.searchQuery = e.target.value;
-                this.renderMarketplace();
-            });
-        }
 
         if (filterToggle) {
             filterToggle.addEventListener('change', (e) => {
@@ -325,7 +317,6 @@ export class PluginUI {
                 this.closeSettingsModal();
             }
         });
-        this.settingsSearchInput?.addEventListener('input', () => this.renderSettingsList());
         this.settingsResetBtn?.addEventListener('click', () => {
             if (!this.settingsTargetPluginId) return;
             delete this.pluginBlockVisibility[this.settingsTargetPluginId];
@@ -426,7 +417,6 @@ export class PluginUI {
 
     renderSettingsList() {
         if (!this.settingsList) return;
-        const query = (this.settingsSearchInput?.value || '').trim().toLowerCase();
         this.settingsList.innerHTML = '';
         const pluginId = this.settingsTargetPluginId;
         if (!pluginId) {
@@ -443,13 +433,8 @@ export class PluginUI {
             return;
         }
         const hiddenSet = this.getHiddenBlockSetForPlugin(pluginId);
-        const visibleTypes = blockTypes.filter((type) => !query || String(type).toLowerCase().includes(query));
-        if (visibleTypes.length === 0) {
-            this.settingsList.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-400">検索結果がありません。</div>';
-            return;
-        }
 
-        const listHtml = visibleTypes.map((type) => {
+        const listHtml = blockTypes.map((type) => {
             const checked = hiddenSet.has(type) ? '' : 'checked';
             return `
                 <label class="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
@@ -682,6 +667,7 @@ export class PluginUI {
         void this.modal.offsetWidth;
         this.modal.classList.add('show-modal');
         void this.ensureNewsLoaded();
+        this.showEmptyDetail();
         this.renderMarketplace();
     }
 
@@ -715,6 +701,25 @@ export class PluginUI {
         return String(plugin?.fullName || plugin?.repo || plugin?.name || '');
     }
 
+    getPluginRepoKey(plugin) {
+        const raw = String(
+            plugin?.repo
+            || plugin?.source
+            || plugin?.fullName
+            || ''
+        ).trim();
+        if (!raw) return '';
+        const parsed = this.pluginManager.parseGitHubUrl(raw);
+        if (parsed?.fullName) {
+            return String(parsed.fullName).toLowerCase();
+        }
+        return raw
+            .replace(/^https?:\/\/github\.com\//i, '')
+            .replace(/\.git$/i, '')
+            .replace(/\/+$/g, '')
+            .toLowerCase();
+    }
+
     updateSidebarSelectionState() {
         const nodes = this.pluginList?.querySelectorAll('[data-plugin-key]');
         if (!nodes) return;
@@ -731,21 +736,180 @@ export class PluginUI {
         this.updateSidebarSelectionState();
         this.pluginDetailContent.classList.add('hidden');
         this.pluginDetailEmpty.classList.remove('hidden');
+        const quickTags = this.getQuickSearchTags();
+        const visibleTags = this.quickTagExpanded
+            ? quickTags
+            : quickTags.slice(0, this.quickTagDisplayLimit);
+        const quickTagButtons = visibleTags.map((tag) => `<button type="button" data-quick-query="tag:${this.escapeHtml(tag)}" class="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-500 transition-colors">tag:${this.escapeHtml(tag)}</button>`).join('');
+        const hasMoreTags = quickTags.length > this.quickTagDisplayLimit;
+        const toggleLabel = this.quickTagExpanded ? '閉じる' : 'もっと見る';
+        const quickTagToggle = hasMoreTags
+            ? `<button type="button" data-quick-tags-toggle="1" class="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors">${toggleLabel}</button>`
+            : '';
         this.pluginDetailEmpty.innerHTML = `
-            <div class="max-w-md text-center">
-                <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
-                    <i data-lucide="puzzle" class="w-8 h-8 text-slate-400"></i>
+            <div class="w-full max-w-xl">
+                <div class="mb-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/70 p-4 text-left">
+                    <label for="pluginSearchFromDetailInput" class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-300">Search Plugins</label>
+                    <input id="pluginSearchFromDetailInput" type="text" placeholder="名前・開発者・タグ (例: utility badge:公式)"
+                        value="${this.escapeHtml(this.searchQuery)}"
+                        class="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">通常検索: 名前/開発者/タグ ・ 指定検索: <code>tag:</code> <code>author:</code> ・ 旧形式: <code>badge:公式</code></p>
+                    <div class="mt-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 p-3 space-y-2">
+                        <div class="text-[11px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Quick Panel</div>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" data-quick-query="badge:公認" class="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-500 transition-colors">公認</button>
+                            <button type="button" data-quick-query="badge:公式" class="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-500 transition-colors">公式</button>
+                            <button type="button" data-quick-query="badge:不可" class="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-500 transition-colors">不可</button>
+                            <button type="button" data-quick-query="badge:危険" class="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-500 transition-colors">危険</button>
+                            <button type="button" data-quick-query="" class="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 hover:border-slate-400 transition-colors">クリア</button>
+                        </div>
+                        <div class="text-[11px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Tags (manifest)</div>
+                        <div class="flex flex-wrap gap-2">
+                            ${quickTagButtons}
+                        </div>
+                        ${quickTagToggle ? `<div class="flex justify-start">${quickTagToggle}</div>` : ''}
+                    </div>
                 </div>
-                <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200">プラグイン詳細</h3>
-                <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    サイドバーからプラグインを選択して詳細を表示します。
-                </p>
-                <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                    同じプラグインを再度クリックするとこの画面に戻ります。
-                </p>
             </div>
         `;
+        const searchInput = this.pluginDetailEmpty.querySelector('#pluginSearchFromDetailInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (event) => {
+                this.searchQuery = String(event.target?.value || '');
+                this.renderMarketplace();
+            });
+        }
+        this.pluginDetailEmpty.querySelectorAll('[data-quick-query]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const query = String(button.getAttribute('data-quick-query') || '');
+                this.setSearchQuery(query);
+            });
+        });
+        const toggleBtn = this.pluginDetailEmpty.querySelector('[data-quick-tags-toggle]');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                this.quickTagExpanded = !this.quickTagExpanded;
+                this.showEmptyDetail();
+            });
+        }
         lucide.createIcons();
+    }
+
+    setSearchQuery(query) {
+        this.searchQuery = String(query || '');
+        const searchInput = this.pluginDetailEmpty?.querySelector('#pluginSearchFromDetailInput');
+        if (searchInput) {
+            searchInput.value = this.searchQuery;
+            searchInput.focus();
+        }
+        this.renderMarketplace();
+    }
+
+    getQuickSearchTags() {
+        const tagSet = new Set();
+        const collect = (items) => {
+            items.forEach((plugin) => {
+                if (!Array.isArray(plugin?.tags)) return;
+                plugin.tags.forEach((tag) => {
+                    const normalized = String(tag || '').trim();
+                    if (!normalized) return;
+                    tagSet.add(normalized);
+                });
+            });
+        };
+
+        collect(this.pluginManager.getRegistry() || []);
+        collect(this.githubResults || []);
+        return Array.from(tagSet).sort((a, b) => a.localeCompare(b, 'ja'));
+    }
+
+    async enrichGitHubPluginsWithManifestTags(plugins) {
+        if (!Array.isArray(plugins) || plugins.length === 0) return;
+        await Promise.all(plugins.map(async (plugin) => {
+            const fullName = String(plugin?.fullName || '');
+            if (!fullName) return;
+            const defaultBranch = String(plugin?.defaultBranch || 'main');
+            const cacheKey = `${fullName}#${defaultBranch}`;
+
+            if (this.githubManifestTagCache.has(cacheKey)) {
+                const cached = this.githubManifestTagCache.get(cacheKey) || [];
+                if (cached.length > 0) plugin.tags = cached;
+                return;
+            }
+
+            let tags = Array.isArray(plugin?.tags) ? plugin.tags.filter(Boolean).map((tag) => String(tag)) : [];
+            try {
+                const skipManifestFetch = await this.pluginManager.isInExternalManifestList(fullName);
+                if (!skipManifestFetch) {
+                    const manifest = await this.pluginManager.getManifestFromGitHub(fullName, defaultBranch);
+                    if (Array.isArray(manifest?.tags) && manifest.tags.length > 0) {
+                        tags = manifest.tags.filter(Boolean).map((tag) => String(tag));
+                    }
+                }
+            } catch (error) {
+                // noop
+            }
+
+            this.githubManifestTagCache.set(cacheKey, tags);
+            if (tags.length > 0) {
+                plugin.tags = tags;
+            }
+        }));
+    }
+
+    parseQuery(query) {
+        const filter = { text: [], authors: [], tags: [], badges: [] };
+        if (!query) return filter;
+
+        const parts = String(query).trim().split(/\s+/).filter(Boolean);
+        parts.forEach((part) => {
+            const token = part.toLowerCase();
+            if (token.startsWith('tag:')) {
+                const tag = token.substring(4);
+                if (tag) filter.tags.push(tag);
+                return;
+            }
+            if (token.startsWith('author:')) {
+                const author = token.substring(7);
+                if (author) filter.authors.push(author);
+                return;
+            }
+            if (token.startsWith('badge:')) {
+                const val = token.split(':')[1] || '';
+                const badgeMap = {
+                    'official': 'official', '公式': 'official',
+                    'certified': 'certified', '公認': 'certified',
+                    'danger': 'danger', '危険': 'danger',
+                    'invalid': 'invalid', '使用不可': 'invalid', '不可': 'invalid',
+                };
+                filter.badges.push(badgeMap[val] || val);
+                return;
+            }
+            filter.text.push(token);
+        });
+        return filter;
+    }
+
+    matchesPluginFilter(plugin, filter) {
+        if (!filter) return true;
+        const name = String(plugin?.name || '').toLowerCase();
+        const author = String(plugin?.author || '').toLowerCase();
+        const tags = Array.isArray(plugin?.tags)
+            ? plugin.tags.map((t) => String(t || '').toLowerCase())
+            : [];
+        const level = String(plugin?.trustLevel?.level ?? plugin?.trustLevel ?? '').toLowerCase();
+
+        const matchesText = filter.text.length === 0 || filter.text.every((txt) =>
+            name.includes(txt) || author.includes(txt) || tags.some((tag) => tag.includes(txt))
+        );
+        const matchesAuthor = filter.authors.length === 0 || filter.authors.every((a) =>
+            author.includes(a)
+        );
+        const matchesTag = filter.tags.length === 0 || filter.tags.every((tag) =>
+            tags.some((pt) => pt.includes(tag))
+        );
+        const matchesBadge = filter.badges.length === 0 || filter.badges.includes(level);
+        return matchesText && matchesAuthor && matchesTag && matchesBadge;
     }
 
     closeBulkInstall() {
@@ -1000,62 +1164,11 @@ export class PluginUI {
     }
 
     async renderMarketplace() {
-        const searchId = ++this.currentSearchId;
         this.pluginList.innerHTML = '';
         const installed = this.pluginManager.getRegistry();
-
-        // クエリの解析
-        const parseQuery = (q) => {
-            const filter = { tags: [], authors: [], badges: [], text: [] };
-            if (!q) return filter;
-
-            const parts = q.split(/\s+/);
-            parts.forEach(part => {
-                if (part.startsWith('tag:')) {
-                    filter.tags.push(part.substring(4).toLowerCase());
-                } else if (part.startsWith('author:')) {
-                    filter.authors.push(part.substring(7).toLowerCase());
-                } else if (part.startsWith('badge:')) {
-                    const val = part.split(':')[1].toLowerCase();
-                    const badgeMap = {
-                        'official': 'official', '公式': 'official',
-                        'certified': 'certified', '公認': 'certified',
-                        'danger': 'danger', '危険': 'danger',
-                        'invalid': 'invalid', '使用不可': 'invalid', '不可': 'invalid'
-                    };
-                    filter.badges.push(badgeMap[val] || val);
-                } else {
-                    filter.text.push(part.toLowerCase());
-                }
-            });
-            return filter;
-        };
-
-        const filter = parseQuery(this.searchQuery);
-
-        // 1. インストール済みプラグインの表示 (検索クエリがある場合はフィルタリング)
-        const filteredInstalled = installed.filter(p => {
-            // テキスト検索 (名前または作者)
-            const matchesText = filter.text.length === 0 || filter.text.every(txt =>
-                p.name.toLowerCase().includes(txt) || p.author.toLowerCase().includes(txt)
-            );
-
-            // 作者検索
-            const matchesAuthor = filter.authors.length === 0 || filter.authors.some(a =>
-                p.author.toLowerCase().includes(a)
-            );
-
-            // タグ検索
-            const matchesTag = filter.tags.length === 0 || (p.tags && filter.tags.every(t =>
-                p.tags.some(pt => pt.toLowerCase().includes(t))
-            ));
-
-            // バッジ検索
-            const level = p.trustLevel?.level ?? p.trustLevel;
-            const matchesBadge = filter.badges.length === 0 || filter.badges.includes(level);
-
-            return matchesText && matchesAuthor && matchesTag && matchesBadge;
-        });
+        const filter = this.parseQuery(this.searchQuery);
+        const filteredInstalled = installed.filter((plugin) => this.matchesPluginFilter(plugin, filter));
+        const installedRepoKeys = new Set(installed.map((plugin) => this.getPluginRepoKey(plugin)).filter(Boolean));
 
         if (filteredInstalled.length > 0) {
             const header = document.createElement('div');
@@ -1068,60 +1181,37 @@ export class PluginUI {
             });
         }
 
-        // 2. GitHub Marketplace (検索またはトピック表示)
+        // 2. GitHub Marketplace (トピック表示)
         if (!this.isOnlyInstalled) {
-            // テストモード: "@test" で指定のリポジトリを表示
-            if (this.searchQuery === '@test') {
-                const header = document.createElement('div');
-                header.className = 'px-3 py-2 text-xs font-bold text-amber-500 uppercase tracking-wider mt-4';
-                header.textContent = 'UIテストモード';
-                this.pluginList.appendChild(header);
-
-                this.addPluginItem({
-                    id: 'malicious-test-plugin',
-                    name: 'Malicious-Test-Plugin',
-                    author: 'appipinopi',
-                    fullName: 'appipinopi/Malicious-Test-Plugin',
-                    repo: 'https://github.com/appipinopi/Malicious-Test-Plugin',
-                    description: 'GitHub連携テスト用の危険なプラグイン。',
-                    trustLevel: {
-                        level: 'danger',
-                        reason: 'トークン窃取の可能性があるため。'
-                    },
-                    stars: 0,
-                    defaultBranch: 'main'
-                }, false);
-
-                lucide.createIcons();
-                return;
-            }
-
             const header = document.createElement('div');
             header.className = 'px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider mt-4 flex justify-between items-center';
-
-            // クエリがある場合は「検索結果」、ない場合は「注目のコミュニティプラグイン」
-            const title = this.searchQuery ? `GitHub リポジトリ検索: "${this.searchQuery}"` : '注目のコミュニティプラグイン (GitHub Topic)';
-            header.innerHTML = `<span>${title}</span><span class="animate-pulse">GitHubから取得中...</span>`;
+            header.innerHTML = '<span>注目のコミュニティプラグイン (GitHub Topic)</span><span class="animate-pulse">GitHubから取得中...</span>';
             this.pluginList.appendChild(header);
 
-            // PluginManager.searchGitHubPlugins はクエリがあればリポジトリ検索、なければ topic:edbp-plugin 検索を行う
-            const results = await this.pluginManager.searchGitHubPlugins(this.searchQuery);
-
-            // 非同期処理の間に別の検索が開始されていたら中断
-            if (searchId !== this.currentSearchId) return;
+            const results = await this.pluginManager.searchGitHubPlugins();
+            this.githubResults = results;
+            if (filter.tags.length > 0 || filter.text.length > 0) {
+                await this.enrichGitHubPluginsWithManifestTags(results);
+            } else {
+                void this.enrichGitHubPluginsWithManifestTags(results);
+            }
+            const filteredResults = results.filter((plugin) => this.matchesPluginFilter(plugin, filter));
 
             const statusSpan = header.querySelector('span:last-child');
             if (statusSpan) statusSpan.remove();
 
-            if (results.length === 0) {
+            if (filteredResults.length === 0) {
                 const empty = document.createElement('div');
                 empty.className = 'px-3 py-4 text-center text-xs text-slate-400';
-                empty.textContent = this.searchQuery ? '該当するリポジトリが見つかりませんでした' : '注目のプラグインがありません';
+                empty.textContent = this.searchQuery ? '該当するプラグインが見つかりません' : '注目のプラグインがありません';
                 this.pluginList.appendChild(empty);
             } else {
-                results.forEach(async plugin => {
-                    // すでにインストール済みのものは重複表示しない
-                    if (installed.some(p => p.repo === plugin.repo)) return;
+                const renderedRepoKeys = new Set();
+                filteredResults.forEach(async plugin => {
+                    const repoKey = this.getPluginRepoKey(plugin);
+                    // すでにインストール済みのもの、または同一結果の重複は表示しない
+                    if (repoKey && (installedRepoKeys.has(repoKey) || renderedRepoKeys.has(repoKey))) return;
+                    if (repoKey) renderedRepoKeys.add(repoKey);
 
                     const item = this.addPluginItem(plugin, false);
 
