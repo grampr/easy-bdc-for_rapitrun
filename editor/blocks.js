@@ -5,6 +5,86 @@ Blockly.Python.forBlock['custom_python_code'] = function (block) {
   const code = block.getFieldValue('CODE');
   return code + '\n';
 };
+
+const SCIENTIFIC_NOTATION_PATTERN = /^([+-]?)(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/;
+const DECIMAL_NUMBER_PATTERN = /^[+-]?(?:\d+\.?\d*|\.\d+)$/;
+const PARTIAL_NUMBER_PATTERN = /^[+-]?(?:(?:\d+\.?\d*|\.\d+)?(?:[eE][+-]?\d*)?)?$/;
+
+const expandScientificNotation = (rawValue) => {
+  const source = String(rawValue ?? '').trim();
+  const match = source.match(SCIENTIFIC_NOTATION_PATTERN);
+  if (!match) return source;
+
+  const sign = match[1] || '';
+  const integerPart = match[2] || '0';
+  const fractionPart = match[3] || '';
+  const exponent = Number.parseInt(match[4], 10);
+  if (!Number.isFinite(exponent)) return source;
+
+  const digits = `${integerPart}${fractionPart}`;
+  const decimalIndex = integerPart.length + exponent;
+  let plain;
+
+  if (decimalIndex <= 0) {
+    plain = `0.${'0'.repeat(Math.abs(decimalIndex))}${digits}`;
+  } else if (decimalIndex >= digits.length) {
+    plain = `${digits}${'0'.repeat(decimalIndex - digits.length)}`;
+  } else {
+    plain = `${digits.slice(0, decimalIndex)}.${digits.slice(decimalIndex)}`;
+  }
+
+  plain = plain.replace(/^0+(?=\d)/, '');
+  if (plain.startsWith('.')) plain = `0${plain}`;
+  return `${sign}${plain}`;
+};
+
+const normalizeMathNumberLiteral = (rawValue) => {
+  const compact = String(rawValue ?? '')
+    .trim()
+    .replace(/_/g, '');
+  if (!compact) return '0';
+
+  const expanded = expandScientificNotation(compact);
+  if (!DECIMAL_NUMBER_PATTERN.test(expanded)) return '0';
+
+  if (expanded.startsWith('.')) return `0${expanded}`;
+  if (expanded.startsWith('-.')) return `-0${expanded.slice(1)}`;
+  if (expanded.startsWith('+.')) return `+0${expanded.slice(1)}`;
+  return expanded;
+};
+
+const normalizeMathNumberInput = (newValue) => {
+  const raw = String(newValue ?? '').trim();
+  if (!raw) return '';
+  const compact = raw.replace(/_/g, '');
+  if (!PARTIAL_NUMBER_PATTERN.test(compact)) return null;
+  if (SCIENTIFIC_NOTATION_PATTERN.test(compact)) {
+    return expandScientificNotation(compact);
+  }
+  return compact;
+};
+
+Blockly.Blocks['math_number'] = {
+  init: function () {
+    this.appendDummyInput().appendField(
+      new Blockly.FieldTextInput('0', normalizeMathNumberInput),
+      'NUM',
+    );
+    this.setOutput(true, 'Number');
+    if (typeof this.setStyle === 'function') {
+      this.setStyle('math_blocks');
+    } else {
+      this.setColour(230);
+    }
+    this.setTooltip('数値を入力します（指数表記は通常の桁表記に変換されます）');
+  },
+};
+Blockly.Python.forBlock['math_number'] = function (block) {
+  const value = normalizeMathNumberLiteral(block.getFieldValue('NUM'));
+  const order = value.startsWith('-') ? Blockly.Python.ORDER_UNARY_SIGN : Blockly.Python.ORDER_ATOMIC;
+  return [value, order];
+};
+
 Blockly.Blocks['on_ready'] = {
   init: function () {
     this.appendDummyInput().appendField('🏁 Botが起動したとき');
@@ -1301,13 +1381,13 @@ Blockly.Python.forBlock['lists_getIndex'] = function (block) {
   let code, at;
   if (where === 'FROM_START') {
     at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_ADDITIVE) || '1';
-    at = Blockly.utils.string.isNumber(at) ? parseInt(at, 10) - 1 : `(int(${at}) - 1)`;
+    at = Blockly.utils.string.isNumber(at) ? String(Number(at) - 1) : `((${at}) - 1)`;
     if (mode === 'GET') code = `${list}[${at}]`;
     else if (mode === 'GET_REMOVE') code = `${list}.pop(${at})`;
     else if (mode === 'REMOVE') code = `del ${list}[${at}]\n`;
   } else if (where === 'FROM_END') {
     at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_UNARY_SIGN) || '1';
-    at = Blockly.utils.string.isNumber(at) ? -parseInt(at, 10) : `-int(${at})`;
+    at = Blockly.utils.string.isNumber(at) ? String(-Number(at)) : `-(${at})`;
     if (mode === 'GET') code = `${list}[${at}]`;
     else if (mode === 'GET_REMOVE') code = `${list}.pop(${at})`;
     else if (mode === 'REMOVE') code = `del ${list}[${at}]\n`;
@@ -1333,7 +1413,7 @@ Blockly.Python.forBlock['lists_setIndex'] = function (block) {
   let code, at;
   if (where === 'FROM_START') {
     at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_ADDITIVE) || '1';
-    at = Blockly.utils.string.isNumber(at) ? parseInt(at, 10) - 1 : `(int(${at}) - 1)`;
+    at = Blockly.utils.string.isNumber(at) ? String(Number(at) - 1) : `((${at}) - 1)`;
     if (mode === 'SET') code = `${list}[${at}] = ${value}\n`;
     else if (mode === 'INSERT') code = `${list}.insert(${at}, ${value})\n`;
   } else if (where === 'FIRST') {
@@ -1345,12 +1425,12 @@ Blockly.Python.forBlock['lists_setIndex'] = function (block) {
   } else if (where === 'FROM_END') {
     at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_UNARY_SIGN) || '1';
     if (mode === 'SET') {
-      const setAt = Blockly.utils.string.isNumber(at) ? -parseInt(at, 10) : `-int(${at})`;
+      const setAt = Blockly.utils.string.isNumber(at) ? String(-Number(at)) : `-(${at})`;
       code = `${list}[${setAt}] = ${value}\n`;
     } else if (mode === 'INSERT') {
       const insertAt = Blockly.utils.string.isNumber(at)
-        ? `len(${list}) - ${parseInt(at, 10)}`
-        : `len(${list}) - int(${at})`;
+        ? `len(${list}) - ${Number(at)}`
+        : `len(${list}) - (${at})`;
       code = `${list}.insert(${insertAt}, ${value})\n`;
     }
   } else {
@@ -1361,7 +1441,11 @@ Blockly.Python.forBlock['lists_setIndex'] = function (block) {
 Blockly.Python.forBlock['random_integer'] = function (block) {
   const from = Blockly.Python.valueToCode(block, 'FROM', Blockly.Python.ORDER_NONE) || '0';
   const to = Blockly.Python.valueToCode(block, 'TO', Blockly.Python.ORDER_NONE) || '100';
-  return [`random.randint(int(${from}), int(${to}))`, Blockly.Python.ORDER_ATOMIC];
+  return [`random.randint(${from}, ${to})`, Blockly.Python.ORDER_ATOMIC];
+};
+Blockly.Python.forBlock['math_round'] = function (block) {
+  const num = Blockly.Python.valueToCode(block, 'NUM', Blockly.Python.ORDER_NONE) || '0';
+  return [num, Blockly.Python.ORDER_NONE];
 };
 Blockly.Python.forBlock['text_replace'] = function (block) {
   const text = Blockly.Python.valueToCode(block, 'TEXT', Blockly.Python.ORDER_MEMBER) || "''";
@@ -1375,7 +1459,7 @@ Blockly.Python.forBlock['text_charAt'] = function (block) {
   let code, at;
   if (where === 'FROM_START') {
     at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_ADDITIVE) || '1';
-    at = Blockly.utils.string.isNumber(at) ? parseInt(at, 10) - 1 : `(int(${at}) - 1)`;
+    at = Blockly.utils.string.isNumber(at) ? String(Number(at) - 1) : `((${at}) - 1)`;
     code = `${text}[${at}]`;
   } else if (where === 'FIRST') {
     code = `${text}[0]`;
@@ -1383,7 +1467,7 @@ Blockly.Python.forBlock['text_charAt'] = function (block) {
     code = `${text}[-1]`;
   } else if (where === 'FROM_END') {
     at = Blockly.Python.valueToCode(block, 'AT', Blockly.Python.ORDER_UNARY_SIGN) || '1';
-    at = Blockly.isNumber(at) ? -parseInt(at, 10) : `-int(${at})`;
+    at = Blockly.isNumber(at) ? String(-Number(at)) : `-(${at})`;
     code = `${text}[${at}]`;
   } else {
     code = `${text}[0]`;
