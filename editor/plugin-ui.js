@@ -6,6 +6,7 @@ const PLUGIN_MOBILE_WARNING_SKIP_KEY = 'edbb_plugin_mobile_warning_skip';
 const PLUGIN_BLOCK_VISIBILITY_STORAGE_KEY = 'edbb_plugin_block_visibility_v1';
 const PLUGIN_NEWS_FEED_URL = 'https://raw.githubusercontent.com/EDBPlugin/News/refs/heads/main/news.json';
 const PLUGIN_NEWS_FETCH_TIMEOUT_MS = 5000;
+const MAX_CONCURRENT_MANIFEST_FETCHES = 4;
 
 export class PluginUI {
     constructor(pluginManager) {
@@ -195,11 +196,13 @@ export class PluginUI {
         });
 
         // フィルターUIの取得
-        const filterToggle = this.modal?.querySelector('input[type="checkbox"]'); // インストール済みのみ表示
+        const filterToggle = this.modal?.querySelector('button[data-filter-installed]'); // インストール済みのみ表示
 
         if (filterToggle) {
-            filterToggle.addEventListener('change', (e) => {
-                this.isOnlyInstalled = e.target.checked;
+            this.updateInstalledFilterToggleState(filterToggle);
+            filterToggle.addEventListener('click', () => {
+                this.isOnlyInstalled = !this.isOnlyInstalled;
+                this.updateInstalledFilterToggleState(filterToggle);
                 this.renderMarketplace();
             });
         }
@@ -644,6 +647,20 @@ export class PluginUI {
         lucide.createIcons();
     }
 
+    updateInstalledFilterToggleState(button) {
+        if (!button) return;
+        button.setAttribute('aria-pressed', this.isOnlyInstalled ? 'true' : 'false');
+        button.classList.toggle('bg-indigo-500', this.isOnlyInstalled);
+        button.classList.toggle('dark:bg-indigo-500', this.isOnlyInstalled);
+        button.classList.toggle('bg-slate-200', !this.isOnlyInstalled);
+        button.classList.toggle('dark:bg-slate-700', !this.isOnlyInstalled);
+        const knob = button.querySelector('div');
+        if (knob) {
+            knob.classList.toggle('translate-x-4', this.isOnlyInstalled);
+            knob.classList.toggle('translate-x-0', !this.isOnlyInstalled);
+        }
+    }
+
     async open() {
         if (this.shouldShowMobileWarning()) {
             const canOpen = await this.showMobileWarning();
@@ -825,7 +842,7 @@ export class PluginUI {
 
     async enrichGitHubPluginsWithManifestTags(plugins) {
         if (!Array.isArray(plugins) || plugins.length === 0) return;
-        await Promise.all(plugins.map(async (plugin) => {
+        const fetchManifestTags = async (plugin) => {
             const fullName = String(plugin?.fullName || '');
             if (!fullName) return;
             const defaultBranch = String(plugin?.defaultBranch || 'main');
@@ -854,7 +871,18 @@ export class PluginUI {
             if (tags.length > 0) {
                 plugin.tags = tags;
             }
-        }));
+        };
+
+        const limit = Math.max(1, Math.min(MAX_CONCURRENT_MANIFEST_FETCHES, plugins.length));
+        const queue = [...plugins];
+        const workers = Array.from({ length: limit }, async () => {
+            while (queue.length > 0) {
+                const plugin = queue.shift();
+                if (!plugin) return;
+                await fetchManifestTags(plugin);
+            }
+        });
+        await Promise.all(workers);
     }
 
     parseQuery(query) {
@@ -1214,16 +1242,21 @@ export class PluginUI {
                     if (repoKey) renderedRepoKeys.add(repoKey);
 
                     const item = this.addPluginItem(plugin, false);
+                    if (!item?.isConnected) return;
 
                     // 非同期でマニフェストを確認して使用不可バッジを付与
                     try {
+                        if (!item.isConnected) return;
                         const skipManifestFetch = await this.pluginManager.isInExternalManifestList(plugin.fullName);
+                        if (!item.isConnected) return;
                         const manifest = skipManifestFetch ? null : await this.pluginManager.getManifestFromGitHub(plugin.fullName, plugin.defaultBranch);
+                        if (!item.isConnected) return;
                         const validation = skipManifestFetch
                             ? { valid: true }
                             : (manifest ? this.pluginManager.validateManifest(manifest) : { valid: false, missing: ['manifest.jsonが見つかりません'] });
 
                         if (!validation.valid) {
+                            if (!item.isConnected) return;
                             const nameEl = item.querySelector('.font-bold');
                             if (nameEl && !nameEl.innerHTML.includes('不可')) {
                                 const reason = validation.missing ? `必須項目が不足しています: ${validation.missing.join(', ')}` : '必須項目が不足しています。';

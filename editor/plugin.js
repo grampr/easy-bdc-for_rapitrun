@@ -4,6 +4,7 @@
  */
 const EDBB_CURRENT_APP_VERSION = '1.0.0';
 const EDBB_PLUGIN_VERSION_PATTERN = /^(\d+)\.(\d+)\.([01])$/;
+const EDBB_APP_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const EDBB_SUPPORTED_PLUGIN_RUNTIMES = new Set(['0', '1']);
 
 const parsePluginVersion = (versionText) => {
@@ -16,7 +17,22 @@ const parsePluginVersion = (versionText) => {
     };
 };
 
-const EDBB_CURRENT_APP_VERSION_INFO = parsePluginVersion(EDBB_CURRENT_APP_VERSION);
+const parseAppVersion = (versionText) => {
+    const match = String(versionText || '').match(EDBB_APP_VERSION_PATTERN);
+    if (!match) return null;
+    return {
+        major: Number(match[1]),
+        minor: Number(match[2]),
+        patch: Number(match[3])
+    };
+};
+
+const EDBB_CURRENT_APP_VERSION_INFO = parseAppVersion(EDBB_CURRENT_APP_VERSION);
+if (EDBB_CURRENT_APP_VERSION_INFO === null) {
+    const msg = `Invalid EDBB_CURRENT_APP_VERSION: "${EDBB_CURRENT_APP_VERSION}". Expected format: major.minor.patch`;
+    console.error(msg);
+    throw new Error(msg);
+}
 
 export class PluginManager {
     /**
@@ -197,9 +213,6 @@ export class PluginManager {
             const q = 'topic:edbp-plugin';
             const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc`;
             const response = await this.fetchWithRetry(url);
-            if (!response) {
-                throw new Error('GitHub API request failed: no response');
-            }
 
             if (!response.ok) {
                 if (response.status === 403) throw new Error('GitHub API Rate Limit Exceeded');
@@ -335,17 +348,20 @@ export class PluginManager {
             }
         }
 
-        if (parsedMinAppVersion && EDBB_CURRENT_APP_VERSION_INFO) {
+        if (parsedMinAppVersion) {
             if (!EDBB_SUPPORTED_PLUGIN_RUNTIMES.has(parsedMinAppVersion.runtime)) {
                 missing.push('minAppVersion runtime (must be 0=JavaScript or 1=PHP)');
             }
 
             if (
-                parsedMinAppVersion.major !== EDBB_CURRENT_APP_VERSION_INFO.major
-                || parsedMinAppVersion.minor !== EDBB_CURRENT_APP_VERSION_INFO.minor
+                EDBB_CURRENT_APP_VERSION_INFO.major < parsedMinAppVersion.major
+                || (
+                    EDBB_CURRENT_APP_VERSION_INFO.major === parsedMinAppVersion.major
+                    && EDBB_CURRENT_APP_VERSION_INFO.minor < parsedMinAppVersion.minor
+                )
             ) {
                 missing.push(
-                    `minAppVersion (must be ${EDBB_CURRENT_APP_VERSION_INFO.major}.${EDBB_CURRENT_APP_VERSION_INFO.minor}.0 or ${EDBB_CURRENT_APP_VERSION_INFO.major}.${EDBB_CURRENT_APP_VERSION_INFO.minor}.1)`
+                    `minAppVersion (current app version must be at least ${parsedMinAppVersion.major}.${parsedMinAppVersion.minor})`
                 );
             }
         }

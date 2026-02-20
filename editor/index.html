@@ -21,7 +21,6 @@
                         const message = String(e?.message || '').toLowerCase();
                         const duplicateShadowError =
                             message.includes('already hosts')
-                            || message.includes('already hosts a shadow tree')
                             || message.includes('shadow root cannot be created');
                         if (e.name === 'NotSupportedError' &&
                             (duplicateShadowError || this.shadowRoot)) {
@@ -101,7 +100,6 @@
     <!-- Blockly -->
     <script src="https://unpkg.com/blockly@11.2.2/blockly.min.js"></script>
     <script src="https://unpkg.com/blockly@11.2.2/python_compressed.js"></script>
-    <script src="https://unpkg.com/blockly@11.2.2/php_compressed.js"></script>
     <script src="https://unpkg.com/blockly@11.2.2/msg/ja.js"></script>
     <script src="https://unpkg.com/@blockly/field-multilineinput@4.0.4/dist/index.js"></script>
     <script src="./mobile.js"></script>
@@ -1031,9 +1029,9 @@
                         <div class="flex items-center justify-between">
                             <span
                                 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">インストール済みのみ表示</span>
-                            <button
+                            <button data-filter-installed aria-pressed="false"
                                 class="w-8 h-4 rounded-full bg-slate-200 dark:bg-slate-700 relative transition-colors">
-                                <div class="absolute left-0.5 top-0.5 w-3 h-3 rounded-full bg-white shadow-sm"></div>
+                                <div class="absolute left-0.5 top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform translate-x-0"></div>
                             </button>
                         </div>
                         <button id="pluginInstallBtn"
@@ -1373,16 +1371,21 @@
             // Prevent duplicate widget bootstrap (can trigger double attachShadow inside third-party code).
             if (window.__edbb_docsbot_init_done) return;
             if (document.getElementById('docsbotai-root')) return;
-            window.__edbb_docsbot_init_done = true;
 
             try {
                 const maybePromise = DocsBotAI.init({ id: "yNKxXtOIWzKHaVVJL6hU/iorqhCRvATa3jlwX3S2S" });
-                if (maybePromise && typeof maybePromise.catch === 'function') {
-                    maybePromise.catch((error) => {
+                if (maybePromise && typeof maybePromise.then === 'function') {
+                    maybePromise.then(() => {
+                        window.__edbb_docsbot_init_done = true;
+                    }).catch((error) => {
+                        window.__edbb_docsbot_init_done = false;
                         console.warn('DocsBotAI init failed:', error);
                     });
+                } else {
+                    window.__edbb_docsbot_init_done = true;
                 }
             } catch (error) {
+                window.__edbb_docsbot_init_done = false;
                 console.warn('DocsBotAI init failed:', error);
             }
         })();
