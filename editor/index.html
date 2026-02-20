@@ -18,8 +18,12 @@
                         return root;
                     } catch (e) {
                         // Check for the specific error message even if shadowRoot is null (could be a closed shadow root)
+                        const message = String(e?.message || '').toLowerCase();
+                        const duplicateShadowError =
+                            message.includes('already hosts')
+                            || message.includes('shadow root cannot be created');
                         if (e.name === 'NotSupportedError' &&
-                            (e.message.includes('already hosts') || this.shadowRoot)) {
+                            (duplicateShadowError || this.shadowRoot)) {
                             attachedHosts.add(this);
                             console.warn('Prevented redundant attachShadow call on:', this);
                             return this.shadowRoot; // Note: returns null if closed, but prevents the crash
@@ -984,13 +988,7 @@
                 </button>
             </div>
             <div class="flex flex-col gap-4 p-6 bg-slate-50/60 dark:bg-slate-950/40 flex-grow overflow-y-auto">
-                <div class="flex flex-wrap items-end gap-3">
-                    <div class="flex-1 min-w-[220px]">
-                        <label for="pluginSettingsSearchInput"
-                            class="text-xs font-semibold uppercase tracking-widest text-indigo-400">Search</label>
-                        <input id="pluginSettingsSearchInput" type="text" placeholder="category or block type"
-                            class="mt-2 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    </div>
+                <div class="flex justify-end">
                     <button id="pluginSettingsResetBtn" type="button"
                         class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                         <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
@@ -1028,18 +1026,12 @@
                 <div
                     class="w-80 border-r border-slate-100 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-950/20">
                     <div class="p-4 border-b border-slate-100 dark:border-slate-800">
-                        <div class="relative">
-                            <i data-lucide="search"
-                                class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-                            <input type="text" placeholder="プラグインを検索..."
-                                class="w-full pl-10 pr-4 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        </div>
-                        <div class="mt-3 flex items-center justify-between">
+                        <div class="flex items-center justify-between">
                             <span
                                 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">インストール済みのみ表示</span>
-                            <button
+                            <button data-filter-installed aria-pressed="false"
                                 class="w-8 h-4 rounded-full bg-slate-200 dark:bg-slate-700 relative transition-colors">
-                                <div class="absolute left-0.5 top-0.5 w-3 h-3 rounded-full bg-white shadow-sm"></div>
+                                <div class="absolute left-0.5 top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform translate-x-0"></div>
                             </button>
                         </div>
                         <button id="pluginInstallBtn"
@@ -1375,7 +1367,28 @@
     </style>
     <script type="text/javascript">window.DocsBotAI=window.DocsBotAI||{},DocsBotAI.init=function(e){return new Promise((t,r)=>{var n=document.createElement("script");n.type="text/javascript",n.async=!0,n.src="https://widget.docsbot.ai/chat.js";let o=document.getElementsByTagName("script")[0];o.parentNode.insertBefore(n,o),n.addEventListener("load",()=>{let n;Promise.all([new Promise((t,r)=>{window.DocsBotAI.mount(Object.assign({}, e)).then(t).catch(r)}),(n=function e(t){return new Promise(e=>{if(document.querySelector(t))return e(document.querySelector(t));let r=new MutationObserver(n=>{if(document.querySelector(t))return e(document.querySelector(t)),r.disconnect()});r.observe(document.body,{childList:!0,subtree:!0})})})("#docsbotai-root"),]).then(()=>t()).catch(r)}),n.addEventListener("error",e=>{r(e.message)})})};</script>
     <script type="text/javascript">
-        DocsBotAI.init({id: "yNKxXtOIWzKHaVVJL6hU/iorqhCRvATa3jlwX3S2S"});
+        (function () {
+            // Prevent duplicate widget bootstrap (can trigger double attachShadow inside third-party code).
+            if (window.__edbb_docsbot_init_done) return;
+            if (document.getElementById('docsbotai-root')) return;
+
+            try {
+                const maybePromise = DocsBotAI.init({ id: "yNKxXtOIWzKHaVVJL6hU/iorqhCRvATa3jlwX3S2S" });
+                if (maybePromise && typeof maybePromise.then === 'function') {
+                    maybePromise.then(() => {
+                        window.__edbb_docsbot_init_done = true;
+                    }).catch((error) => {
+                        window.__edbb_docsbot_init_done = false;
+                        console.warn('DocsBotAI init failed:', error);
+                    });
+                } else {
+                    window.__edbb_docsbot_init_done = true;
+                }
+            } catch (error) {
+                window.__edbb_docsbot_init_done = false;
+                console.warn('DocsBotAI init failed:', error);
+            }
+        })();
     </script>
 </body>
 

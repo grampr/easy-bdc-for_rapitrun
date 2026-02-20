@@ -3,7 +3,36 @@
  * Plugin management with GitHub discovery, trust levels, and uninstallation.
  */
 const EDBB_CURRENT_APP_VERSION = '1.0.0';
-const EDBB_PLUGIN_VERSION_PATTERN = /^\d+\.\d+\.[01]$/;
+const EDBB_PLUGIN_VERSION_PATTERN = /^(\d+)\.(\d+)\.([01])$/;
+const EDBB_APP_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
+const EDBB_SUPPORTED_PLUGIN_RUNTIMES = new Set(['0', '1']);
+
+const parsePluginVersion = (versionText) => {
+    const match = String(versionText || '').match(EDBB_PLUGIN_VERSION_PATTERN);
+    if (!match) return null;
+    return {
+        major: Number(match[1]),
+        minor: Number(match[2]),
+        runtime: match[3]
+    };
+};
+
+const parseAppVersion = (versionText) => {
+    const match = String(versionText || '').match(EDBB_APP_VERSION_PATTERN);
+    if (!match) return null;
+    return {
+        major: Number(match[1]),
+        minor: Number(match[2]),
+        patch: Number(match[3])
+    };
+};
+
+const EDBB_CURRENT_APP_VERSION_INFO = parseAppVersion(EDBB_CURRENT_APP_VERSION);
+if (EDBB_CURRENT_APP_VERSION_INFO === null) {
+    const msg = `Invalid EDBB_CURRENT_APP_VERSION: "${EDBB_CURRENT_APP_VERSION}". Expected format: major.minor.patch`;
+    console.error(msg);
+    throw new Error(msg);
+}
 
 export class PluginManager {
     /**
@@ -25,6 +54,7 @@ export class PluginManager {
                 await new Promise(r => setTimeout(r, backoff * (i + 1)));
             }
         }
+        throw new Error('fetchWithRetry exhausted retries without a response');
     }
 
     constructor(workspace) {
@@ -177,36 +207,10 @@ export class PluginManager {
     }
 
 
-    // GitHubから edbp-plugin タグ/トピックの付いたリポジトリを検索
-    async searchGitHubPlugins(query = '') {
+    // GitHubから edbp-plugin トピックの付いたリポジトリを取得
+    async searchGitHubPlugins() {
         try {
-            let q = 'topic:edbp-plugin';
-            let filterLevel = null;
-
-            if (query) {
-                const parts = query.split(/\s+/);
-                const queryParts = [];
-
-                parts.forEach(part => {
-                    if (part.startsWith('tag:')) {
-                        const tag = part.substring(4);
-                        if (tag) queryParts.push(`topic:${tag}`);
-                    } else if (part.startsWith('author:')) {
-                        const author = part.substring(7);
-                        if (author) queryParts.push(`user:${author}`);
-                    } else if (part.startsWith('badge:')) {
-                        // Badge filtering is done client-side after fetch
-                        filterLevel = part.split(':')[1].toLowerCase();
-                    } else {
-                        queryParts.push(part);
-                    }
-                });
-
-                if (queryParts.length > 0) {
-                    q = `${queryParts.join(' ')} topic:edbp-plugin`;
-                }
-            }
-
+            const q = 'topic:edbp-plugin';
             const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc`;
             const response = await this.fetchWithRetry(url);
 
@@ -216,9 +220,12 @@ export class PluginManager {
             }
 
             let data = await response.json();
+            if (!data || !Array.isArray(data.items)) {
+                return [];
+            }
 
-            // 検索結果の整形
-            let items = data.items.map(repo => {
+            // 結果の整形
+            const items = data.items.map(repo => {
                 const trustLevel = this.getTrustLevel(repo);
                 return {
                     id: repo.name,
@@ -228,29 +235,15 @@ export class PluginManager {
                     repo: repo.html_url,
                     stars: repo.stargazers_count,
                     trustLevel: trustLevel,
+                    tags: Array.isArray(repo.topics) ? repo.topics : [],
                     fullName: repo.full_name,
                     defaultBranch: repo.default_branch
                 };
             });
 
-            // バッジフィルタリング (クライアントサイド)
-            if (filterLevel) {
-                const badgeMap = {
-                    'official': 'official', '公式': 'official',
-                    'certified': 'certified', '公認': 'certified',
-                    'danger': 'danger', '危険': 'danger',
-                    'invalid': 'invalid', '使用不可': 'invalid', '不可': 'invalid'
-                };
-                const targetLevel = badgeMap[filterLevel] || filterLevel;
-                items = items.filter(item => {
-                    const level = item.trustLevel?.level ?? item.trustLevel;
-                    return level === targetLevel;
-                });
-            }
-
             return items;
         } catch (e) {
-            console.error('Failed to search GitHub plugins', e);
+            console.error('Failed to fetch GitHub plugins', e);
             return [];
         }
     }
@@ -344,16 +337,33 @@ export class PluginManager {
             missing.push('affectsBlocks (boolean)');
         }
 
+        const minAppVersionText = String(manifest.minAppVersion || '');
+        const parsedMinAppVersion = parsePluginVersion(minAppVersionText);
+
         if (manifest.minAppVersion !== undefined && manifest.minAppVersion !== null && manifest.minAppVersion !== '') {
             if (typeof manifest.minAppVersion !== 'string') {
                 missing.push('minAppVersion (must be a string in major.minor.runtime, runtime is 0=JavaScript or 1=PHP)');
-            } else if (!EDBB_PLUGIN_VERSION_PATTERN.test(manifest.minAppVersion)) {
+            } else if (!parsedMinAppVersion) {
                 missing.push('minAppVersion (must be major.minor.runtime, runtime is 0=JavaScript or 1=PHP)');
             }
         }
 
-        if (typeof manifest.minAppVersion === 'string' && manifest.minAppVersion !== EDBB_CURRENT_APP_VERSION) {
-            missing.push(`minAppVersion (must be ${EDBB_CURRENT_APP_VERSION})`);
+        if (parsedMinAppVersion) {
+            if (!EDBB_SUPPORTED_PLUGIN_RUNTIMES.has(parsedMinAppVersion.runtime)) {
+                missing.push('minAppVersion runtime (must be 0=JavaScript or 1=PHP)');
+            }
+
+            if (
+                EDBB_CURRENT_APP_VERSION_INFO.major < parsedMinAppVersion.major
+                || (
+                    EDBB_CURRENT_APP_VERSION_INFO.major === parsedMinAppVersion.major
+                    && EDBB_CURRENT_APP_VERSION_INFO.minor < parsedMinAppVersion.minor
+                )
+            ) {
+                missing.push(
+                    `minAppVersion (current app version must be at least ${parsedMinAppVersion.major}.${parsedMinAppVersion.minor})`
+                );
+            }
         }
 
         if (manifest.externalPackages !== undefined) {
