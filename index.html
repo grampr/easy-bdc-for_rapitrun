@@ -36,8 +36,12 @@
                         attachedHosts.add(this);
                         return root;
                     } catch (e) {
+                        const message = String(e?.message || '').toLowerCase();
+                        const duplicateShadowError =
+                            message.includes('already hosts')
+                            || message.includes('shadow root cannot be created');
                         if (e.name === 'NotSupportedError' &&
-                            (e.message.includes('already hosts') || this.shadowRoot)) {
+                            (duplicateShadowError || this.shadowRoot)) {
                             attachedHosts.add(this);
                             console.warn('Prevented redundant attachShadow call on:', this);
                             return this.shadowRoot;

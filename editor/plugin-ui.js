@@ -4,6 +4,7 @@
  */
 const PLUGIN_MOBILE_WARNING_SKIP_KEY = 'edbb_plugin_mobile_warning_skip';
 const PLUGIN_BLOCK_VISIBILITY_STORAGE_KEY = 'edbb_plugin_block_visibility_v1';
+const PLUGIN_FEATURE_TOGGLES_STORAGE_KEY = 'edbb_plugin_feature_toggles_v1';
 const PLUGIN_NEWS_FEED_URL = 'https://raw.githubusercontent.com/EDBPlugin/News/refs/heads/main/news.json';
 const PLUGIN_NEWS_FETCH_TIMEOUT_MS = 5000;
 const MAX_CONCURRENT_MANIFEST_FETCHES = 4;
@@ -42,6 +43,7 @@ export class PluginUI {
         this.settingsList = document.getElementById('pluginSettingsList');
         this.settingsTargetPluginId = null;
         this.pluginBlockVisibility = this.loadPluginBlockVisibility();
+        this.pluginFeatureToggles = this.loadPluginFeatureToggles();
         this.newsItems = [];
         this.newsFetchState = 'idle';
         this.newsFetchError = '';
@@ -190,6 +192,8 @@ export class PluginUI {
     init() {
         this.btn.addEventListener('click', () => this.open());
         this.closeBtn.addEventListener('click', () => this.close());
+        const headerSettingsBtn = document.getElementById('pluginHeaderSettingsBtn');
+        headerSettingsBtn?.addEventListener('click', () => this.openSettingsModal(null));
 
         this.modal.addEventListener('click', (e) => {
             if (e.target === this.modal) this.close();
@@ -265,6 +269,7 @@ export class PluginUI {
             if (e.target === this.bulkInstallModal) this.closeBulkInstall();
         });
         this.initSettingsModal();
+        this.applyPluginFeatureToggles();
         this.applyBlockVisibilityConfig();
 
         // URLパラメータによるプラグインインストールのチェック
@@ -321,7 +326,14 @@ export class PluginUI {
             }
         });
         this.settingsResetBtn?.addEventListener('click', () => {
-            if (!this.settingsTargetPluginId) return;
+            if (!this.settingsTargetPluginId) {
+                this.pluginFeatureToggles = this.getDefaultPluginFeatureToggles();
+                this.savePluginFeatureToggles();
+                this.applyPluginFeatureToggles();
+                this.renderSettingsList();
+                return;
+            }
+
             delete this.pluginBlockVisibility[this.settingsTargetPluginId];
             this.savePluginBlockVisibility();
             this.applyBlockVisibilityConfig();
@@ -369,6 +381,66 @@ export class PluginUI {
 
     savePluginBlockVisibility() {
         localStorage.setItem(PLUGIN_BLOCK_VISIBILITY_STORAGE_KEY, JSON.stringify(this.pluginBlockVisibility));
+    }
+
+    getDefaultPluginFeatureToggles() {
+        return {
+            blockSearch: false,
+            zipInstall: false,
+            darkModeButton: false
+        };
+    }
+
+    loadPluginFeatureToggles() {
+        const defaults = this.getDefaultPluginFeatureToggles();
+        try {
+            const raw = localStorage.getItem(PLUGIN_FEATURE_TOGGLES_STORAGE_KEY);
+            if (!raw) return defaults;
+            const parsed = JSON.parse(raw);
+            return {
+                blockSearch: Boolean(parsed?.blockSearch),
+                zipInstall: Boolean(parsed?.zipInstall),
+                darkModeButton: Boolean(parsed?.darkModeButton)
+            };
+        } catch (error) {
+            return defaults;
+        }
+    }
+
+    savePluginFeatureToggles() {
+        localStorage.setItem(PLUGIN_FEATURE_TOGGLES_STORAGE_KEY, JSON.stringify(this.pluginFeatureToggles));
+    }
+
+    applyPluginFeatureToggles() {
+        const toggles = this.pluginFeatureToggles || this.getDefaultPluginFeatureToggles();
+
+        const blockSearchContainer = document.getElementById('blockSearchContainer');
+        const blockSearchInput = document.getElementById('blockSearchInput');
+        if (blockSearchContainer) {
+            blockSearchContainer.style.display = toggles.blockSearch ? '' : 'none';
+        }
+        if (!toggles.blockSearch && blockSearchInput) {
+            blockSearchInput.value = '';
+            if (window.blockSearch && typeof window.blockSearch.updateToolbox === 'function') {
+                window.blockSearch.updateToolbox(true);
+            }
+        }
+
+        const installBtn = document.getElementById('pluginInstallBtn');
+        if (installBtn) {
+            installBtn.style.display = toggles.zipInstall ? '' : 'none';
+        }
+
+        const themeToggle = document.getElementById('themeToggle');
+        if (themeToggle) {
+            themeToggle.style.display = toggles.darkModeButton ? '' : 'none';
+            const divider = themeToggle.previousElementSibling;
+            if (divider && divider.classList.contains('w-px')) {
+                divider.style.display = toggles.darkModeButton ? '' : 'none';
+            }
+        }
+
+        window.dispatchEvent(new Event('edbb-plugin-feature-settings-changed'));
     }
 
     getHiddenBlockSetForPlugin(pluginId) {
@@ -429,13 +501,52 @@ export class PluginUI {
         if (!this.settingsList) return;
         this.settingsList.innerHTML = '';
         const pluginId = this.settingsTargetPluginId;
+        const titleEl = document.getElementById('pluginSettingsTargetLabel');
         if (!pluginId) {
-            this.settingsList.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-400">No plugin selected.</div>';
+            if (titleEl) titleEl.textContent = 'Global';
+            const toggles = this.pluginFeatureToggles || this.getDefaultPluginFeatureToggles();
+            this.settingsList.innerHTML = `
+                <div class="grid grid-cols-1 gap-3">
+                    <label class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                        <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">ブロック検索</span>
+                        <span class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" data-feature-toggle="blockSearch" ${toggles.blockSearch ? 'checked' : ''} class="sr-only peer">
+                            <span class="w-10 h-6 rounded-full bg-slate-300 dark:bg-slate-700 transition-colors peer-checked:bg-indigo-600"></span>
+                            <span class="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white transition-transform peer-checked:translate-x-4 shadow-sm"></span>
+                        </span>
+                    </label>
+                    <label class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                        <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">ZIPでインストール</span>
+                        <span class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" data-feature-toggle="zipInstall" ${toggles.zipInstall ? 'checked' : ''} class="sr-only peer">
+                            <span class="w-10 h-6 rounded-full bg-slate-300 dark:bg-slate-700 transition-colors peer-checked:bg-indigo-600"></span>
+                            <span class="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white transition-transform peer-checked:translate-x-4 shadow-sm"></span>
+                        </span>
+                    </label>
+                    <label class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                        <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">ダークモードボタン</span>
+                        <span class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" data-feature-toggle="darkModeButton" ${toggles.darkModeButton ? 'checked' : ''} class="sr-only peer">
+                            <span class="w-10 h-6 rounded-full bg-slate-300 dark:bg-slate-700 transition-colors peer-checked:bg-indigo-600"></span>
+                            <span class="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white transition-transform peer-checked:translate-x-4 shadow-sm"></span>
+                        </span>
+                    </label>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">デフォルトは全てOFFです。</p>
+            `;
+            this.settingsList.querySelectorAll('input[data-feature-toggle]').forEach((el) => {
+                el.addEventListener('change', (event) => {
+                    const key = String(event.target?.getAttribute('data-feature-toggle') || '');
+                    if (!key) return;
+                    this.pluginFeatureToggles[key] = Boolean(event.target.checked);
+                    this.savePluginFeatureToggles();
+                    this.applyPluginFeatureToggles();
+                });
+            });
             return;
         }
         const targetPlugin = this.pluginManager.getRegistry().find((item) => item.id === pluginId);
         const pluginName = targetPlugin?.name || pluginId;
-        const titleEl = document.getElementById('pluginSettingsTargetLabel');
         if (titleEl) titleEl.textContent = pluginName;
         const blockTypes = (this.pluginManager.getPluginBlockTypes?.(pluginId) || []).filter(Boolean);
         if (blockTypes.length === 0) {
@@ -776,14 +887,14 @@ export class PluginUI {
             ? `<button type="button" data-quick-tags-toggle="1" class="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors">${toggleLabel}</button>`
             : '';
         this.pluginDetailEmpty.innerHTML = `
-            <div class="w-full max-w-xl">
-                <div class="mb-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/70 p-4 text-left">
+            <div class="w-full h-full max-w-6xl mx-auto flex flex-col">
+                <div class="mb-5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/70 p-5 text-left flex-1 min-h-0 flex flex-col">
                     <label for="pluginSearchFromDetailInput" class="text-xs font-semibold uppercase tracking-widest text-indigo-500 dark:text-indigo-300">Search Plugins</label>
                     <input id="pluginSearchFromDetailInput" type="text" placeholder="名前・開発者・タグ (例: utility badge:公式)"
                         value="${this.escapeHtml(this.searchQuery)}"
-                        class="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        class="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-base text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">通常検索: 名前/開発者/タグ ・ 指定検索: <code>tag:</code> <code>author:</code> ・ 旧形式: <code>badge:公式</code></p>
-                    <div class="mt-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 p-3 space-y-2">
+                    <div class="mt-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 p-4 space-y-3 flex-1 min-h-0 overflow-y-auto">
                         <div class="text-[11px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">Quick Panel</div>
                         <div class="flex flex-wrap gap-2">
                             <button type="button" data-quick-query="badge:公認" class="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-500 transition-colors">公認</button>

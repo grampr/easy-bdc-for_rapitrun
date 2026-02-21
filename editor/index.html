@@ -1026,10 +1026,17 @@
                         <p class="text-xs text-slate-500 dark:text-slate-400">EDBPの機能を拡張するプラグインを管理します</p>
                     </div>
                 </div>
-                <button id="pluginModalClose"
-                    class="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:text-slate-500 dark:hover:text-slate-100/80 dark:hover:bg-slate-800 transition-colors">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
+                <div class="flex items-center gap-1">
+                    <button id="pluginHeaderSettingsBtn"
+                        class="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:text-slate-500 dark:hover:text-indigo-300 dark:hover:bg-indigo-900/20 transition-colors"
+                        title="Settings">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+                    <button id="pluginModalClose"
+                        class="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:text-slate-500 dark:hover:text-slate-100/80 dark:hover:bg-slate-800 transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="flex flex-1 overflow-hidden">
