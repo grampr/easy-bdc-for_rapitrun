@@ -37,13 +37,6 @@ export class BlockSearch {
         // Swap to the new index immediately so core/installed are searchable
         this.index = newIndex;
 
-        // 3. Marketplace Plugins (Not yet installed) - Fetch in background or parallel
-        try {
-            await this.addMarketplaceToIndex(this.index);
-        } catch (e) {
-            console.warn("Marketplace indexing failed", e);
-        }
-
         console.log(`Block search index built with ${this.index.length} items.`);
     }
 
@@ -117,97 +110,6 @@ export class BlockSearch {
         }
     }
 
-    async addMarketplaceToIndex(index) {
-        // marketplace is an array of strings like ["author/repo", ...]
-        const marketplace = await this.pluginManager.getMarketplacePlugins();
-        const installedPlugins = Object.values(this.pluginManager.installedPlugins);
-
-        const tasks = marketplace.map(async (fullName) => {
-            // Check if already installed (robust check using repo URL)
-            if (!fullName || typeof fullName !== 'string') return;
-
-            const isAlreadyInstalled = installedPlugins.some(p =>
-                (p.id === fullName) ||
-                (p.repo && (p.repo.endsWith(fullName) || p.repo.includes(fullName)))
-            );
-            if (isAlreadyInstalled) return;
-
-            // Simple name extraction
-            const parts = fullName.split('/');
-            const fallbackName = parts[parts.length - 1] || fullName;
-
-            try {
-                // Fetch high-level manifest
-                const manifest = await this.pluginManager.getManifestFromGitHub(fullName);
-
-                // Fetch remote code for static analysis to get friendly names
-                const remoteCode = await this.pluginManager.getRemoteFile(fullName, 'plugin.js');
-
-                // If no manifest blocks but we have code, try to extract from code
-                let blocks = (manifest && manifest.blocks && Array.isArray(manifest.blocks)) ? manifest.blocks : [];
-
-                if (blocks.length === 0 && remoteCode) {
-                    // Create dummy block defs from types found in code
-                    const typeRegex = /Blockly\.Blocks\s*\[\s*(['"])(.*?)\1\s*\]/g;
-                    let match;
-                    while ((match = typeRegex.exec(remoteCode)) !== null) {
-                        if (match[2]) {
-                            blocks.push({ type: match[2], textLabel: undefined });
-                        }
-                    }
-                    // deduplicate
-                    blocks = Array.from(new Set(blocks.map(b => b.type))).map(t => ({ type: t }));
-                }
-
-                if (blocks.length > 0) {
-                    blocks.forEach(blockDef => {
-                        const type = blockDef.type;
-
-                        // Priority 1: Static extraction from remote code (best for friendly names)
-                        let labelText = remoteCode ? this.extractLabelsFromCode(type, remoteCode) : '';
-
-                        // Priority 2: Extract from manifest definition message0
-                        if (!labelText && blockDef.message0) {
-                            labelText = blockDef.message0.replace(/%[a-zA-Z0-9_]+/g, '').trim();
-                        }
-
-                        // Priority 3: Extract from tooltip
-                        if (!labelText && blockDef.tooltip) {
-                            labelText = blockDef.tooltip;
-                        }
-
-                        index.push({
-                            type: type,
-                            label: labelText || type,
-                            keywords: [labelText, type, fallbackName, (manifest ? manifest.name : '')].join(' '),
-                            category: ((manifest && manifest.name) || fallbackName) + ' (未導入)',
-                            pluginId: fullName,
-                            pluginName: (manifest && manifest.name) || fallbackName,
-                            source: 'marketplace',
-                            installed: false,
-                            blockDef: blockDef
-                        });
-                    });
-                } else {
-                    // Minimal indexing even without blocks detected
-                    index.push({
-                        type: 'plugin_placeholder_' + fullName.replace('/', '_'),
-                        label: fallbackName + ' プラグイン',
-                        keywords: [fullName, fallbackName].join(' '),
-                        category: fallbackName + ' (未導入)',
-                        pluginId: fullName,
-                        pluginName: fallbackName,
-                        source: 'marketplace',
-                        installed: false
-                    });
-                }
-            } catch (error) {
-                console.warn(`Failed to index marketplace blocks for ${fullName}:`, error);
-            }
-        });
-
-        await Promise.allSettled(tasks);
-    }
 
     getFriendlyName(type) {
         // Mapping of common block types to Japanese/Friendly names
