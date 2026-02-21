@@ -1423,6 +1423,19 @@ const setupJsonDataManager = ({ workspace, storage, shareFeature }) => {
     renderPreview();
   };
 
+  const focusLastRowKeyInput = () => {
+    if (!rowsBody) return;
+    const scrollHost = rowsBody.closest('section');
+    if (scrollHost) {
+      scrollHost.scrollTop = scrollHost.scrollHeight;
+    }
+    const keyInput = rowsBody.querySelector('tr:last-child td:first-child input');
+    if (!keyInput) return;
+    keyInput.scrollIntoView({ block: 'nearest' });
+    keyInput.focus();
+    if (typeof keyInput.select === 'function') keyInput.select();
+  };
+
   const render = () => {
     renderDatasetSelect();
     renderRows();
@@ -1519,6 +1532,9 @@ const setupJsonDataManager = ({ workspace, storage, shareFeature }) => {
     if (!selectedDataset) return;
     jsonDataStore.appendRow(selectedDataset, { key: '', type: 'string', value: '' });
     renderRows();
+    requestAnimationFrame(() => {
+      focusLastRowKeyInput();
+    });
     scheduleSave();
   });
 

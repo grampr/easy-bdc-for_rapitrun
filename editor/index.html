@@ -502,7 +502,6 @@
                 <block type="math_number"></block>
                 <block type="math_arithmetic"></block>
                 <block type="math_single"></block>
-                <block type="math_round"></block>
                 <block type="random_integer"></block>
                 <block type="text_length"></block>
             </category>
@@ -737,9 +736,9 @@
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
-            <div class="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <div class="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <aside
-                    class="border-r border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/30 p-4 flex flex-col gap-3 overflow-y-auto">
+                    class="min-h-0 border-r border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/30 p-4 flex flex-col gap-3 overflow-y-auto">
                     <div class="text-[11px] uppercase tracking-widest font-semibold text-slate-500 dark:text-slate-400">
                         データセット
                     </div>
@@ -767,9 +766,9 @@
                         このデータは「JSONデータセット」「JSONデータセットの値」ブロックで直接使えます。
                     </p>
                 </aside>
-                <section class="p-4 sm:p-6 overflow-y-auto flex flex-col gap-4">
+                <section class="min-h-0 p-4 sm:p-6 overflow-y-auto flex flex-col gap-4">
                     <div
-                        class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 overflow-hidden">
+                        class="shrink-0 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 overflow-hidden">
                         <div class="overflow-x-auto">
                             <table class="w-full text-xs sm:text-sm">
                                 <thead class="bg-slate-100/80 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300">
@@ -784,7 +783,7 @@
                             </table>
                         </div>
                     </div>
-                    <div class="flex items-center justify-between gap-3 flex-wrap">
+                    <div class="shrink-0 flex items-center justify-between gap-3 flex-wrap">
                         <button id="jsonGuiAddRowBtn" type="button"
                             class="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
                             <i data-lucide="plus-circle" class="w-4 h-4"></i>
@@ -794,7 +793,7 @@
                             class="hidden text-xs text-rose-600 dark:text-rose-300 rounded-lg border border-rose-200 dark:border-rose-700 px-3 py-2 bg-rose-50 dark:bg-rose-900/20"></span>
                     </div>
                     <div
-                        class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
+                        class="shrink-0 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
                         <div
                             class="text-[11px] uppercase tracking-widest font-semibold text-slate-500 dark:text-slate-400 mb-2">
                             JSONプレビュー

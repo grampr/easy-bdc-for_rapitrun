@@ -1,4 +1,7 @@
 wrangler.dev.toml
+
 .wrangler/
+
 .vscode/
+
 .vs/
