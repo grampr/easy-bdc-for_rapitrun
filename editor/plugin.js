@@ -731,16 +731,49 @@ export class PluginManager {
      * APIではなく raw を使用することで、マーケットプレイス表示時のAPIレート制限を回避します。
      */
     async getManifestFromGitHub(fullName, ref = 'main') {
-        try {
-            const url = `https://raw.githubusercontent.com/${fullName}/${encodeURIComponent(ref)}/manifest.json`;
-            const response = await this.fetchWithRetry(url);
-            if (!response.ok) return null;
+        const json = await this.getRemoteFile(fullName, 'manifest.json', ref);
+        return json ? JSON.parse(json) : null;
+    }
 
-            return await response.json();
+    /**
+     * GitHubから任意のリポジトリのファイルを取得します (raw 用)
+     */
+    async getRemoteFile(fullName, fileName, ref = 'main') {
+        try {
+            const url = `https://raw.githubusercontent.com/${fullName}/${encodeURIComponent(ref)}/${fileName}`;
+            const response = await this.fetchWithRetry(url);
+            if (!response.ok) {
+                // master へのフォールバック
+                if (ref === 'main') {
+                    const fallbackUrl = `https://raw.githubusercontent.com/${fullName}/master/${fileName}`;
+                    const fallbackResponse = await this.fetchWithRetry(fallbackUrl);
+                    if (fallbackResponse.ok) return await fallbackResponse.text();
+                }
+                return null;
+            }
+            return await response.text();
         } catch (e) {
-            console.warn('Failed to fetch manifest from GitHub (raw)', e);
+            console.warn(`Failed to fetch ${fileName} from GitHub (${fullName})`, e);
             return null;
         }
+    }
+
+    /**
+     * 公認およびマーケットプレイスの全プラグインリストを返します (単なる文字列の配列 ["author/repo", ...])
+     */
+    async getMarketplacePlugins() {
+        const results = new Set(this.certifiedPlugins || []);
+
+        try {
+            const livePlugins = await this.searchGitHubPlugins();
+            livePlugins.forEach(p => {
+                if (p.fullName) results.add(p.fullName);
+            });
+        } catch (e) {
+            console.warn("Live marketplace search failed, using certified list only.");
+        }
+
+        return Array.from(results);
     }
 
     // GitHubから直接インストール

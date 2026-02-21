@@ -844,6 +844,30 @@ Blockly.Blocks['get_input_value'] = {
 // Code Generators (Include previous ones)
 if (Blockly?.Python) {
   Blockly.Python.INDENT = '    ';
+
+  // ブロック検索用の未導入ブロックプレースホルダー
+  Blockly.Blocks['uninstalled_block_placeholder'] = {
+    init: function () {
+      this.appendDummyInput()
+        .appendField(new Blockly.FieldLabel('📦'), 'ICON')
+        .appendField(new Blockly.FieldLabel(''), 'STATUS')
+        .appendField(new Blockly.FieldLabel('不明なブロック'), 'NAME');
+      this.appendDummyInput()
+        .appendField('⚠️')
+        .appendField(new Blockly.FieldLabel('プラグインが必要です'), 'PLUGIN');
+      this.setColour('#e2e8f0'); // Light Gray / Ghost color
+      this.setTooltip('このブロックを使用するには、対象のプラグインをインストールして有効にしてください。');
+      this.setEditable(false);
+      this.setDeletable(false);
+      this.setMovable(false); // [重要] ドラッグして持ち出し不可にする
+      this.setInputsInline(false);
+    }
+  };
+
+  // ジェネレーター（何もしない）
+  Blockly.Python['uninstalled_block_placeholder'] = function (block) {
+    return '';
+  };
 }
 
 const getBranchCode = (block, name) => {

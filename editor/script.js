@@ -6,6 +6,8 @@ import WorkspaceStorage from './storage.js';
 import { initShareFeature } from "./share.js";
 import { PluginManager } from "./plugin.js";
 import { PluginUI } from "./plugin-ui.js";
+import { BlockSearch } from "./block-search.js";
+
 
 
 const PROJECT_TITLE_STORAGE_KEY = 'edbb_project_title';
@@ -2525,6 +2527,37 @@ const initializeApp = async () => {
     if (e.type === Blockly.Events.TOOLBOX_ITEM_SELECT) setTimeout(updatePinState, 50);
   });
 
+  // 検索バーの表示・非表示をツールボックスに連動させる
+  const updateSearchVisibility = () => {
+    const toolbox = workspace.getToolbox();
+    const searchContainer = document.getElementById('blockSearchContainer');
+    const toolboxContents = document.querySelector('.blocklyToolboxContents');
+
+    if (toolbox && searchContainer) {
+      if (toolboxContents && searchContainer.parentNode !== toolboxContents) {
+        toolboxContents.insertBefore(searchContainer, toolboxContents.firstChild);
+      }
+
+      const isVisible = toolbox.getWidth() > 0;
+      searchContainer.style.display = isVisible ? 'block' : 'none';
+    }
+  };
+
+  const originalUpdatePinState = updatePinState;
+  const newUpdatePinState = () => {
+    originalUpdatePinState();
+    updateSearchVisibility();
+  };
+  // updatePinState を差し替えるか、リサイズイベントなどで個別に呼ぶ
+  window.addEventListener('resize', updateSearchVisibility);
+  workspace.addChangeListener((e) => {
+    if (e.type === Blockly.Events.UI && (e.element === 'toolbox' || e.element === 'sidebar')) {
+      updateSearchVisibility();
+    }
+  });
+  // 初回呼び出し
+  setTimeout(updateSearchVisibility, 500);
+
   // --- Plugin System ---
   const pluginManager = new PluginManager(workspace);
   workspace.pluginManager = pluginManager; // storage.js からアクセスできるようにする
@@ -2551,6 +2584,37 @@ const initializeApp = async () => {
     pluginUI.handleBulkInstall(entries.join(','));
   });
   await pluginManager.init();
+
+  // --- Block Search Integration ---
+  const blockSearch = new BlockSearch(workspace, pluginManager);
+  window.blockSearch = blockSearch; // Expose for debugging if needed
+
+  const searchInput = document.getElementById('blockSearchInput');
+  if (searchInput) {
+    let debounceTimer;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        blockSearch.updateToolbox();
+      }, 400); // 400ミリ秒入力が止まったら検索を実行
+    });
+
+    // Initial index build after a short delay to ensure all blocks are loaded
+    setTimeout(() => blockSearch.buildIndex(), 1000);
+
+    // Re-build index when plugins change
+    const originalEnable = pluginManager.enablePlugin.bind(pluginManager);
+    pluginManager.enablePlugin = async (id) => {
+      await originalEnable(id);
+      blockSearch.buildIndex();
+    };
+    const originalDisable = pluginManager.disablePlugin.bind(pluginManager);
+    pluginManager.disablePlugin = async (id) => {
+      await originalDisable(id);
+      blockSearch.buildIndex();
+    };
+  }
+
 
   // --- Load Saved Data ---
   const sharedApplied = await shareFeature.applySharedLayoutFromQuery();
