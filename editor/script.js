@@ -5,13 +5,12 @@
 import WorkspaceStorage from './storage.js';
 import { initShareFeature } from "./share.js";
 import { PluginManager } from "./plugin.js";
-import { PluginUI } from "./plugin-ui.js";
+import { PluginUI, PLUGIN_FEATURE_TOGGLES_STORAGE_KEY } from "./plugin-ui.js";
 import { BlockSearch } from "./block-search.js";
 
 
 
 const PROJECT_TITLE_STORAGE_KEY = 'edbb_project_title';
-const PLUGIN_FEATURE_TOGGLES_STORAGE_KEY = 'edbb_plugin_feature_toggles_v1';
 
 let workspace;
 let storage;
