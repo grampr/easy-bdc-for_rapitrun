@@ -2060,6 +2060,7 @@ const initializeApp = async () => {
     '[::1]',
     'himais0giiiin.com',
     'beta.himais0giiiin.com',
+    'edbplugin.github.io',
   ]);
   const canDirectConnectLocalRunner =
     (window.location.protocol === 'http:' || window.location.protocol === 'https:') &&
