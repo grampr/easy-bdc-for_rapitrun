@@ -36,15 +36,23 @@ if (EDBB_CURRENT_APP_VERSION_INFO === null) {
 
 export class PluginManager {
     /**
-     * リトライ機能付きのfetch
+     * リトライ機能付きのfetch (タイムアウト制限付き)
      */
     async fetchWithRetry(url, options = {}, retries = 3, backoff = 500) {
+        const timeout = options.timeout || 5000;
         for (let i = 0; i < retries; i++) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
             try {
-                const response = await fetch(url, options);
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(id);
                 if (response.ok) return response;
-                // レート制限やサーバーエラー時はしばらく待ってリトライ
-                if (response.status === 403 || response.status >= 500) {
+                // レート制限(403)時はリトライしても無駄なので即座にエラー
+                if (response.status === 403) {
+                    throw new Error('GitHub API rate limit exceeded');
+                }
+                // サーバーエラー(500以上)のみリトライ
+                if (response.status >= 500) {
                     await new Promise(r => setTimeout(r, backoff * (i + 1)));
                     continue;
                 }
@@ -366,7 +374,15 @@ export class PluginManager {
             }
         }
 
+        const isNewVersion = parsedMinAppVersion && (
+            parsedMinAppVersion.major > 1 || 
+            (parsedMinAppVersion.major === 1 && parsedMinAppVersion.minor >= 1)
+        );
+
         if (manifest.externalPackages !== undefined) {
+            if (isNewVersion && parsedMinAppVersion.runtime === '0') {
+                console.warn('externalPackages is deprecated for minAppVersion 1.1.0+. Use pipInstall instead.');
+            }
             const isValidExternalPackages = Array.isArray(manifest.externalPackages)
                 && manifest.externalPackages.every((pkg) => typeof pkg === 'string' && pkg.trim() !== '');
             if (!isValidExternalPackages) {
@@ -682,7 +698,7 @@ export class PluginManager {
     // GitHubのリリース一覧を取得
     async getReleases(fullName) {
         try {
-            const response = await fetch(`https://api.github.com/repos/${fullName}/releases`);
+            const response = await this.fetchWithRetry(`https://api.github.com/repos/${fullName}/releases`, {}, 2, 300);
             if (!response.ok) return [];
             return await response.json();
         } catch (e) {
@@ -693,7 +709,7 @@ export class PluginManager {
 
     async getBranches(fullName) {
         try {
-            const response = await fetch(`https://api.github.com/repos/${fullName}/branches?per_page=100`);
+            const response = await this.fetchWithRetry(`https://api.github.com/repos/${fullName}/branches?per_page=100`, {}, 2, 300);
             if (!response.ok) return [];
             const payload = await response.json();
             if (!Array.isArray(payload)) return [];
@@ -731,16 +747,49 @@ export class PluginManager {
      * APIではなく raw を使用することで、マーケットプレイス表示時のAPIレート制限を回避します。
      */
     async getManifestFromGitHub(fullName, ref = 'main') {
-        try {
-            const url = `https://raw.githubusercontent.com/${fullName}/${encodeURIComponent(ref)}/manifest.json`;
-            const response = await this.fetchWithRetry(url);
-            if (!response.ok) return null;
+        const json = await this.getRemoteFile(fullName, 'manifest.json', ref);
+        return json ? JSON.parse(json) : null;
+    }
 
-            return await response.json();
+    /**
+     * GitHubから任意のリポジトリのファイルを取得します (raw 用)
+     */
+    async getRemoteFile(fullName, fileName, ref = 'main') {
+        try {
+            const url = `https://raw.githubusercontent.com/${fullName}/${encodeURIComponent(ref)}/${fileName}`;
+            const response = await this.fetchWithRetry(url);
+            if (!response.ok) {
+                // master へのフォールバック
+                if (ref === 'main') {
+                    const fallbackUrl = `https://raw.githubusercontent.com/${fullName}/master/${fileName}`;
+                    const fallbackResponse = await this.fetchWithRetry(fallbackUrl);
+                    if (fallbackResponse.ok) return await fallbackResponse.text();
+                }
+                return null;
+            }
+            return await response.text();
         } catch (e) {
-            console.warn('Failed to fetch manifest from GitHub (raw)', e);
+            console.warn(`Failed to fetch ${fileName} from GitHub (${fullName})`, e);
             return null;
         }
+    }
+
+    /**
+     * 公認およびマーケットプレイスの全プラグインリストを返します (単なる文字列の配列 ["author/repo", ...])
+     */
+    async getMarketplacePlugins() {
+        const results = new Set(this.certifiedPlugins || []);
+
+        try {
+            const livePlugins = await this.searchGitHubPlugins();
+            livePlugins.forEach(p => {
+                if (p.fullName) results.add(p.fullName);
+            });
+        } catch (e) {
+            console.warn("Live marketplace search failed, using certified list only.");
+        }
+
+        return Array.from(results);
     }
 
     // GitHubから直接インストール

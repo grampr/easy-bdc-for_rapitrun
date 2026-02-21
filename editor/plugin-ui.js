@@ -1267,6 +1267,18 @@ export class PluginUI {
                                 nameEl.appendChild(badge);
                             }
                         }
+
+                        const hasDeps = manifest && ((manifest.pipInstall && manifest.pipInstall.length > 0) || (manifest.externalPackages && manifest.externalPackages.length > 0));
+                        if (hasDeps) {
+                            if (!item.isConnected) return;
+                            const nameEl = item.querySelector('.font-bold');
+                            if (nameEl && !nameEl.innerHTML.includes('追加')) {
+                                const badge = document.createElement('span');
+                                badge.className = 'ml-1 text-[10px] px-1.5 py-0.5 rounded bg-orange-500 text-white leading-none';
+                                badge.textContent = '追加';
+                                nameEl.appendChild(badge);
+                            }
+                        }
                     } catch (e) {
                         // レート制限などのエラーは無視
                     }
@@ -1304,6 +1316,7 @@ export class PluginUI {
             const reason = validation.missing ? `必須項目が不足しています: ${validation.missing.join(', ')}` : (plugin.trustLevel?.invalidReason || plugin.trustLevel?.reason || '必須項目が不足しています。');
             badges.push(`<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-400 text-white leading-none cursor-help" title="${reason}">不可</span>`);
         }
+
         const trustBadge = badges.join('');
 
         // アイコンの処理
@@ -1434,17 +1447,45 @@ export class PluginUI {
         let releases = [];
         let branches = [];
         let showReadmeAd = false;
+        let fetchedManifest = null;
+        let isRateLimited = false;
         if (!isMock) {
-            const results = await Promise.all([
-                this.pluginManager.getREADME(plugin.fullName, plugin.defaultBranch),
-                this.pluginManager.getReleases(plugin.fullName),
-                this.pluginManager.getBranches(plugin.fullName),
-                this.pluginManager.hasExternalDocOverride(plugin.fullName)
-            ]);
-            readme = results[0];
-            releases = results[1];
-            branches = Array.isArray(results[2]) ? results[2] : [];
-            showReadmeAd = !!results[3];
+            try {
+                // タイムアウト付きのフェッチ (5秒)
+                const fetchWithTimeout = async (promise, timeout = 5000) => {
+                    return Promise.race([
+                        promise,
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
+                    ]);
+                };
+
+                const safeFetch = async (promise, fallback = null) => {
+                    try {
+                        return await promise;
+                    } catch (e) {
+                        if (e.message?.includes('rate limit')) isRateLimited = true;
+                        console.warn('Silent fetch error:', e);
+                        return fallback;
+                    }
+                };
+
+                const results = await fetchWithTimeout(Promise.all([
+                    safeFetch(this.pluginManager.getREADME(plugin.fullName, plugin.defaultBranch), 'READMEが見つかりませんでした。'),
+                    safeFetch(this.pluginManager.getReleases(plugin.fullName), []),
+                    safeFetch(this.pluginManager.getBranches(plugin.fullName), []),
+                    safeFetch(this.pluginManager.hasExternalDocOverride(plugin.fullName), false),
+                    safeFetch(this.pluginManager.getManifestFromGitHub(plugin.fullName, plugin.defaultBranch), null)
+                ]), 10000); // 全体で10秒制限
+
+                readme = results[0] || 'READMEが見つかりませんでした。';
+                releases = results[1] || [];
+                branches = results[2] || [];
+                showReadmeAd = results[3];
+                fetchedManifest = results[4];
+            } catch (err) {
+                if (err.message?.includes('rate limit')) isRateLimited = true;
+                console.error('Failed to fetch GitHub info or timed out', err);
+            }
         } else {
             readme = plugin.description || 'テスト用プラグインのデモページです。';
         }
@@ -1473,23 +1514,43 @@ export class PluginUI {
             </div>
         ` : '';
 
+        const rateLimitWarning = isRateLimited ? `
+            <div class="mb-6 p-4 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 flex items-start gap-3">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-orange-500 shrink-0 mt-0.5"></i>
+                <div class="text-sm">
+                    <div class="font-bold text-orange-600 dark:text-orange-400">GitHub API レート制限</div>
+                    <div class="text-orange-500/80 dark:text-orange-400/80 mt-1">リクエスト回数が上限に達したため、リリースやブランチ情報の一部が表示できません。しばらくしてから再度お試しください。</div>
+                </div>
+            </div>
+        ` : '';
+
         // マニフェスト取得とバリデーション
         let validation = { valid: true };
-        if (!isMock) {
-            const skipManifestFetch = await this.pluginManager.isInExternalManifestList(plugin.fullName);
-            if (!skipManifestFetch) {
-                const manifest = await this.pluginManager.getManifestFromGitHub(plugin.fullName, plugin.defaultBranch);
-                if (manifest) {
-                    validation = this.pluginManager.validateManifest(manifest);
-                } else {
-                    validation = { valid: false, missing: ['manifest.jsonが見つかりません'] };
-                }
-            }
+        const manifest = fetchedManifest;
+        if (manifest) {
+            validation = this.pluginManager.validateManifest(manifest);
+        } else if (!isMock) {
+            validation = { valid: false, missing: ['manifest.jsonが見つかりません'] };
         }
 
         if (!validation.valid) {
             badges.push('<span class="text-[10px] px-2 py-1 rounded bg-slate-400 text-white font-bold leading-none shrink-0">使用不可のプラグイン</span>');
         }
+
+        // マニフェストから正確な依存関係を再確認
+        let hasDependencies = (plugin.pipInstall && plugin.pipInstall.length > 0) || (plugin.externalPackages && plugin.externalPackages.length > 0);
+        const realManifest = fetchedManifest;
+        if (realManifest) {
+            const reallyHasDeps = (realManifest.pipInstall && realManifest.pipInstall.length > 0) || (realManifest.externalPackages && realManifest.externalPackages.length > 0);
+            if (reallyHasDeps && !hasDependencies) {
+                hasDependencies = true;
+                badges.push('<span class="text-[10px] px-2 py-1 rounded bg-orange-500 text-white font-bold leading-none shrink-0">追加ライブラリ</span>');
+                // 一部のフィールドをマニフェストから補完
+                plugin.pipInstall = realManifest.pipInstall;
+                plugin.externalPackages = realManifest.externalPackages;
+            }
+        }
+
         const trustBadge = badges.join(' ');
         const branchOptions = branches
             .filter((branchName) => branchName && branchName !== plugin.defaultBranch)
@@ -1506,12 +1567,14 @@ export class PluginUI {
             </div>
         ` : '';
 
-        const sourceUrl = plugin.source || plugin.repo || '';
+        const dependencyWarning = '';
 
         this.pluginDetailContent.innerHTML = `
             <div id="pluginNewsPanel">${this.renderNewsPanelHtml(plugin)}</div>
+            ${rateLimitWarning}
             ${dangerWarning}
             ${invalidWarning}
+            ${dependencyWarning}
             <div class="flex flex-col mb-6">
                 <div class="flex justify-between items-start mb-4">
                     <div>
@@ -1673,6 +1736,11 @@ export class PluginUI {
         if (level === 'danger') {
             badges.push('<span class="text-[10px] px-2 py-1 rounded bg-red-500 text-white font-bold leading-none shrink-0">危険なプラグイン</span>');
         }
+        let hasDependencies = (plugin.pipInstall && plugin.pipInstall.length > 0) || (plugin.externalPackages && plugin.externalPackages.length > 0);
+        if (hasDependencies) {
+            badges.push('<span class="text-[10px] px-2 py-1 rounded bg-orange-500 text-white font-bold leading-none shrink-0">追加ライブラリ</span>');
+        }
+
 
         // 使用不可バッジ (独立判定)
         const isInvalid = level === 'invalid' || plugin.trustLevel?.invalid;
@@ -1682,6 +1750,7 @@ export class PluginUI {
         if (!validation.valid || isInvalid) {
             badges.push('<span class="text-[10px] px-2 py-1 rounded bg-slate-400 text-white font-bold leading-none shrink-0">使用不可のプラグイン</span>');
         }
+
         const trustBadge = badges.join(' ');
 
 
@@ -1697,6 +1766,9 @@ export class PluginUI {
             </div>
         ` : '';
 
+        const rateLimitWarning = '';
+        const dependencyWarning = '';
+
         const invalidWarning = (!validation.valid || isInvalid) ? `
             <div class="mb-6 p-4 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-start gap-3">
                 <i data-lucide="slash" class="w-5 h-5 text-slate-500 shrink-0 mt-0.5"></i>
@@ -1711,8 +1783,10 @@ export class PluginUI {
 
         this.pluginDetailContent.innerHTML = `
             <div id="pluginNewsPanel">${this.renderNewsPanelHtml(plugin)}</div>
+            ${rateLimitWarning}
             ${dangerWarning}
             ${invalidWarning}
+            ${dependencyWarning}
             <div class="flex justify-between items-start mb-6">
                 <div class="min-w-0 flex-grow">
                     <h1 class="text-3xl font-bold text-slate-900 dark:text-white flex flex-wrap items-center gap-3 break-words">${plugin.name} ${trustBadge}</h1>

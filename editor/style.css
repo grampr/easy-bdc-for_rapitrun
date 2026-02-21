@@ -298,7 +298,23 @@ html.is-mobile .blocklyTreeLabel {
   font-size: 1rem;
   margin-left: 0;
   letter-spacing: 0.02em;
-  text-align: center;
+}
+
+/* Search bar adjustment for mobile/collapsed toolbox */
+html.is-mobile #blockSearchContainer {
+  padding: 6px 4px;
+}
+
+html.is-mobile #blockSearchInput {
+  padding-left: 2rem !important;
+  font-size: 0;
+  /* Hide text */
+}
+
+/* Hide search bar when toolbox is hidden (via pin button) */
+.blocklyToolboxDiv[style*="display: none"]~#blockSearchContainer,
+.blocklyToolboxDiv.hidden~#blockSearchContainer {
+  display: none !important;
 }
 
 html.is-mobile .blocklyFlyout {
