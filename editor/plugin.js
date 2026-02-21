@@ -84,6 +84,8 @@ export class PluginManager {
         this.externalDocRepoOverrideMap = new Map();
         this.externalManifestRepoSet = new Set();
         this.externalDocRepoOverrideLoadPromise = null;
+        this.marketplaceFallbackUrl = 'https://github.com/EDBPlugin/PBARL/raw/refs/heads/main/edbp_data.json';
+        this.marketplaceFallbackRawPromise = null;
         // インストール済みプラグインのメタデータ
         this.installedPlugins = JSON.parse(localStorage.getItem('edbb_installed_plugins') || '{}');
 
@@ -216,6 +218,98 @@ export class PluginManager {
 
 
     // GitHubから edbp-plugin トピックの付いたリポジトリを取得
+    getDefaultBranchFromFallbackDataset(entry) {
+        const refNames = Array.isArray(entry?.refs?.nodes)
+            ? entry.refs.nodes
+                .map((node) => String(node?.name || '').trim())
+                .filter(Boolean)
+            : [];
+
+        if (refNames.includes('main')) return 'main';
+        if (refNames.includes('master')) return 'master';
+        if (refNames.length > 0) return refNames[0];
+        return 'main';
+    }
+
+    mapFallbackEntryToMarketplaceItem(entry) {
+        const fallbackFullName = String(entry?.nameWithOwner || '').trim();
+        const fallbackUrl = String(entry?.url || '').trim();
+        const parsedFromUrl = this.parseGitHubUrl(fallbackUrl);
+        const fullName = fallbackFullName || parsedFromUrl?.fullName || '';
+        if (!fullName || !fullName.includes('/')) return null;
+
+        const [author, ...repoParts] = fullName.split('/');
+        const repoName = repoParts.join('/');
+        if (!author || !repoName) return null;
+
+        const repoUrl = fallbackUrl || `https://github.com/${fullName}`;
+        const trustLevel = this.getTrustLevel({
+            full_name: fullName,
+            html_url: repoUrl,
+            owner: { login: author }
+        });
+
+        return {
+            id: repoName,
+            name: repoName,
+            author: author,
+            description: entry?.description || '',
+            repo: repoUrl,
+            stars: Number(entry?.stargazerCount || 0),
+            trustLevel: trustLevel,
+            tags: [],
+            fullName: fullName,
+            defaultBranch: this.getDefaultBranchFromFallbackDataset(entry)
+        };
+    }
+
+    async fetchFallbackMarketplaceRaw() {
+        if (this.marketplaceFallbackRawPromise) {
+            return this.marketplaceFallbackRawPromise;
+        }
+        this.marketplaceFallbackRawPromise = (async () => {
+            try {
+                const response = await this.fetchWithRetry(this.marketplaceFallbackUrl, {}, 2, 300);
+                if (!response.ok) return [];
+                const payload = await response.json();
+                return Array.isArray(payload) ? payload : [];
+            } catch (e) {
+                console.warn('Failed to fetch fallback marketplace dataset', e);
+                return [];
+            }
+        })();
+        return this.marketplaceFallbackRawPromise;
+    }
+
+    async getPBARLRefCandidates(fullName) {
+        const normalizedFullName = String(fullName || '').trim().toLowerCase();
+        if (!normalizedFullName) return [];
+
+        const payload = await this.fetchFallbackMarketplaceRaw();
+        const entry = payload.find((item) => String(item?.nameWithOwner || '').trim().toLowerCase() === normalizedFullName);
+        if (!entry) return [];
+
+        const refs = Array.isArray(entry?.refs?.nodes)
+            ? entry.refs.nodes
+                .map((node) => String(node?.name || '').trim())
+                .filter(Boolean)
+            : [];
+
+        const uniqueRefs = [];
+        refs.forEach((candidate) => {
+            if (!uniqueRefs.includes(candidate)) uniqueRefs.push(candidate);
+        });
+        return uniqueRefs;
+    }
+
+    async fetchFallbackMarketplacePlugins() {
+        const payload = await this.fetchFallbackMarketplaceRaw();
+        return payload
+            .map((entry) => this.mapFallbackEntryToMarketplaceItem(entry))
+            .filter(Boolean)
+            .sort((a, b) => Number(b?.stars || 0) - Number(a?.stars || 0));
+    }
+
     async searchGitHubPlugins() {
         try {
             const q = 'topic:edbp-plugin';
@@ -229,7 +323,7 @@ export class PluginManager {
 
             let data = await response.json();
             if (!data || !Array.isArray(data.items)) {
-                return [];
+                return await this.fetchFallbackMarketplacePlugins();
             }
 
             // 結果の整形
@@ -252,6 +346,11 @@ export class PluginManager {
             return items;
         } catch (e) {
             console.error('Failed to fetch GitHub plugins', e);
+            const fallbackItems = await this.fetchFallbackMarketplacePlugins();
+            if (fallbackItems.length > 0) {
+                console.warn('Using fallback marketplace dataset because GitHub API is unavailable or rate limited.');
+                return fallbackItems;
+            }
             return [];
         }
     }
@@ -747,8 +846,29 @@ export class PluginManager {
      * APIではなく raw を使用することで、マーケットプレイス表示時のAPIレート制限を回避します。
      */
     async getManifestFromGitHub(fullName, ref = 'main') {
-        const json = await this.getRemoteFile(fullName, 'manifest.json', ref);
-        return json ? JSON.parse(json) : null;
+        const refsToTry = [];
+        const pushRef = (candidate) => {
+            const value = String(candidate || '').trim();
+            if (!value) return;
+            if (!refsToTry.includes(value)) refsToTry.push(value);
+        };
+
+        pushRef(ref);
+        const pbarlRefs = await this.getPBARLRefCandidates(fullName);
+        pbarlRefs.forEach(pushRef);
+        pushRef('main');
+        pushRef('master');
+
+        for (const candidateRef of refsToTry) {
+            const json = await this.getRemoteFile(fullName, 'manifest.json', candidateRef);
+            if (!json) continue;
+            try {
+                return JSON.parse(json);
+            } catch (e) {
+                console.warn(`Invalid manifest.json in ${fullName}@${candidateRef}`, e);
+            }
+        }
+        return null;
     }
 
     /**
@@ -860,15 +980,16 @@ export class PluginManager {
                     const response = await this.fetchWithRetry(apiUrl, {
                         headers: { Accept: 'application/vnd.github+json' }
                     });
-                    if (!response.ok) return null;
-
-                    const data = await response.json();
-                    if (!data || data.type !== 'file' || !data.content) return null;
-                    return decodeBase64Utf8(data.content);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data && data.type === 'file' && data.content) {
+                            return decodeBase64Utf8(data.content);
+                        }
+                    }
                 } catch (e) {
                     console.warn(`Failed to fetch file ${filePath} from GitHub`, e);
-                    return null;
                 }
+                return await this.getRemoteFile(fullName, filePath, ref);
             };
 
             const manifestText = await fetchRepoFile('manifest.json');
