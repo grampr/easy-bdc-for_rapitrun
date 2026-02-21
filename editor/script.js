@@ -11,6 +11,7 @@ import { BlockSearch } from "./block-search.js";
 
 
 const PROJECT_TITLE_STORAGE_KEY = 'edbb_project_title';
+const PLUGIN_FEATURE_TOGGLES_STORAGE_KEY = 'edbb_plugin_feature_toggles_v1';
 
 let workspace;
 let storage;
@@ -2545,12 +2546,27 @@ const initializeApp = async () => {
   });
 
   // 検索バーの表示・非表示をツールボックスに連動させる
+  const isBlockSearchFeatureEnabled = () => {
+    try {
+      const raw = localStorage.getItem(PLUGIN_FEATURE_TOGGLES_STORAGE_KEY);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      return Boolean(parsed?.blockSearch);
+    } catch (_) {
+      return false;
+    }
+  };
+
   const updateSearchVisibility = () => {
     const toolbox = workspace.getToolbox();
     const searchContainer = document.getElementById('blockSearchContainer');
     const toolboxContents = document.querySelector('.blocklyToolboxContents');
 
     if (toolbox && searchContainer) {
+      if (!isBlockSearchFeatureEnabled()) {
+        searchContainer.style.display = 'none';
+        return;
+      }
       if (toolboxContents && searchContainer.parentNode !== toolboxContents) {
         toolboxContents.insertBefore(searchContainer, toolboxContents.firstChild);
       }
@@ -2559,6 +2575,7 @@ const initializeApp = async () => {
       searchContainer.style.display = isVisible ? 'block' : 'none';
     }
   };
+  window.addEventListener('edbb-plugin-feature-settings-changed', updateSearchVisibility);
 
   // 初回呼び出し
   setTimeout(() => {
