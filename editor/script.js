@@ -2071,18 +2071,41 @@ const initializeApp = async () => {
     '[editor] http://localhost でエディタを開くか、同一オリジンのプロキシ経由で接続してください。',
   ];
 
-  // Show run button only on Windows desktop clients.
+  // Show run button only on Windows / Linux desktop clients.
   const clientPlatform = String(
     navigator.userAgentData?.platform || navigator.platform || '',
   ).toLowerCase();
   const clientUserAgent = String(navigator.userAgent || '').toLowerCase();
   const isWindowsClient = clientPlatform.includes('win') || clientUserAgent.includes('windows');
+  const isLinuxClient =
+    (clientPlatform.includes('linux') ||
+      clientPlatform.includes('x11') ||
+      clientUserAgent.includes('linux')) &&
+    !clientUserAgent.includes('android');
+  const LINUX_RUNNER_NOTICE_DISMISS_KEY = 'runnerLinuxSupportNoticeDismissed';
+  const isRunButtonSupportedClient = isWindowsClient || isLinuxClient;
   if (runBotBtn) {
-    if (isWindowsClient) {
+    if (isRunButtonSupportedClient) {
       runBotBtn.classList.add('md:inline-flex');
     } else {
       runBotBtn.classList.remove('md:inline-flex');
       runBotBtn.classList.add('hidden');
+    }
+  }
+  if (isLinuxClient) {
+    try {
+      const shouldShowLinuxRunnerNotice =
+        localStorage.getItem(LINUX_RUNNER_NOTICE_DISMISS_KEY) !== '1';
+      if (shouldShowLinuxRunnerNotice) {
+        const dontShowAgain = window.confirm(
+          'Linuxでも実行できるようになりました。\nこのメッセージを今後表示しないようにしますか？',
+        );
+        if (dontShowAgain) {
+          localStorage.setItem(LINUX_RUNNER_NOTICE_DISMISS_KEY, '1');
+        }
+      }
+    } catch {
+      // Ignore storage errors in private mode or restricted browsers.
     }
   }
 
