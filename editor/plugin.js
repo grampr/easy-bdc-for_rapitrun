@@ -36,15 +36,23 @@ if (EDBB_CURRENT_APP_VERSION_INFO === null) {
 
 export class PluginManager {
     /**
-     * リトライ機能付きのfetch
+     * リトライ機能付きのfetch (タイムアウト制限付き)
      */
     async fetchWithRetry(url, options = {}, retries = 3, backoff = 500) {
+        const timeout = options.timeout || 5000;
         for (let i = 0; i < retries; i++) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
             try {
-                const response = await fetch(url, options);
+                const response = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(id);
                 if (response.ok) return response;
-                // レート制限やサーバーエラー時はしばらく待ってリトライ
-                if (response.status === 403 || response.status >= 500) {
+                // レート制限(403)時はリトライしても無駄なので即座にエラー
+                if (response.status === 403) {
+                    throw new Error('GitHub API rate limit exceeded');
+                }
+                // サーバーエラー(500以上)のみリトライ
+                if (response.status >= 500) {
                     await new Promise(r => setTimeout(r, backoff * (i + 1)));
                     continue;
                 }
@@ -366,7 +374,15 @@ export class PluginManager {
             }
         }
 
+        const isNewVersion = parsedMinAppVersion && (
+            parsedMinAppVersion.major > 1 || 
+            (parsedMinAppVersion.major === 1 && parsedMinAppVersion.minor >= 1)
+        );
+
         if (manifest.externalPackages !== undefined) {
+            if (isNewVersion && parsedMinAppVersion.runtime === '0') {
+                console.warn('externalPackages is deprecated for minAppVersion 1.1.0+. Use pipInstall instead.');
+            }
             const isValidExternalPackages = Array.isArray(manifest.externalPackages)
                 && manifest.externalPackages.every((pkg) => typeof pkg === 'string' && pkg.trim() !== '');
             if (!isValidExternalPackages) {
@@ -682,7 +698,7 @@ export class PluginManager {
     // GitHubのリリース一覧を取得
     async getReleases(fullName) {
         try {
-            const response = await fetch(`https://api.github.com/repos/${fullName}/releases`);
+            const response = await this.fetchWithRetry(`https://api.github.com/repos/${fullName}/releases`, {}, 2, 300);
             if (!response.ok) return [];
             return await response.json();
         } catch (e) {
@@ -693,7 +709,7 @@ export class PluginManager {
 
     async getBranches(fullName) {
         try {
-            const response = await fetch(`https://api.github.com/repos/${fullName}/branches?per_page=100`);
+            const response = await this.fetchWithRetry(`https://api.github.com/repos/${fullName}/branches?per_page=100`, {}, 2, 300);
             if (!response.ok) return [];
             const payload = await response.json();
             if (!Array.isArray(payload)) return [];
