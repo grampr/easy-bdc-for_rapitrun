@@ -2509,6 +2509,7 @@ const initializeApp = async () => {
       pinBtn.classList.add('bg-white/80', 'dark:bg-slate-800/80', 'backdrop-blur-sm');
     }
     lucide.createIcons();
+    updateSearchVisibility(); // Ensure search bar visibility updates with pin
   };
 
   pinBtn.onclick = () => {
@@ -2559,20 +2560,11 @@ const initializeApp = async () => {
     }
   };
 
-  const originalUpdatePinState = updatePinState;
-  const newUpdatePinState = () => {
-    originalUpdatePinState();
-    updateSearchVisibility();
-  };
-  // updatePinState を差し替えるか、リサイズイベントなどで個別に呼ぶ
-  window.addEventListener('resize', updateSearchVisibility);
-  workspace.addChangeListener((e) => {
-    if (e.type === Blockly.Events.UI && (e.element === 'toolbox' || e.element === 'sidebar')) {
-      updateSearchVisibility();
-    }
-  });
   // 初回呼び出し
-  setTimeout(updateSearchVisibility, 500);
+  setTimeout(() => {
+    updatePinState();
+    updateSearchVisibility();
+  }, 500);
 
   // --- Plugin System ---
   const pluginManager = new PluginManager(workspace);
@@ -2618,16 +2610,22 @@ const initializeApp = async () => {
     // Initial index build after a short delay to ensure all blocks are loaded
     setTimeout(() => blockSearch.buildIndex(), 1000);
 
-    // Re-build index when plugins change
+    // Re-build index when plugins change and refresh search results
     const originalEnable = pluginManager.enablePlugin.bind(pluginManager);
     pluginManager.enablePlugin = async (id) => {
       await originalEnable(id);
-      blockSearch.buildIndex();
+      await blockSearch.buildIndex();
+      if (searchInput.value) {
+        blockSearch.updateToolbox();
+      }
     };
     const originalDisable = pluginManager.disablePlugin.bind(pluginManager);
     pluginManager.disablePlugin = async (id) => {
       await originalDisable(id);
-      blockSearch.buildIndex();
+      await blockSearch.buildIndex();
+      if (searchInput.value) {
+        blockSearch.updateToolbox();
+      }
     };
   }
 
