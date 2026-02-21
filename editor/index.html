@@ -124,7 +124,7 @@
     <!-- Markdown & HTML Rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <script type="module" src="./block-search.js"></script>
+
 
 
     <link rel="stylesheet" href="style.css">
@@ -281,8 +281,9 @@
             <div id="blockSearchContainer" class="hidden w-full pl-0 pr-0 py-[3px] box-border relative">
                 <div class="relative group mr-[12px]">
                     <i data-lucide="search"
+                        aria-hidden="true"
                         class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-indigo-500 transition-colors"></i>
-                    <input type="text" id="blockSearchInput" placeholder="検索..." size="1"
+                    <input type="text" id="blockSearchInput" placeholder="検索..." aria-label="ブロック検索" size="1"
                         class="w-full min-w-0 pl-8 pr-3 py-[7px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-r-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-[11px] font-semibold">
                 </div>
             </div>

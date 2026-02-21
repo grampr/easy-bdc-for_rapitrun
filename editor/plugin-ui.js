@@ -343,6 +343,13 @@ export class PluginUI {
     closeSettingsModal() {
         if (!this.settingsModal) return;
         this.settingsModal.classList.remove('show-modal');
+
+        // aria-hiddenを設定する前にフォーカスをモーダル外に移動する（WAI-ARIA準拠）
+        if (this.settingsModal.contains(document.activeElement)) {
+            this.modal?.querySelector('#pluginSettingsClose')?.blur();
+            this.modal?.focus();
+        }
+
         this.settingsModal.setAttribute('aria-hidden', 'true');
         setTimeout(() => {
             this.settingsModal?.classList.remove('flex');
@@ -704,6 +711,11 @@ export class PluginUI {
             this.resolveMobileWarning(false);
         }
 
+        // aria-hiddenを設定する前にフォーカスをモーダル外に移動する（WAI-ARIA準拠）
+        if (this.modal.contains(document.activeElement)) {
+            this.btn?.focus();
+        }
+
         this.closeTimer = setTimeout(() => {
             if (!this.modal) return;
             this.modal.classList.remove('flex');
@@ -999,8 +1011,14 @@ export class PluginUI {
 
     hideMobileWarning() {
         if (!this.mobileWarningModal) return Promise.resolve();
-        this.mobileWarningModal.setAttribute('aria-hidden', 'true');
         this.mobileWarningModal.classList.remove('show-modal');
+
+        // aria-hiddenを設定する前にフォーカスをモーダル外に移動する（WAI-ARIA準拠）
+        if (this.mobileWarningModal.contains(document.activeElement)) {
+            this.mobileWarningModal.querySelector('button')?.blur();
+        }
+
+        this.mobileWarningModal.setAttribute('aria-hidden', 'true');
         return new Promise((resolve) => {
             setTimeout(() => {
                 this.mobileWarningModal?.classList.remove('flex');
