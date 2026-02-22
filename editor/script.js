@@ -5,13 +5,12 @@
 import WorkspaceStorage from './storage.js';
 import { initShareFeature } from "./share.js";
 import { PluginManager } from "./plugin.js";
-import { PluginUI } from "./plugin-ui.js";
+import { PluginUI, PLUGIN_FEATURE_TOGGLES_STORAGE_KEY } from "./plugin-ui.js";
 import { BlockSearch } from "./block-search.js";
 
 
 
 const PROJECT_TITLE_STORAGE_KEY = 'edbb_project_title';
-const PLUGIN_FEATURE_TOGGLES_STORAGE_KEY = 'edbb_plugin_feature_toggles_v1';
 
 let workspace;
 let storage;
@@ -2061,6 +2060,7 @@ const initializeApp = async () => {
     '[::1]',
     'himais0giiiin.com',
     'beta.himais0giiiin.com',
+    'edbplugin.github.io',
   ]);
   const canDirectConnectLocalRunner =
     (window.location.protocol === 'http:' || window.location.protocol === 'https:') &&
@@ -2072,18 +2072,41 @@ const initializeApp = async () => {
     '[editor] http://localhost でエディタを開くか、同一オリジンのプロキシ経由で接続してください。',
   ];
 
-  // Show run button only on Windows desktop clients.
+  // Show run button only on Windows / Linux desktop clients.
   const clientPlatform = String(
     navigator.userAgentData?.platform || navigator.platform || '',
   ).toLowerCase();
   const clientUserAgent = String(navigator.userAgent || '').toLowerCase();
   const isWindowsClient = clientPlatform.includes('win') || clientUserAgent.includes('windows');
+  const isLinuxClient =
+    (clientPlatform.includes('linux') ||
+      clientPlatform.includes('x11') ||
+      clientUserAgent.includes('linux')) &&
+    !clientUserAgent.includes('android');
+  const LINUX_RUNNER_NOTICE_DISMISS_KEY = 'runnerLinuxSupportNoticeDismissed';
+  const isRunButtonSupportedClient = isWindowsClient || isLinuxClient;
   if (runBotBtn) {
-    if (isWindowsClient) {
+    if (isRunButtonSupportedClient) {
       runBotBtn.classList.add('md:inline-flex');
     } else {
       runBotBtn.classList.remove('md:inline-flex');
       runBotBtn.classList.add('hidden');
+    }
+  }
+  if (isLinuxClient) {
+    try {
+      const shouldShowLinuxRunnerNotice =
+        localStorage.getItem(LINUX_RUNNER_NOTICE_DISMISS_KEY) !== '1';
+      if (shouldShowLinuxRunnerNotice) {
+        const dontShowAgain = window.confirm(
+          'Linuxでも実行できるようになりました。\nこのメッセージを今後表示しないようにしますか？',
+        );
+        if (dontShowAgain) {
+          localStorage.setItem(LINUX_RUNNER_NOTICE_DISMISS_KEY, '1');
+        }
+      }
+    } catch {
+      // Ignore storage errors in private mode or restricted browsers.
     }
   }
 
@@ -2111,9 +2134,6 @@ const initializeApp = async () => {
   const runnerDownloadModalClose = document.getElementById('runnerDownloadModalClose');
   const runnerDownloadCancelBtn = document.getElementById('runnerDownloadCancelBtn');
   const runnerDownloadBtn = document.getElementById('runnerDownloadBtn');
-  const localNetworkModal = document.getElementById('localNetworkModal');
-  const localNetworkModalClose = document.getElementById('localNetworkModalClose');
-  const localNetworkModalCancelBtn = document.getElementById('localNetworkModalCancelBtn');
   const runnerConsoleModal = document.getElementById('runnerConsoleModal');
   const runnerConsoleCloseBtn = document.getElementById('runnerConsoleCloseBtn');
   const runnerConsoleClearBtn = document.getElementById('runnerConsoleClearBtn');
@@ -2909,18 +2929,6 @@ const initializeApp = async () => {
     }
   };
 
-  const isLocalNetworkConnectionError = (error) => {
-    if (!error) return false;
-    const message = String(error?.message || '').toLowerCase();
-    const name = String(error?.name || '').toLowerCase();
-    return (
-      name === 'typeerror' ||
-      message.includes('failed to fetch') ||
-      message.includes('networkerror') ||
-      message.includes('load failed')
-    );
-  };
-
   const hideCodegenErrors = () => {
     if (!codeGenErrorBox || !codeGenErrorList) return;
     codeGenErrorList.innerHTML = '';
@@ -3125,12 +3133,6 @@ const initializeApp = async () => {
         // Stop polling when showing any error modal.
         stopRunnerConsolePolling();
         setRunBotButtonState('idle');
-        if (isLocalNetworkConnectionError(error)) {
-          if (localNetworkModal) {
-            toggleModal(localNetworkModal, true);
-          }
-          return;
-        }
         if (runnerDownloadModal) {
           toggleModal(runnerDownloadModal, true);
         }
@@ -3138,15 +3140,9 @@ const initializeApp = async () => {
     }
   });
 
-  // Runner Download Modal handlers
   const closeRunnerDownloadModal = () => {
     if (runnerDownloadModal) {
       toggleModal(runnerDownloadModal, false);
-    }
-  };
-  const closeLocalNetworkModal = () => {
-    if (localNetworkModal) {
-      toggleModal(localNetworkModal, false);
     }
   };
 
@@ -3162,8 +3158,6 @@ const initializeApp = async () => {
 
   runnerDownloadModalClose?.addEventListener('click', closeRunnerDownloadModal);
   runnerDownloadCancelBtn?.addEventListener('click', closeRunnerDownloadModal);
-  localNetworkModalClose?.addEventListener('click', closeLocalNetworkModal);
-  localNetworkModalCancelBtn?.addEventListener('click', closeLocalNetworkModal);
 
   runnerDownloadBtn?.addEventListener('click', () => {
     const hostname = window.location.hostname || '';
@@ -3186,11 +3180,6 @@ const initializeApp = async () => {
   runnerDownloadModal?.addEventListener('click', (e) => {
     if (e.target === runnerDownloadModal) {
       closeRunnerDownloadModal();
-    }
-  });
-  localNetworkModal?.addEventListener('click', (e) => {
-    if (e.target === localNetworkModal) {
-      closeLocalNetworkModal();
     }
   });
 

@@ -36,7 +36,8 @@
         })();
     </script>
     <meta name="google-adsense-account" content="ca-pub-6795302641432113">
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6795302641432113" crossorigin="anonymous"></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6795302641432113"
+        crossorigin="anonymous"></script>
     <meta charset="UTF-8">
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Easy Discord Bot Builder" />
@@ -50,7 +51,7 @@
     <meta name="twitter:title" content="Easy Discord Bot Builder" />
     <meta name="twitter:description" content="DiscordのBotをノーコードで。" />
     <meta name="twitter:image" content="https://himais0giiiin.com/static/ogp.jpg" />
-        
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 
@@ -233,7 +234,7 @@
                     <i data-lucide="table-2" class="w-4.5 h-4.5"></i>
                 </button>
 
-                <div class="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                <div data-theme-divider class="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                 <button id="themeToggle"
                     class="p-2 text-slate-500 hover:text-amber-500 dark:text-slate-400 dark:hover:text-amber-400 transition-colors rounded-md hover:bg-slate-50 dark:hover:bg-slate-800">
                     <i data-lucide="moon" class="hidden w-4.5 h-4.5 dark:block"></i>
@@ -280,8 +281,7 @@
             <!-- Block Editor -->
             <div id="blockSearchContainer" class="hidden w-full pl-0 pr-0 py-[3px] box-border relative">
                 <div class="relative group mr-[12px]">
-                    <i data-lucide="search"
-                        aria-hidden="true"
+                    <i data-lucide="search" aria-hidden="true"
                         class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-indigo-500 transition-colors"></i>
                     <input type="text" id="blockSearchInput" placeholder="検索..." aria-label="ブロック検索" size="1"
                         class="w-full min-w-0 pl-8 pr-3 py-[7px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-r-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-[11px] font-semibold">
@@ -990,7 +990,8 @@
                     </div>
                     <div>
                         <h2 class="text-lg font-bold text-slate-900 dark:text-white">Plugin Settings</h2>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">Target: <span id="pluginSettingsTargetLabel">-</span></p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Target: <span
+                                id="pluginSettingsTargetLabel">-</span></p>
                     </div>
                 </div>
                 <button id="pluginSettingsClose"
@@ -1029,10 +1030,10 @@
                 <div class="flex items-center gap-1">
                     <button id="pluginHeaderSettingsBtn"
                         class="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:text-slate-500 dark:hover:text-indigo-300 dark:hover:bg-indigo-900/20 transition-colors"
-                        title="Settings">
+                        aria-label="Settings" title="Settings">
                         <i data-lucide="settings" class="w-5 h-5"></i>
                     </button>
-                    <button id="pluginModalClose"
+                    <button id="pluginModalClose" aria-label="Close"
                         class="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:text-slate-500 dark:hover:text-slate-100/80 dark:hover:bg-slate-800 transition-colors">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
@@ -1049,7 +1050,9 @@
                                 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">インストール済みのみ表示</span>
                             <button data-filter-installed aria-pressed="false"
                                 class="w-8 h-4 rounded-full bg-slate-200 dark:bg-slate-700 relative transition-colors">
-                                <div class="absolute left-0.5 top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform translate-x-0"></div>
+                                <div
+                                    class="absolute left-0.5 top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform translate-x-0">
+                                </div>
                             </button>
                         </div>
                         <button id="pluginInstallBtn"
@@ -1210,7 +1213,7 @@
         </div>
     </div>
 
-    <!-- Runner Download Modal -->
+    <!-- Local Network Modal -->
     <div id="runnerDownloadModal"
         class="modal-backdrop hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
         aria-hidden="true">
@@ -1236,7 +1239,7 @@
                 <!-- Image -->
                 <div id="runnerDownloadImageContainer"
                     class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/50 overflow-hidden flex justify-center items-center h-80">
-                    <img id="runnerDownloadImage" src="/static/edbb-runner-howto.gif"
+                    <img id="runnerDownloadImage" src="../static/edbb-runner-howto.gif"
                         class="max-w-full max-h-full object-contain" alt="edbb-runner 使い方">
                 </div>
 
@@ -1244,7 +1247,7 @@
                     class="p-3 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-900/10 flex items-center gap-2">
                     <i data-lucide="monitor" class="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0"></i>
                     <p class="text-xs font-medium text-blue-900 dark:text-blue-100">
-                        現在Windows専用機能です
+                        Windows / Linux で利用できます
                     </p>
                 </div>
 
@@ -1277,49 +1280,6 @@
                     class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 text-white shadow-lg shadow-emerald-500/20 transition-all">
                     <i data-lucide="download" class="w-4 h-4"></i>
                     <span>ダウンロードはこちら</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Local Network Modal -->
-    <div id="localNetworkModal"
-        class="modal-backdrop hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
-        aria-hidden="true">
-        <div
-            class="flex flex-col w-full max-w-lg max-h-[85vh] overflow-hidden rounded-2xl shadow-2xl bg-white dark:bg-slate-900 modal-content border border-white/20 dark:border-slate-800 ring-1 ring-black/5">
-            <div
-                class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm sticky top-0 z-10">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
-                        <i data-lucide="wifi-off" class="w-5 h-5"></i>
-                    </div>
-                    <div>
-                        <h2 class="text-lg font-bold text-slate-900 dark:text-white">ローカルネットワーク接続がオフです</h2>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">
-                            起動ボタンから runner に接続できませんでした
-                        </p>
-                    </div>
-                </div>
-                <button id="localNetworkModalClose"
-                    class="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:text-slate-500 dark:hover:text-slate-100/80 dark:hover:bg-slate-800 transition-colors">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            <div class="p-6 bg-slate-50/60 dark:bg-slate-950/40 flex flex-col gap-4">
-                <p class="text-sm text-slate-700 dark:text-slate-300">
-                    ローカルネットワーク接続をオンにしてから、もう一度「起動」を押してください。
-                </p>
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                    改善しない場合は、edbb-runner が起動しているかも確認してください。
-                </p>
-            </div>
-            <div
-                class="flex flex-wrap items-center justify-end gap-3 px-6 py-4 bg-white/80 dark:bg-slate-900/80 border-t border-slate-100 dark:border-slate-800">
-                <button id="localNetworkModalCancelBtn" type="button"
-                    class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                    <i data-lucide="check" class="w-4 h-4"></i>
-                    <span>閉じる</span>
                 </button>
             </div>
         </div>
@@ -1383,7 +1343,8 @@
             z-index: 9999 !important;
         }
     </style>
-    <script type="text/javascript">window.DocsBotAI=window.DocsBotAI||{},DocsBotAI.init=function(e){return new Promise((t,r)=>{var n=document.createElement("script");n.type="text/javascript",n.async=!0,n.src="https://widget.docsbot.ai/chat.js";let o=document.getElementsByTagName("script")[0];o.parentNode.insertBefore(n,o),n.addEventListener("load",()=>{let n;Promise.all([new Promise((t,r)=>{window.DocsBotAI.mount(Object.assign({}, e)).then(t).catch(r)}),(n=function e(t){return new Promise(e=>{if(document.querySelector(t))return e(document.querySelector(t));let r=new MutationObserver(n=>{if(document.querySelector(t))return e(document.querySelector(t)),r.disconnect()});r.observe(document.body,{childList:!0,subtree:!0})})})("#docsbotai-root"),]).then(()=>t()).catch(r)}),n.addEventListener("error",e=>{r(e.message)})})};</script>
+    <script
+        type="text/javascript">window.DocsBotAI = window.DocsBotAI || {}, DocsBotAI.init = function (e) { return new Promise((t, r) => { var n = document.createElement("script"); n.type = "text/javascript", n.async = !0, n.src = "https://widget.docsbot.ai/chat.js"; let o = document.getElementsByTagName("script")[0]; o.parentNode.insertBefore(n, o), n.addEventListener("load", () => { let n; Promise.all([new Promise((t, r) => { window.DocsBotAI.mount(Object.assign({}, e)).then(t).catch(r) }), (n = function e(t) { return new Promise(e => { if (document.querySelector(t)) return e(document.querySelector(t)); let r = new MutationObserver(n => { if (document.querySelector(t)) return e(document.querySelector(t)), r.disconnect() }); r.observe(document.body, { childList: !0, subtree: !0 }) }) })("#docsbotai-root"),]).then(() => t()).catch(r) }), n.addEventListener("error", e => { r(e.message) }) }) };</script>
     <script type="text/javascript">
         (function () {
             // Prevent duplicate widget bootstrap (can trigger double attachShadow inside third-party code).

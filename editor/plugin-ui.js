@@ -4,7 +4,7 @@
  */
 const PLUGIN_MOBILE_WARNING_SKIP_KEY = 'edbb_plugin_mobile_warning_skip';
 const PLUGIN_BLOCK_VISIBILITY_STORAGE_KEY = 'edbb_plugin_block_visibility_v1';
-const PLUGIN_FEATURE_TOGGLES_STORAGE_KEY = 'edbb_plugin_feature_toggles_v1';
+export const PLUGIN_FEATURE_TOGGLES_STORAGE_KEY = 'edbb_plugin_feature_toggles_v1';
 const PLUGIN_NEWS_FEED_URL = 'https://raw.githubusercontent.com/EDBPlugin/News/refs/heads/main/news.json';
 const PLUGIN_NEWS_FETCH_TIMEOUT_MS = 5000;
 const MAX_CONCURRENT_MANIFEST_FETCHES = 4;
@@ -44,6 +44,7 @@ export class PluginUI {
         this.settingsTargetPluginId = null;
         this.pluginBlockVisibility = this.loadPluginBlockVisibility();
         this.pluginFeatureToggles = this.loadPluginFeatureToggles();
+        this.allowedFeatureToggleKeys = new Set(Object.keys(this.getDefaultPluginFeatureToggles()));
         this.newsItems = [];
         this.newsFetchState = 'idle';
         this.newsFetchError = '';
@@ -435,7 +436,11 @@ export class PluginUI {
         if (themeToggle) {
             themeToggle.style.display = toggles.darkModeButton ? '' : 'none';
             const divider = themeToggle.previousElementSibling;
-            if (divider && divider.classList.contains('w-px')) {
+            const isThemeDivider = !!divider && (
+                divider.hasAttribute('data-theme-divider')
+                || divider.classList.contains('w-px')
+            );
+            if (isThemeDivider) {
                 divider.style.display = toggles.darkModeButton ? '' : 'none';
             }
         }
@@ -537,7 +542,10 @@ export class PluginUI {
             this.settingsList.querySelectorAll('input[data-feature-toggle]').forEach((el) => {
                 el.addEventListener('change', (event) => {
                     const key = String(event.target?.getAttribute('data-feature-toggle') || '');
-                    if (!key) return;
+                    if (!key || !this.allowedFeatureToggleKeys.has(key)) {
+                        console.warn('Ignored unknown feature toggle key:', key);
+                        return;
+                    }
                     this.pluginFeatureToggles[key] = Boolean(event.target.checked);
                     this.savePluginFeatureToggles();
                     this.applyPluginFeatureToggles();
