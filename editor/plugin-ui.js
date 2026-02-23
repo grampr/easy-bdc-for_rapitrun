@@ -1388,6 +1388,18 @@ export class PluginUI {
                         if (!item.isConnected) return;
                         const manifest = skipManifestFetch ? null : await this.pluginManager.getManifestFromGitHub(plugin.fullName, plugin.defaultBranch);
                         if (!item.isConnected) return;
+                        if (manifest?.author) {
+                            plugin.author = String(manifest.author);
+                            const authorEl = item.querySelector('[data-plugin-author]');
+                            if (authorEl) authorEl.textContent = plugin.author;
+                        }
+                        if (manifest?.icon) {
+                            plugin.icon = manifest.icon;
+                            const iconSlot = item.querySelector('[data-plugin-icon-slot]');
+                            if (iconSlot) {
+                                iconSlot.outerHTML = this.getPluginIconHtml(plugin, false);
+                            }
+                        }
                         const validation = skipManifestFetch
                             ? { valid: true }
                             : (manifest ? this.pluginManager.validateManifest(manifest) : { valid: false, missing: ['manifest.jsonが見つかりません'] });
@@ -1457,17 +1469,7 @@ export class PluginUI {
         const trustBadge = badges.join('');
 
         // アイコンの処理
-        let iconHtml = '<div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg shrink-0 overflow-hidden">';
-        if (plugin.icon) {
-            if (plugin.icon.match(/^http|data:image/)) {
-                iconHtml += `<img src="${plugin.icon}" class="w-full h-full object-cover">`;
-            } else {
-                iconHtml += `<span>${plugin.icon}</span>`; // Emoji or character icon
-            }
-        } else {
-            iconHtml += '<i data-lucide="puzzle" class="w-4 h-4 text-slate-400"></i>';
-        }
-        iconHtml += '</div>';
+        const iconHtml = this.getPluginIconHtml(plugin, isInstalled);
 
         item.innerHTML = `
             <div class="flex gap-3 items-center">
@@ -1480,7 +1482,7 @@ export class PluginUI {
                         ${isEnabled ? '<div class="w-2 h-2 rounded-full bg-indigo-500 mt-1.5 ml-1 shrink-0"></div>' : ''}
                         ${!isInstalled ? '<i data-lucide="download-cloud" class="w-3.5 h-3.5 text-slate-300 ml-1 shrink-0"></i>' : ''}
                     </div>
-                    <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">開発者: ${plugin.author}</div>
+                    <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">開発者: <span data-plugin-author>${this.escapeHtml(String(plugin.author || ''))}</span></div>
                 </div>
             </div>
         `;
@@ -1509,6 +1511,52 @@ export class PluginUI {
             void this.refreshInstalledUpdateBadge(plugin, item, pluginKey);
         }
         return item;
+    }
+
+    getPluginIconUrl(plugin, isInstalled) {
+        const rawIcon = String(plugin?.icon || '').trim();
+        if (!rawIcon) {
+            if (!isInstalled && plugin?.author) {
+                return `https://github.com/${encodeURIComponent(String(plugin.author))}.png?size=64`;
+            }
+            return '';
+        }
+        if (/^(https?:\/\/|data:image\/)/i.test(rawIcon)) return rawIcon;
+
+        // Marketplace items can specify icons as relative paths in manifest.json.
+        if (!isInstalled && plugin?.fullName) {
+            // Keep emoji/character icons as text; only treat path-like values as files.
+            const looksLikePath = rawIcon.includes('/') || rawIcon.includes('.');
+            if (!looksLikePath) return '';
+            const branch = String(plugin?.defaultBranch || 'main').trim() || 'main';
+            const cleanPath = rawIcon.replace(/^\.?\//, '');
+            if (cleanPath) {
+                const encodedPath = cleanPath
+                    .split('/')
+                    .filter(Boolean)
+                    .map((segment) => encodeURIComponent(segment))
+                    .join('/');
+                return `https://raw.githubusercontent.com/${plugin.fullName}/${encodeURIComponent(branch)}/${encodedPath}`;
+            }
+        }
+
+        return '';
+    }
+
+    getPluginIconHtml(plugin, isInstalled) {
+        const resolvedIconUrl = this.getPluginIconUrl(plugin, isInstalled);
+        if (resolvedIconUrl) {
+            const escapedUrl = this.escapeHtml(resolvedIconUrl);
+            const escapedAlt = this.escapeHtml(String(plugin?.name || 'plugin icon'));
+            return `<div data-plugin-icon-slot class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg shrink-0 overflow-hidden"><img src="${escapedUrl}" alt="${escapedAlt}" class="w-full h-full object-cover" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span style="display:none;" class="w-full h-full items-center justify-center text-slate-400">🧩</span></div>`;
+        }
+
+        const iconText = String(plugin?.icon || '').trim();
+        if (iconText) {
+            return `<div data-plugin-icon-slot class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg shrink-0 overflow-hidden"><span>${this.escapeHtml(iconText)}</span></div>`;
+        }
+
+        return '<div data-plugin-icon-slot class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg shrink-0 overflow-hidden"><i data-lucide="puzzle" class="w-4 h-4 text-slate-400"></i></div>';
     }
 
     getInstalledUpdateCacheKey(plugin, fullName) {
@@ -1688,6 +1736,7 @@ export class PluginUI {
             }
         }
 
+        const displayAuthor = String((fetchedManifest && fetchedManifest.author) || plugin.author || '');
         const trustBadge = badges.join(' ');
         const branchOptions = branches
             .filter((branchName) => branchName && branchName !== plugin.defaultBranch)
@@ -1717,7 +1766,7 @@ export class PluginUI {
                     <div>
                         <h1 class="text-3xl font-bold text-slate-900 dark:text-white flex flex-wrap items-center gap-3">${plugin.name} ${trustBadge}</h1>
                         <div class="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500 dark:text-slate-400">
-                            <span class="flex items-center gap-1"><i data-lucide="user" class="w-3.5 h-3.5"></i> 開発者: ${plugin.author}</span>
+                            <span class="flex items-center gap-1"><i data-lucide="user" class="w-3.5 h-3.5"></i> 開発者: ${this.escapeHtml(displayAuthor)}</span>
                             <span class="flex items-center gap-1"><i data-lucide="star" class="w-3.5 h-3.5"></i> ${plugin.stars} Stars</span>
                         </div>
                     </div>
