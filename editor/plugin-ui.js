@@ -1393,12 +1393,12 @@ export class PluginUI {
                             const authorEl = item.querySelector('[data-plugin-author]');
                             if (authorEl) authorEl.textContent = plugin.author;
                         }
-                        if (manifest?.icon) {
+                        if (manifest && Object.prototype.hasOwnProperty.call(manifest, 'icon')) {
                             plugin.icon = manifest.icon;
-                            const iconSlot = item.querySelector('[data-plugin-icon-slot]');
-                            if (iconSlot) {
-                                iconSlot.outerHTML = this.getPluginIconHtml(plugin, false);
-                            }
+                        }
+                        const iconSlot = item.querySelector('[data-plugin-icon-slot]');
+                        if (iconSlot) {
+                            iconSlot.outerHTML = this.getPluginIconHtml(plugin, false);
                         }
                         const validation = skipManifestFetch
                             ? { valid: true }
@@ -1516,8 +1516,9 @@ export class PluginUI {
     getPluginIconUrl(plugin, isInstalled) {
         const rawIcon = String(plugin?.icon || '').trim();
         if (!rawIcon) {
-            if (!isInstalled && plugin?.author) {
-                return `https://github.com/${encodeURIComponent(String(plugin.author))}.png?size=64`;
+            const avatarOwner = this.getAvatarOwner(plugin, isInstalled);
+            if (avatarOwner) {
+                return `https://github.com/${encodeURIComponent(avatarOwner)}.png?size=64`;
             }
             return '';
         }
@@ -1541,6 +1542,18 @@ export class PluginUI {
         }
 
         return '';
+    }
+
+    getAvatarOwner(plugin, isInstalled) {
+        if (!plugin) return '';
+        if (!isInstalled && plugin?.fullName && String(plugin.fullName).includes('/')) {
+            return String(plugin.fullName).split('/')[0];
+        }
+        const repoInfo = this.pluginManager.parseGitHubUrl(plugin.source || plugin.repo || '');
+        if (repoInfo?.fullName && String(repoInfo.fullName).includes('/')) {
+            return String(repoInfo.fullName).split('/')[0];
+        }
+        return String(plugin?.author || '').trim();
     }
 
     getPluginIconHtml(plugin, isInstalled) {
