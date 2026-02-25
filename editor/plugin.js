@@ -1193,6 +1193,21 @@ export class PluginManager {
         return `edbp-${hex}-${Math.random().toString(36).substr(2, 4)}`;
     }
 
+    async peekManifestFromZip(file) {
+        try {
+            const zip = await JSZip.loadAsync(file);
+            const manifestFile = zip.file("manifest.json");
+            if (!manifestFile) throw new Error('manifest.json not found.');
+            const manifestText = await manifestFile.async("string");
+            const manifest = JSON.parse(manifestText);
+            manifest.trustLevel = this.getManifestTrustLevel(manifest);
+            return manifest;
+        } catch (error) {
+            console.error("Failed to peek manifest from ZIP:", error);
+            throw error;
+        }
+    }
+
     async installFromZip(file) {
         try {
             const zip = await JSZip.loadAsync(file);
