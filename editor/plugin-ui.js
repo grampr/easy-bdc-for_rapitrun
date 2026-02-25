@@ -805,7 +805,10 @@ export class PluginUI {
                     if (!level) {
                         try {
                             const manifestUrl = `https://raw.githubusercontent.com/${info.fullName}/${info.branch || 'main'}/manifest.json`;
-                            const fetchRes = await fetch(manifestUrl);
+                            const ctrl = new AbortController();
+                            const timeoutId = setTimeout(() => ctrl.abort(), 5000);
+                            const fetchRes = await fetch(manifestUrl, { signal: ctrl.signal });
+                            clearTimeout(timeoutId);
                             if (fetchRes.ok) {
                                 const fetchedManifest = await fetchRes.json();
                                 const fetchedTrust = this.pluginManager.getManifestTrustLevel(fetchedManifest);
