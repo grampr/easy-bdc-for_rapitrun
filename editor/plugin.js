@@ -37,7 +37,7 @@ if (EDBB_CURRENT_APP_VERSION_INFO === null) {
 
 export class PluginManager {
     /**
-     * 繝ｪ繝医Λ繧､讖溯・莉倥″縺ｮfetch (繧ｿ繧､繝繧｢繧ｦ繝亥宛髯蝉ｻ倥″)
+     * リトライ機能付きの fetch (タイムアウト制限付き)
      */
     async fetchWithRetry(url, options = {}, retries = 3, backoff = 500) {
         const timeout = options.timeout || 5000;
@@ -49,11 +49,11 @@ export class PluginManager {
                 const response = await fetchFn(url, { ...options, signal: controller.signal });
                 clearTimeout(id);
                 if (response.ok) return response;
-                // 繝ｬ繝ｼ繝亥宛髯・403)譎ゅ・繝ｪ繝医Λ繧､縺励※繧ら┌鬧・↑縺ｮ縺ｧ蜊ｳ蠎ｧ縺ｫ繧ｨ繝ｩ繝ｼ
+                // レート制限(403)時はリトライしても無意味なので即座にエラー
                 if (response.status === 403) {
                     throw new Error('GitHub API rate limit exceeded');
                 }
-                // 繧ｵ繝ｼ繝舌・繧ｨ繝ｩ繝ｼ(500莉･荳・縺ｮ縺ｿ繝ｪ繝医Λ繧､
+                // サーバーエラー(500以上)のみリトライ
                 if (response.status >= 500) {
                     await new Promise(r => setTimeout(r, backoff * (i + 1)));
                     continue;
@@ -104,10 +104,10 @@ export class PluginManager {
         if (Number.isFinite(persistedRateLimitUntil) && persistedRateLimitUntil > Date.now()) {
             this.githubMarketplaceRateLimitedUntil = persistedRateLimitUntil;
         }
-        // 繧､繝ｳ繧ｹ繝医・繝ｫ貂医∩繝励Λ繧ｰ繧､繝ｳ縺ｮ繝｡繧ｿ繝・・繧ｿ
+        // インストール済みプラグインのメタデータ
         this.installedPlugins = JSON.parse(localStorage.getItem('edbb_installed_plugins') || '{}');
 
-        // 繝・・繧ｿ縺ｮ遘ｻ陦・ 譁・ｭ怜・縺九ｉ0(local)/1(github)縺ｸ
+        // データの移行: 文字列から 0(local)/1(github) へ
         let modified = false;
         Object.values(this.installedPlugins).forEach(p => {
             if (p.installedFrom === 'github') {
@@ -117,7 +117,7 @@ export class PluginManager {
                 p.installedFrom = 0;
                 modified = true;
             } else if (p.installedFrom === undefined) {
-                // 譏守､ｺ縺輔ｌ縺ｦ縺・↑縺・ｴ蜷医・local(0)
+                // 明示されていない場合は local(0)
                 p.installedFrom = 0;
                 modified = true;
             }
@@ -131,15 +131,15 @@ export class PluginManager {
             this.saveInstalledPlugins();
         }
 
-        // 譛牙柑蛹悶＆繧後※縺・ｋ繝励Λ繧ｰ繧､繝ｳ縺ｮID
+        // 有効化されているプラグインのID
         this.enabledPlugins = new Set(JSON.parse(localStorage.getItem('edbb_enabled_plugins') || '[]'));
 
-        // 蜈ｬ隱阪・繝ｩ繧ｰ繧､繝ｳ繝ｪ繧ｹ繝医・繧ｭ繝｣繝・す繝･
+        // 公認プラグインリストのキャッシュ
         this.certifiedPlugins = [];
-        // 繝悶Λ繝・け繝ｪ繧ｹ繝医・繧ｭ繝｣繝・す繝･
+        // ブラックリストのキャッシュ
         this.blacklistedPlugins = [];
 
-        // 驕主悉縺ｮ雋蛯ｵ繧呈ｸ・ｮ・
+        // 過去の負債を削除
         this._purgeLegacySystems();
     }
 
@@ -148,7 +148,7 @@ export class PluginManager {
         const legacyBuiltinUUIDs = ['edbp-builtin-vanilla-001'];
         let purged = false;
 
-        // 1. ID縺ｫ繧医ｋ繝代・繧ｸ
+        // 1. IDによるパージ
         legacyBuiltinIds.forEach(id => {
             if (this.installedPlugins[id]) {
                 delete this.installedPlugins[id];
@@ -160,7 +160,7 @@ export class PluginManager {
             }
         });
 
-        // 2. UUID縺ｫ繧医ｋ繝代・繧ｸ
+        // 2. UUIDによるパージ
         Object.keys(this.installedPlugins).forEach(id => {
             const plugin = this.installedPlugins[id];
             if (plugin && legacyBuiltinUUIDs.includes(plugin.uuid)) {
@@ -178,8 +178,8 @@ export class PluginManager {
     }
 
     /**
-     * 縺吶∋縺ｦ縺ｮ繝励Λ繧ｰ繧､繝ｳ繝・・繧ｿ繧貞ｮ悟・縺ｫ蜑企勁縺励∝・譛溽憾諷九↓謌ｻ縺励∪縺吶・
-     * 螻･豁ｴ豸亥悉縺ｪ縺ｩ縺ｮ謫堺ｽ懊→騾｣蜍輔＆縺帙ｋ縺溘ａ縺ｮ繧ｷ繧ｹ繝・Β縺ｧ縺吶・
+     * すべてのプラグインデータを完全に削除し、初期状態に戻します。
+     * 履歴消去などの操作と連動させるためのシステムです。
      */
     resetSystem() {
         console.warn('EDBP System Reset initiated. Purging all local plugin data.');
@@ -190,7 +190,7 @@ export class PluginManager {
         });
         this.plugins.clear();
 
-        // localStorage縺ｮ迚ｩ逅・炎髯､
+        // localStorageの関連項目を削除
         localStorage.removeItem('edbb_installed_plugins');
         localStorage.removeItem('edbb_enabled_plugins');
 
@@ -201,7 +201,7 @@ export class PluginManager {
     async init() {
         console.log('PluginManager initializing...');
 
-        // 蜈ｬ隱阪・繝ｩ繧ｰ繧､繝ｳ繝ｪ繧ｹ繝医ｒ蜑阪・蠖｢縺ｧ蜿門ｾ・(EDBP-API 縺ｮ plugins.json)
+        // 公認プラグインリストを配列形式で取得 (EDBP-API の plugins.json)
         try {
             const response = await this.fetchWithRetry('https://raw.githubusercontent.com/EDBPlugin/EDBP-API/main/plugins.json');
             if (response.ok) {
@@ -211,7 +211,7 @@ export class PluginManager {
             console.warn('Failed to fetch certified plugins list', e);
         }
 
-        // 繝悶Λ繝・け繝ｪ繧ｹ繝医ｒ蜿門ｾ・(EDBPlugin/Blacklist 縺ｮ plugins.json)
+        // ブラックリストを取得 (EDBPlugin/Blacklist の plugins.json)
         try {
             const response = await this.fetchWithRetry('https://raw.githubusercontent.com/EDBPlugin/Blacklist/main/plugins.json');
             if (response.ok) {
@@ -222,7 +222,7 @@ export class PluginManager {
         }
 
         for (const pluginId of Array.from(this.enabledPlugins)) {
-            // 繝・せ繝育畑繝励Λ繧ｰ繧､繝ｳ縺ｯ蜀崎ｪｭ縺ｿ霎ｼ縺ｿ譎ゅ↓閾ｪ蜍輔〒辟｡蜉ｹ蛹悶☆繧・
+            // テスト用プラグインは再読み込み時に自動で無効化する
             if (pluginId === 'test-danger' || pluginId === 'malicious-test-plugin') {
                 this.enabledPlugins.delete(pluginId);
                 this.saveState();
@@ -238,7 +238,7 @@ export class PluginManager {
     }
 
 
-    // GitHub縺九ｉ edbp-plugin 繝医ヴ繝・け縺ｮ莉倥＞縺溘Μ繝昴ず繝医Μ繧貞叙蠕・
+    // GitHub から edbp-plugin トピック付きリポジトリを取得
     getDefaultBranchFromFallbackDataset(entry) {
         const refNames = Array.isArray(entry?.refs?.nodes)
             ? entry.refs.nodes
@@ -437,9 +437,9 @@ export class PluginManager {
 
         return await this.githubMarketplaceSearchPromise;
     }
-    // 菫｡鬆ｼ繝ｬ繝吶Ν縺ｮ蛻､螳・(GitHub Search Result逕ｨ)
+    // 信頼レベルの判定 (GitHub Search Result 用)
     getTrustLevel(repo) {
-        // 繝悶Λ繝・け繝ｪ繧ｹ繝医メ繧ｧ繝・け繧貞━蜈・
+        // ブラックリストチェックを優先
         const blacklistMatch = this._isInList(this.blacklistedPlugins, repo.full_name, repo.html_url);
         if (blacklistMatch) {
             return {
@@ -450,20 +450,20 @@ export class PluginManager {
 
         if (repo.owner.login === 'EDBPlugin') return { level: 'official' };
 
-        // EDBP-API縺ｮ繝ｪ繧ｹ繝医↓蜷ｫ縺ｾ繧後※縺・ｋ縺九メ繧ｧ繝・け
+        // EDBP-API のリストに含まれているかチェック
         const isCertified = this._isInList(this.certifiedPlugins, repo.full_name, repo.html_url);
         if (isCertified) return { level: 'certified' };
 
         return null;
     }
 
-    // 菫｡鬆ｼ繝ｬ繝吶Ν縺ｮ蛻､螳・(繧､繝ｳ繧ｹ繝医・繝ｫ貂医∩繝槭ル繝輔ぉ繧ｹ繝育畑)
+    // 信頼レベルの判定 (インストール済みマニフェスト用)
     getManifestTrustLevel(manifest) {
         const validation = this.validateManifest(manifest);
         let level = null;
         let reason = null;
 
-        // 繝悶Λ繝・け繝ｪ繧ｹ繝医メ繧ｧ繝・け
+        // ブラックリストチェック
         if (manifest.repo) {
             const blacklistMatch = this._isInList(this.blacklistedPlugins, null, manifest.repo);
             if (blacklistMatch) {
@@ -485,12 +485,12 @@ export class PluginManager {
             level: level,
             reason: reason,
             invalid: !validation.valid,
-            invalidReason: validation.valid ? null : `蠢・磯・岼縺御ｸ崎ｶｳ縺励※縺・∪縺・ ${validation.missing.join(', ')}`
+            invalidReason: validation.valid ? null : `必須項目が不足しています: ${validation.missing.join(', ')}`
         };
     }
 
     /**
-     * 繝槭ル繝輔ぉ繧ｹ繝医・蠢・磯・岼繧偵メ繧ｧ繝・け縺励∪縺・
+     * マニフェストの必須項目をチェックします。
      * @param {object} manifest 
      * @returns {object} { valid: boolean, missing: string[] }
      */
@@ -612,8 +612,8 @@ export class PluginManager {
     }
 
     /**
-     * 繝ｪ繧ｹ繝茨ｼ亥・隱阪・繝悶Λ繝・け繝ｪ繧ｹ繝茨ｼ峨↓蜷ｫ縺ｾ繧後※縺・ｋ縺九メ繧ｧ繝・け縺吶ｋ繝倥Ν繝代・
-     * 隕九▽縺九▲縺溷ｴ蜷医・縺昴・繧ｨ繝ｳ繝医Μ繧偵∬ｦ九▽縺九ｉ縺ｪ縺・ｴ蜷医・null繧定ｿ斐＠縺ｾ縺吶・
+     * リスト（公認・ブラックリスト）に含まれているかチェックするヘルパー。
+     * 見つかった場合はそのエントリを、見つからない場合は null を返します。
      */
     _isInList(list, fullName, url) {
         if (!Array.isArray(list)) return null;
@@ -621,7 +621,7 @@ export class PluginManager {
             if (typeof p === 'string') {
                 return (fullName && p === fullName) || (url && url.includes(p));
             }
-            // 繧ｪ繝悶ず繧ｧ繧ｯ繝亥ｽ｢蠑・(URL繝励Ο繝代ユ繧｣縺後≠繧句ｴ蜷・
+            // オブジェクト形式 (URLプロパティがある場合)
             if (p && typeof p === 'object') {
                 const targetUrl = p.URL || p.url || p.repo || p.id;
                 return targetUrl && url && (url === targetUrl || url.includes(targetUrl));
@@ -631,7 +631,7 @@ export class PluginManager {
     }
 
     /**
-     * GitHub縺ｮURL繧定ｧ｣譫舌＠縺ｦ縲∵園譛芽・√Μ繝昴ず繝医Μ縲√ヶ繝ｩ繝ｳ繝√√ヱ繧ｹ繧呈歓蜃ｺ縺励∪縺吶・
+     * GitHub の URL を解析して、所有者、リポジトリ、ブランチ、パスを抽出します。
      * @param {string} url 
      * @returns {object|null}
      */
@@ -639,10 +639,10 @@ export class PluginManager {
         if (!url || typeof url !== 'string' || !url.includes('github.com')) return null;
 
         try {
-            // 繧ｯ繧ｨ繝ｪ繝代Λ繝｡繝ｼ繧ｿ繧帝勁蜴ｻ縺励∵忰蟆ｾ縺ｮ繧ｹ繝ｩ繝・す繝･繧・.git 繧貞叙繧企勁縺・
+            // クエリパラメータを除去し、末尾のスラッシュや .git を取り除く
             const cleanUrl = url.split('?')[0].replace(/\/$/, '').replace(/\.git$/, '');
 
-            // github.com/ 莉･髯阪・驛ｨ蛻・ｒ蜿門ｾ・
+            // github.com/ 以降の部分を取得
             const pathParts = cleanUrl.split('github.com/')[1].split('/');
             if (pathParts.length < 2) return null;
 
@@ -651,7 +651,7 @@ export class PluginManager {
             let branch = 'main';
             let path = '';
 
-            // blob/branch/path or tree/branch/path 縺ｮ蠖｢蠑上ｒ繝√ぉ繝・け
+            // blob/branch/path or tree/branch/path の形式をチェック
             if (pathParts.length >= 4 && (pathParts[2] === 'tree' || pathParts[2] === 'blob')) {
                 branch = pathParts[3];
                 path = pathParts.slice(4).join('/');
@@ -664,7 +664,7 @@ export class PluginManager {
         }
     }
 
-    // README縺ｮ蜿門ｾ・
+    // READMEの取得
     normalizeExternalUrl(url) {
         if (!url || typeof url !== 'string') return '';
         const trimmed = url.trim().split('#')[0].split('?')[0].replace(/\/$/, '');
@@ -851,18 +851,18 @@ export class PluginManager {
 
         if (repoInfo) {
             fullName = repoInfo.fullName;
-            // URL縺ｫ繝悶Λ繝ｳ繝∵欠螳壹′縺ゅｌ縺ｰ縺昴ｌ繧剃ｽｿ逕ｨ縲√↑縺代ｌ縺ｰ蠑墓焚縺ｮ繝・ヵ繧ｩ繝ｫ繝・
+            // URL にブランチ指定があればそれを使用、なければ引数のデフォルト
             branch = (repoInfo.branch && repoInfo.branch !== 'main') ? repoInfo.branch : defaultBranch;
             subPath = repoInfo.path ? repoInfo.path + '/' : '';
         }
 
-        // 讀懃ｴ｢縺吶ｋ繝代せ縺ｮ蜆ｪ蜈磯・ｽ・ URL蜀・・繝代せ/README.md -> 繝ｫ繝ｼ繝・README.md
+        // 検索するパスの優先順: URL上のパス/README.md -> ルートREADME.md
         const possiblePaths = [
             `${subPath}README.md`,
             'README.md'
         ];
 
-        // 驥崎､・ｒ髯､蜴ｻ
+        // 重複を削除
         const uniquePaths = [...new Set(possiblePaths)];
 
         for (const path of uniquePaths) {
@@ -876,7 +876,7 @@ export class PluginManager {
     }
 
 
-    // GitHub縺ｮ繝ｪ繝ｪ繝ｼ繧ｹ荳隕ｧ繧貞叙蠕・
+    // GitHubのリリース一覧を取得
     async getReleases(fullName) {
         if (this.isGitHubApiCoolingDown()) return [];
         try {
@@ -951,8 +951,8 @@ export class PluginManager {
     }
 
     /**
-     * GitHub縺九ｉmanifest.json繧貞叙蠕励＠縺ｦ繧ｪ繝悶ず繧ｧ繧ｯ繝医→縺励※霑斐＠縺ｾ縺・
-     * API縺ｧ縺ｯ縺ｪ縺・raw 繧剃ｽｿ逕ｨ縺吶ｋ縺薙→縺ｧ縲√・繝ｼ繧ｱ繝・ヨ繝励Ξ繧､繧ｹ陦ｨ遉ｺ譎ゅ・API繝ｬ繝ｼ繝亥宛髯舌ｒ蝗樣∩縺励∪縺吶・
+     * GitHubからmanifest.jsonを取得してオブジェクトとして返します。
+     * API ではなく raw を使用することで、マーケットプレイス表示時の API レート制限を回避します。
      */
     async getManifestFromGitHub(fullName, ref = 'main') {
         const refsToTry = [];
@@ -981,14 +981,14 @@ export class PluginManager {
     }
 
     /**
-     * GitHub縺九ｉ莉ｻ諢上・繝ｪ繝昴ず繝医Μ縺ｮ繝輔ぃ繧､繝ｫ繧貞叙蠕励＠縺ｾ縺・(raw 逕ｨ)
+     * GitHub から任意のリポジトリのファイルを取得します (raw 用)。
      */
     async getRemoteFile(fullName, fileName, ref = 'main') {
         try {
             const url = `https://raw.githubusercontent.com/${fullName}/${encodeURIComponent(ref)}/${fileName}`;
             const response = await this.fetchWithRetry(url);
             if (!response.ok) {
-                // master 縺ｸ縺ｮ繝輔か繝ｼ繝ｫ繝舌ャ繧ｯ
+                // master へのフォールバック
                 if (ref === 'main') {
                     const fallbackUrl = `https://raw.githubusercontent.com/${fullName}/master/${fileName}`;
                     const fallbackResponse = await this.fetchWithRetry(fallbackUrl);
@@ -1004,7 +1004,7 @@ export class PluginManager {
     }
 
     /**
-     * 蜈ｬ隱阪♀繧医・繝槭・繧ｱ繝・ヨ繝励Ξ繧､繧ｹ縺ｮ蜈ｨ繝励Λ繧ｰ繧､繝ｳ繝ｪ繧ｹ繝医ｒ霑斐＠縺ｾ縺・(蜊倥↑繧区枚蟄怜・縺ｮ驟榊・ ["author/repo", ...])
+     * 公認およびマーケットプレイスの全プラグインリストを返します (単なる文字列配列: ["author/repo", ...])
      */
     async getMarketplacePlugins() {
         const results = new Set(this.certifiedPlugins || []);
@@ -1021,7 +1021,7 @@ export class PluginManager {
         return Array.from(results);
     }
 
-    // GitHub縺九ｉ逶ｴ謗･繧､繝ｳ繧ｹ繝医・繝ｫ
+    // GitHub から直接インストール
     async installFromGitHub(fullName, branchOrUrl = 'main') {
         try {
             const installInput = String(branchOrUrl || 'main').trim() || 'main';
@@ -1041,7 +1041,7 @@ export class PluginManager {
                 const releaseAssetMatch = normalizedUrl.match(/\/releases\/download\/([^\/]+)\//);
                 if (releaseAssetMatch) return decodeURIComponent(releaseAssetMatch[1]);
 
-                // 繝ｪ繝昴ず繝医ΜURL閾ｪ菴薙′貂｡縺輔ｌ縺溷ｴ蜷医・縲√◎縺ｮ繝悶Λ繝ｳ繝√ｒ謚ｽ蜃ｺ
+                // リポジトリURL自体が渡された場合は、そのブランチを抽出
                 const repoInfo = this.parseGitHubUrl(value);
                 if (repoInfo && repoInfo.branch) return repoInfo.branch;
 
@@ -1116,10 +1116,10 @@ export class PluginManager {
 
             const manifest = JSON.parse(manifestText);
 
-            // 繝舌Μ繝・・繧ｷ繝ｧ繝ｳ繝√ぉ繝・け (譁ｰ隕剰ｿｽ蜉)
+            // バリデーションチェック (新規追加)
             const validation = this.validateManifest(manifest);
             if (!validation.valid) {
-                throw new Error(`繝槭ル繝輔ぉ繧ｹ繝医・蠢・磯・岼縺御ｸ崎ｶｳ縺励※縺・∪縺・ ${validation.missing.join(', ')}`);
+                throw new Error(`マニフェストの必須項目が不足しています: ${validation.missing.join(', ')}`);
             }
 
             if (!manifest.uuid) {
@@ -1137,7 +1137,7 @@ export class PluginManager {
             this.validatePluginScriptCapabilities(manifest);
 
             manifest.installedFrom = 1; // 1: github
-            manifest.installRef = ref; // 繧､繝ｳ繧ｹ繝医・繝ｫ譎ゅ・繝悶Λ繝ｳ繝・繧ｿ繧ｰ/URL繧定ｨ倬鹸
+            manifest.installRef = ref; // インストール時のブランチ・タグ・URLを記録
             manifest.installChannel = installChannel; // branch | release
             const installCommitSha = await this.getLatestCommitSha(fullName, ref) || await this.getCommitShaFromPBARL(fullName, ref);
             if (installChannel === 'release') {
@@ -1158,7 +1158,7 @@ export class PluginManager {
                 delete manifest.installReleaseTag;
             }
 
-            // manifest.repo 繧貞ｮ滄圀縺ｮ繧､繝ｳ繧ｹ繝医・繝ｫ蜈ザRL縺ｫ蠑ｷ蛻ｶ逧・↓譖ｸ縺肴鋤縺医ｋ
+            // manifest.repo を実際のインストール元URLに強制的に書き換える
             const repoUrl = `https://github.com/${fullName}`;
             if (manifest.repo !== repoUrl) {
                 manifest.repo = repoUrl;
@@ -1202,10 +1202,10 @@ export class PluginManager {
             const manifestText = await manifestFile.async("string");
             const manifest = JSON.parse(manifestText);
 
-            // 繝舌Μ繝・・繧ｷ繝ｧ繝ｳ繝√ぉ繝・け (譁ｰ隕剰ｿｽ蜉)
+            // バリデーションチェック (新規追加)
             const validation = this.validateManifest(manifest);
             if (!validation.valid) {
-                throw new Error(`繝槭ル繝輔ぉ繧ｹ繝医・蠢・磯・岼縺御ｸ崎ｶｳ縺励※縺・∪縺・ ${validation.missing.join(', ')}`);
+                throw new Error(`マニフェストの必須項目が不足しています: ${validation.missing.join(', ')}`);
             }
 
             if (!manifest.name || !manifest.author) {
@@ -1449,7 +1449,7 @@ export class PluginManager {
 
     getRegistry() {
         return Object.values(this.installedPlugins).map(plugin => {
-            // 繧､繝ｳ繧ｹ繝医・繝ｫ貂医∩繝・・繧ｿ縺九ｉ菫｡鬆ｼ繝ｬ繝吶Ν繧貞・險育ｮ励＠縺ｦ莉倅ｸ趣ｼ医Μ繧ｹ繝域峩譁ｰ蜿肴丐縺ｮ縺溘ａ・・
+            // インストール済みデータから信頼レベルを再計算して付与（リスト更新反映のため）
             return {
                 ...plugin,
                 trustLevel: this.getManifestTrustLevel(plugin)
@@ -1457,7 +1457,7 @@ export class PluginManager {
         });
     }
 
-    // 繝励Λ繧ｰ繧､繝ｳ繧､繝ｳ繧ｹ繝医・繝ｫ逕ｨ縺ｮURL繧堤函謌・
+    // プラグインインストール用のURLを生成
     getPluginBlockTypes(id) {
         const plugin = this.installedPlugins[id];
         return Array.isArray(plugin?.blockTypes) ? plugin.blockTypes : [];
@@ -1495,7 +1495,7 @@ export class PluginManager {
         return uuids;
     }
 
-    // 蜈ｱ譛峨＆繧後◆髫帙↓縲√Ξ繧ｷ繝斐お繝ｳ繝亥・縺ｧ繧､繝ｳ繧ｹ繝医・繝ｫ繧剃ｿ・☆縺溘ａ縺ｮ諠・ｱ繧貞叙蠕・
+    // 共有時に、レシピエント側でインストールするための情報を取得
     getSharablePluginsInfo() {
         const infos = [];
         for (const id of this.enabledPlugins) {
@@ -1509,7 +1509,7 @@ export class PluginManager {
         return infos;
     }
 
-    // 譛ｪ繧､繝ｳ繧ｹ繝医・繝ｫ縺ｮ蜈ｱ譛峨・繝ｩ繧ｰ繧､繝ｳ縺後≠繧句ｴ蜷医↓蜻ｼ縺ｳ蜃ｺ縺吶さ繝ｼ繝ｫ繝舌ャ繧ｯ繧堤匳骭ｲ
+    // 未インストールの共有プラグインがある場合に呼び出すコールバックを登録
     onPluginsSuggested(callback) {
         this.suggestCallback = callback;
     }
@@ -1536,21 +1536,21 @@ export class PluginManager {
         return null;
     }
 
-    // 繝励Λ繧ｰ繧､繝ｳ縺悟・譛牙庄閭ｽ縺句愛譁ｭ縺吶ｋ繝ｭ繧ｸ繝・け
+    // プラグインが共有可能か判断するロジック
     isPluginSharable(id) {
         const meta = this.installedPlugins[id];
         if (!meta) return false;
 
-        // GitHub縺九ｉ繧､繝ｳ繧ｹ繝医・繝ｫ縺輔ｌ縺溘ｂ縺ｮ縺ｯ縲√Μ繝昴ず繝医ΜURL縺後≠繧九◆繧∝・譛牙庄閭ｽ (installedFrom: 1)
+        // GitHub からインストールされたものは、リポジトリURLがあるため共有可能 (installedFrom: 1)
 
         if (meta.installedFrom === 1 && meta.repo) return true;
 
-        // 繝ｭ繝ｼ繧ｫ繝ｫZIP縺九ｉ縺ｮ繧ゅ・縺ｯ縲∽ｻ紋ｺｺ縺梧戟縺｣縺ｦ縺・↑縺・庄閭ｽ諤ｧ縺後≠繧九◆繧∝渕譛ｬ縺ｯ蜈ｱ譛我ｸ榊庄
-        // (蟆・擂逧・↓ZIP縺斐→繝励Ο繧ｸ繧ｧ繧ｯ繝医↓蝓九ａ霎ｼ繧縺ｪ繧牙庄閭ｽ縺ｫ縺ｪ繧九°繧ゅ＠繧後↑縺・′縲∫樟蝨ｨ縺ｯUUID縺ｮ縺ｿ蜈ｱ譛峨☆繧九◆繧・
+        // ローカルZIP由来のものは、他人が持っていない可能性があるため基本は共有不可
+        // (将来的にZIPごとプロジェクトへ埋め込むなら共有可能になるかもしれないが、現在はUUIDのみ共有するため)
         return false;
     }
 
-    // 繝励Λ繧ｰ繧､繝ｳ繧短IP縺ｨ縺励※繧ｨ繧ｯ繧ｹ繝昴・繝・
+    // プラグインをZIPとしてエクスポート
     async exportPluginAsZip(id) {
         const meta = this.installedPlugins[id];
         if (!meta) throw new Error('Plugin not found.');
@@ -1559,7 +1559,7 @@ export class PluginManager {
         const manifest = { ...meta };
         const script = manifest.script;
 
-        // manifest.json 縺ｯ繧ｨ繧ｯ繧ｹ繝昴・繝域凾縺ｫ荳崎ｦ√↑諠・ｱ繧貞炎繧・
+        // manifest.json はエクスポート時に不要な情報を削除
         delete manifest.script;
         delete manifest.installedFrom;
 
