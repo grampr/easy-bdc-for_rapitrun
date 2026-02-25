@@ -813,7 +813,9 @@ export class PluginUI {
                                 trustReason = fetchedTrust?.reason;
                                 pName = fetchedManifest.name || pName;
                             }
-                        } catch(e) {}
+                        } catch(e) {
+                            console.warn(`Failed to fetch manifest for ${info.fullName}:`, e);
+                        }
                     }
 
                     if (level === 'danger') {
