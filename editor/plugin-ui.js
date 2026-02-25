@@ -51,10 +51,9 @@ export class PluginUI {
         this.newsFetchedAt = 0;
         this.currentDetailPluginKey = null;
         this.updateCheckCache = new Map();
-        this.updateCheckTtlMs = 5 * 60 * 1000;
-        this.sideErrorToast = null;
         this.sideErrorToastTimer = null;
         this.deleteAgreementModal = null;
+        this.dangerousInstallModal = null;
 
         this.init();
     }
@@ -157,15 +156,16 @@ export class PluginUI {
         const modal = document.createElement('div');
         modal.className = 'hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm';
         modal.innerHTML = `
-            <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300" role="dialog" aria-modal="true" aria-labelledby="dangerousInstallTitle">
                 <div class="px-5 py-4 border-b border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10 flex items-center gap-3">
                     <i data-lucide="alert-triangle" class="w-5 h-5 text-red-500"></i>
-                    <h3 class="text-base font-bold text-red-600 dark:text-red-400">セキュリティ警告</h3>
+                    <h3 id="dangerousInstallTitle" class="text-base font-bold text-red-600 dark:text-red-400">セキュリティ警告</h3>
                 </div>
                 <div class="px-5 py-6 space-y-4">
                     <p class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed font-bold">
                         注意: このプラグインは危険であるということが運営チームによって報告されています。
                     </p>
+                    <p id="dangerousInstallPluginName" class="text-xs text-slate-500 dark:text-slate-400 font-mono p-2 bg-slate-50 dark:bg-slate-800 rounded-md border border-slate-200 dark:border-slate-700"></p>
                     <div id="dangerousInstallReason" class="p-3 rounded-lg bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 text-xs text-red-600 dark:text-red-400 leading-relaxed whitespace-pre-wrap"></div>
                     <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                         信頼できないプラグインをインストールすると、あなたのボットのトークンやデータが盗まれたり、ボットが悪用されたりする危険があります。
@@ -183,7 +183,7 @@ export class PluginUI {
         `;
         document.body.appendChild(modal);
         this.dangerousInstallModal = modal;
-        lucide.createIcons({ props: { search: modal } });
+        lucide.createIcons({ root: modal });
         return modal;
     }
 
@@ -231,13 +231,18 @@ export class PluginUI {
         const checkbox = modal.querySelector('#dangerousInstallCheckbox');
         const cancelBtn = modal.querySelector('#dangerousInstallCancelBtn');
         const confirmBtn = modal.querySelector('#dangerousInstallConfirmBtn');
-        if (!reasonEl || !checkbox || !cancelBtn || !confirmBtn) return Promise.resolve(false);
+        const nameEl = modal.querySelector('#dangerousInstallPluginName');
+        if (!reasonEl || !checkbox || !cancelBtn || !confirmBtn || !nameEl) return Promise.resolve(false);
 
+        nameEl.textContent = pluginName || '(unknown)';
         reasonEl.textContent = reason || 'このプラグインには悪意のあるコードが含まれているか、重大なセキュリティ上の問題がある可能性があります。';
         checkbox.checked = false;
         confirmBtn.disabled = true;
         modal.classList.remove('hidden');
         modal.classList.add('flex');
+
+        const previousFocus = document.activeElement;
+        checkbox.focus();
 
         return new Promise((resolve) => {
             const close = (result) => {
@@ -247,6 +252,8 @@ export class PluginUI {
                 cancelBtn.removeEventListener('click', onCancel);
                 confirmBtn.removeEventListener('click', onConfirm);
                 modal.removeEventListener('click', onBackdrop);
+                modal.removeEventListener('keydown', onKeydown);
+                if (previousFocus) previousFocus.focus();
                 resolve(result);
             };
             const onChange = () => {
@@ -257,11 +264,33 @@ export class PluginUI {
             const onBackdrop = (event) => {
                 if (event.target === modal) close(false);
             };
+            const onKeydown = (event) => {
+                if (event.key === 'Escape') {
+                    event.stopPropagation();
+                    close(false);
+                } else if (event.key === 'Tab') {
+                    const focusable = [checkbox, cancelBtn, confirmBtn].filter(el => !el.disabled);
+                    const first = focusable[0];
+                    const last = focusable[focusable.length - 1];
+                    if (event.shiftKey) {
+                        if (document.activeElement === first) {
+                            event.preventDefault();
+                            last.focus();
+                        }
+                    } else {
+                        if (document.activeElement === last) {
+                            event.preventDefault();
+                            first.focus();
+                        }
+                    }
+                }
+            };
 
             checkbox.addEventListener('change', onChange);
             cancelBtn.addEventListener('click', onCancel);
             confirmBtn.addEventListener('click', onConfirm);
             modal.addEventListener('click', onBackdrop);
+            modal.addEventListener('keydown', onKeydown);
         });
     }
 
@@ -316,20 +345,19 @@ export class PluginUI {
                 const file = e.target.files?.[0];
                 if (!file) return;
                 try {
-                    const manifest = await this.pluginManager.installFromZip(file);
+                    const manifest = await this.pluginManager.peekManifestFromZip(file);
                     
                     // 危険なプラグインのチェック
                     const level = manifest.trustLevel?.level ?? manifest.trustLevel;
                     if (level === 'danger') {
                         const agreed = await this.confirmDangerousInstall(manifest.name, manifest.trustLevel?.reason);
                         if (!agreed) {
-                            await this.pluginManager.uninstallPlugin(manifest.id);
-                            this.renderMarketplace();
                             e.target.value = '';
                             return;
                         }
                     }
 
+                    await this.pluginManager.installFromZip(file);
                     this.renderMarketplace();
                     this.showSideSuccess('プラグインをインストールしました。');
                 } catch (err) {
@@ -758,6 +786,7 @@ export class PluginUI {
 
             let successCount = 0;
             let failCount = 0;
+            let skippedCount = 0;
 
             for (const entryUrl of selectedEntries) {
                 const info = this.pluginManager.parseGitHubUrl(entryUrl);
@@ -769,11 +798,28 @@ export class PluginUI {
                     // 危険なプラグインのチェック (マーケットプレイスの検索結果から取得)
                     const results = this.githubResults || [];
                     const pluginData = results.find(p => p.fullName === info.fullName);
-                    const level = pluginData?.trustLevel?.level ?? pluginData?.trustLevel;
+                    let level = pluginData?.trustLevel?.level ?? pluginData?.trustLevel;
+                    let trustReason = pluginData?.trustLevel?.reason;
+                    let pName = pluginData?.name || info.fullName;
+                    
+                    if (!level) {
+                        try {
+                            const manifestUrl = `https://raw.githubusercontent.com/${info.fullName}/${info.branch || 'main'}/manifest.json`;
+                            const fetchRes = await fetch(manifestUrl);
+                            if (fetchRes.ok) {
+                                const fetchedManifest = await fetchRes.json();
+                                const fetchedTrust = this.pluginManager.getManifestTrustLevel(fetchedManifest);
+                                level = fetchedTrust?.level ?? fetchedTrust;
+                                trustReason = fetchedTrust?.reason;
+                                pName = fetchedManifest.name || pName;
+                            }
+                        } catch(e) {}
+                    }
+
                     if (level === 'danger') {
-                        const agreed = await this.confirmDangerousInstall(pluginData.name || info.fullName, pluginData.trustLevel?.reason);
+                        const agreed = await this.confirmDangerousInstall(pName, trustReason);
                         if (!agreed) {
-                            failCount++;
+                            skippedCount++;
                             continue;
                         }
                     }
@@ -786,10 +832,14 @@ export class PluginUI {
                 }
             }
 
+            let message = `${successCount}個のプラグインをインストールしました。`;
+            if (failCount > 0) message += `\n${failCount}個のインストールに失敗しました。`;
+            if (skippedCount > 0) message += `\n${skippedCount}個のインストールをユーザーの操作でスキップしました。`;
+
             if (failCount > 0) {
-                this.showSideError(`${successCount}個のプラグインをインストールしました。\n${failCount}個のインストールに失敗しました。`);
+                this.showSideError(message);
             } else {
-                this.showSideSuccess(`${successCount}個のプラグインをインストールしました。`);
+                this.showSideSuccess(message);
             }
             this.bulkInstallConfirmBtn.disabled = false;
             this.bulkInstallConfirmBtn.innerHTML = originalText;
