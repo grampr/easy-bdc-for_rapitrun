@@ -297,6 +297,8 @@ export class PluginManager {
             } catch (e) {
                 console.warn('Failed to fetch fallback marketplace dataset', e);
                 return [];
+            } finally {
+                this.marketplaceFallbackRawPromise = null;
             }
         })();
         return this.marketplaceFallbackRawPromise;
@@ -1082,11 +1084,18 @@ export class PluginManager {
             };
 
             const fetchRepoFile = async (filePath) => {
+                if (this.isGitHubApiCoolingDown()) {
+                    return await this.getRemoteFile(fullName, filePath, ref);
+                }
                 const apiUrl = `https://api.github.com/repos/${fullName}/contents/${filePath}?ref=${encodeURIComponent(ref)}`;
                 try {
                     const response = await this.fetchWithRetry(apiUrl, {
                         headers: { Accept: 'application/vnd.github+json' }
                     });
+                    if (response.status === 403) {
+                        this.markGitHubApiRateLimited();
+                        return await this.getRemoteFile(fullName, filePath, ref);
+                    }
                     if (response.ok) {
                         const data = await response.json();
                         if (data && data.type === 'file' && data.content) {
@@ -1094,6 +1103,9 @@ export class PluginManager {
                         }
                     }
                 } catch (e) {
+                    if (this.isGitHubRateLimitError(e)) {
+                        this.markGitHubApiRateLimited();
+                    }
                     console.warn(`Failed to fetch file ${filePath} from GitHub`, e);
                 }
                 return await this.getRemoteFile(fullName, filePath, ref);
@@ -1179,6 +1191,21 @@ export class PluginManager {
         }
         const hex = Math.abs(hash).toString(16).padStart(8, '0');
         return `edbp-${hex}-${Math.random().toString(36).substr(2, 4)}`;
+    }
+
+    async peekManifestFromZip(file) {
+        try {
+            const zip = await JSZip.loadAsync(file);
+            const manifestFile = zip.file("manifest.json");
+            if (!manifestFile) throw new Error('manifest.json not found.');
+            const manifestText = await manifestFile.async("string");
+            const manifest = JSON.parse(manifestText);
+            manifest.trustLevel = this.getManifestTrustLevel(manifest);
+            return manifest;
+        } catch (error) {
+            console.error("Failed to peek manifest from ZIP:", error);
+            throw error;
+        }
     }
 
     async installFromZip(file) {
