@@ -2083,7 +2083,6 @@ const initializeApp = async () => {
       clientPlatform.includes('x11') ||
       clientUserAgent.includes('linux')) &&
     !clientUserAgent.includes('android');
-  const LINUX_RUNNER_NOTICE_DISMISS_KEY = 'runnerLinuxSupportNoticeDismissed';
   const isRunButtonSupportedClient = isWindowsClient || isLinuxClient;
   if (runBotBtn) {
     if (isRunButtonSupportedClient) {
@@ -2091,22 +2090,6 @@ const initializeApp = async () => {
     } else {
       runBotBtn.classList.remove('md:inline-flex');
       runBotBtn.classList.add('hidden');
-    }
-  }
-  if (isLinuxClient) {
-    try {
-      const shouldShowLinuxRunnerNotice =
-        localStorage.getItem(LINUX_RUNNER_NOTICE_DISMISS_KEY) !== '1';
-      if (shouldShowLinuxRunnerNotice) {
-        const dontShowAgain = window.confirm(
-          'Linuxでも実行できるようになりました。\nこのメッセージを今後表示しないようにしますか？',
-        );
-        if (dontShowAgain) {
-          localStorage.setItem(LINUX_RUNNER_NOTICE_DISMISS_KEY, '1');
-        }
-      }
-    } catch {
-      // Ignore storage errors in private mode or restricted browsers.
     }
   }
 
