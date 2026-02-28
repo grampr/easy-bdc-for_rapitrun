@@ -2189,7 +2189,6 @@ const initializeApp = async () => {
       clientPlatform.includes('x11') ||
       clientUserAgent.includes('linux')) &&
     !clientUserAgent.includes('android');
-  const LINUX_RUNNER_NOTICE_DISMISS_KEY = 'runnerLinuxSupportNoticeDismissed';
   const isRunButtonSupportedClient = isWindowsClient || isLinuxClient;
   if (runBotBtn) {
     if (isRunButtonSupportedClient) {
