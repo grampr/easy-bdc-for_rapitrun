@@ -9,18 +9,8 @@ const PLUGIN_NEWS_FEED_URL = 'https://raw.githubusercontent.com/EDBPlugin/News/r
 const PLUGIN_NEWS_FETCH_TIMEOUT_MS = 5000;
 const MAX_CONCURRENT_MANIFEST_FETCHES = 4;
 
-const hasSweetAlert2 = () => typeof window !== 'undefined' && typeof window.Swal?.fire === 'function';
-
-const escapeHtml = (value) =>
-    String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-
 const confirmWithDialog = async (text, options = {}) => {
-    if (hasSweetAlert2()) {
+    if (typeof window !== 'undefined' && typeof window.Swal?.fire === 'function') {
         const result = await window.Swal.fire({
             text,
             icon: options.icon || 'question',
@@ -214,40 +204,7 @@ export class PluginUI {
         return modal;
     }
 
-    async confirmDeleteWithAgreement(pluginName) {
-        if (hasSweetAlert2()) {
-            const checkboxId = 'swal-plugin-delete-agreement';
-            const safeName = escapeHtml(pluginName || '(unknown)');
-            const result = await window.Swal.fire({
-                title: 'プラグインを削除',
-                icon: 'warning',
-                html: `
-                    <div style="text-align:left;line-height:1.6;">
-                        <p style="margin:0 0 10px 0;">「${safeName}」を削除します。削除後は元に戻せません。</p>
-                        <label style="display:flex;align-items:flex-start;gap:8px;font-size:14px;">
-                            <input id="${checkboxId}" type="checkbox" style="margin-top:3px;">
-                            <span>内容を理解し、削除を実行します</span>
-                        </label>
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: '削除する',
-                cancelButtonText: 'キャンセル',
-                confirmButtonColor: '#dc2626',
-                reverseButtons: true,
-                focusCancel: true,
-                didOpen: () => {
-                    const checkbox = document.getElementById(checkboxId);
-                    const confirmButton = window.Swal.getConfirmButton();
-                    if (confirmButton) confirmButton.disabled = true;
-                    checkbox?.addEventListener('change', () => {
-                        if (confirmButton) confirmButton.disabled = !checkbox.checked;
-                    });
-                },
-            });
-            return !!result.isConfirmed;
-        }
-
+    confirmDeleteWithAgreement(pluginName) {
         const modal = this.ensureDeleteAgreementModal();
         const text = modal.querySelector('#deleteAgreementText');
         const checkbox = modal.querySelector('#deleteAgreementCheckbox');
@@ -285,46 +242,7 @@ export class PluginUI {
         });
     }
 
-    async confirmDangerousInstall(pluginName, reason) {
-        if (hasSweetAlert2()) {
-            const checkboxId = 'swal-dangerous-install-agreement';
-            const safePluginName = escapeHtml(pluginName || '(unknown)');
-            const safeReason = escapeHtml(
-                reason || 'このプラグインには注意が必要なコードが含まれている可能性があります。',
-            );
-            const result = await window.Swal.fire({
-                title: 'セキュリティ警告',
-                icon: 'warning',
-                html: `
-                    <div style="text-align:left;line-height:1.6;">
-                        <p style="margin:0 0 8px 0;font-weight:700;">危険な可能性のあるプラグインです。</p>
-                        <p style="margin:0 0 8px 0;font-size:12px;color:#64748b;word-break:break-all;">${safePluginName}</p>
-                        <pre style="margin:0 0 10px 0;padding:10px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;white-space:pre-wrap;font-size:12px;">${safeReason}</pre>
-                        <label style="display:flex;align-items:flex-start;gap:8px;font-size:14px;">
-                            <input id="${checkboxId}" type="checkbox" style="margin-top:3px;">
-                            <span>リスクを理解し、自己責任でインストールします</span>
-                        </label>
-                    </div>
-                `,
-                width: 560,
-                showCancelButton: true,
-                confirmButtonText: 'インストールする',
-                cancelButtonText: '中止',
-                confirmButtonColor: '#dc2626',
-                reverseButtons: true,
-                focusCancel: true,
-                didOpen: () => {
-                    const checkbox = document.getElementById(checkboxId);
-                    const confirmButton = window.Swal.getConfirmButton();
-                    if (confirmButton) confirmButton.disabled = true;
-                    checkbox?.addEventListener('change', () => {
-                        if (confirmButton) confirmButton.disabled = !checkbox.checked;
-                    });
-                },
-            });
-            return !!result.isConfirmed;
-        }
-
+    confirmDangerousInstall(pluginName, reason) {
         const modal = this.ensureDangerousInstallModal();
         const reasonEl = modal.querySelector('#dangerousInstallReason');
         const checkbox = modal.querySelector('#dangerousInstallCheckbox');
@@ -1371,38 +1289,6 @@ export class PluginUI {
     }
 
     async showMobileWarning() {
-        if (hasSweetAlert2()) {
-            const checkboxId = 'swal-plugin-mobile-warning-skip';
-            const result = await window.Swal.fire({
-                title: 'スマホでのプラグイン利用について',
-                icon: 'info',
-                html: `
-                    <div style="text-align:left;line-height:1.6;">
-                        <p style="margin:0 0 10px 0;">
-                            モバイル環境では操作性や表示が安定しない場合があります。
-                        </p>
-                        <label style="display:flex;align-items:flex-start;gap:8px;font-size:14px;">
-                            <input id="${checkboxId}" type="checkbox" ${
-                    this.shouldSkipMobileWarning() ? 'checked' : ''
-                } style="margin-top:3px;">
-                            <span>次回からこの確認を表示しない</span>
-                        </label>
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: '続ける',
-                cancelButtonText: 'キャンセル',
-                reverseButtons: true,
-                focusCancel: true,
-                preConfirm: () => {
-                    const checkbox = document.getElementById(checkboxId);
-                    this.setSkipMobileWarning(Boolean(checkbox?.checked));
-                    return true;
-                },
-            });
-            return !!result.isConfirmed;
-        }
-
         if (!this.mobileWarningModal) return true;
         if (this.mobileWarningSkipCheckbox) {
             this.mobileWarningSkipCheckbox.checked = false;
