@@ -19,6 +19,106 @@ const LIST_STORE_KEY = 'edbb_list_store';
 const JSON_DATA_STORE_KEY = 'edbb_json_store';
 const JSON_GUI_DATASET_LOCAL_KEY = 'edbb_json_gui_dataset_store_v1';
 
+const hasSweetAlert2 = () => typeof window !== 'undefined' && typeof window.Swal?.fire === 'function';
+
+const showConfirmDialog = async (text, options = {}) => {
+  if (hasSweetAlert2()) {
+    const result = await window.Swal.fire({
+      text,
+      icon: options.icon || 'question',
+      showCancelButton: true,
+      confirmButtonText: options.confirmButtonText || 'OK',
+      cancelButtonText: options.cancelButtonText || 'Cancel',
+      reverseButtons: options.reverseButtons ?? true,
+      focusCancel: options.focusCancel ?? true,
+      ...options.swal,
+    });
+    return !!result.isConfirmed;
+  }
+  return window.confirm(text);
+};
+
+const showPromptDialog = async (title, defaultValue = '', options = {}) => {
+  if (hasSweetAlert2()) {
+    const result = await window.Swal.fire({
+      title,
+      input: 'text',
+      inputValue: defaultValue ?? '',
+      inputAutoTrim: true,
+      showCancelButton: true,
+      confirmButtonText: options.confirmButtonText || 'OK',
+      cancelButtonText: options.cancelButtonText || 'Cancel',
+      reverseButtons: options.reverseButtons ?? true,
+      focusCancel: options.focusCancel ?? false,
+      ...options.swal,
+    });
+    if (!result.isConfirmed) return null;
+    return typeof result.value === 'string' ? result.value : '';
+  }
+  return window.prompt(title, defaultValue ?? '');
+};
+
+const showAlertDialog = async (text, options = {}) => {
+  if (hasSweetAlert2()) {
+    await window.Swal.fire({
+      text,
+      icon: options.icon || 'info',
+      confirmButtonText: options.confirmButtonText || 'OK',
+      ...options.swal,
+    });
+    return;
+  }
+  window.alert(text);
+};
+
+const showTopRightToast = (text, options = {}) => {
+  if (hasSweetAlert2()) {
+    window.Swal.fire({
+      toast: true,
+      position: 'top-end',
+      text,
+      icon: options.icon || 'info',
+      showConfirmButton: false,
+      timer: options.timer ?? 3200,
+      timerProgressBar: true,
+      ...options.swal,
+    });
+    return;
+  }
+
+  const toast = document.createElement('div');
+  toast.textContent = String(text ?? '');
+  toast.style.position = 'fixed';
+  toast.style.top = '16px';
+  toast.style.right = '16px';
+  toast.style.zIndex = '250';
+  toast.style.maxWidth = 'min(380px, calc(100vw - 24px))';
+  toast.style.padding = '10px 12px';
+  toast.style.borderRadius = '10px';
+  toast.style.border = '1px solid rgba(96, 165, 250, 0.45)';
+  toast.style.background = 'rgba(30, 64, 175, 0.95)';
+  toast.style.color = '#dbeafe';
+  toast.style.fontSize = '13px';
+  toast.style.fontWeight = '600';
+  toast.style.lineHeight = '1.4';
+  toast.style.boxShadow = '0 12px 28px -12px rgba(15, 23, 42, 0.65)';
+  toast.style.opacity = '0';
+  toast.style.transform = 'translateY(-6px)';
+  toast.style.transition = 'opacity 180ms ease, transform 180ms ease';
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+  });
+
+  const duration = Number(options.timer ?? 3200);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-6px)';
+    setTimeout(() => toast.remove(), 200);
+  }, Number.isFinite(duration) ? duration : 3200);
+};
+
 const listStore = (() => {
   let lists = new Map();
 
@@ -1065,8 +1165,11 @@ const setupListManager = ({ workspace, storage, shareFeature, workspaceContainer
       deleteBtn.className = 'list-panel__list-delete';
       deleteBtn.type = 'button';
       deleteBtn.textContent = '削除';
-      deleteBtn.addEventListener('click', () => {
-        const confirmed = window.confirm(`リスト「${variable.name}」を削除しますか？`);
+      deleteBtn.addEventListener('click', async () => {
+        const confirmed = await showConfirmDialog(`リスト「${variable.name}」を削除しますか？`, {
+          icon: 'warning',
+          confirmButtonText: '削除',
+        });
         if (!confirmed) return;
         if (typeof workspace.deleteVariableById === 'function') {
           workspace.deleteVariableById(id);
@@ -1141,7 +1244,7 @@ const setupListManager = ({ workspace, storage, shareFeature, workspaceContainer
     if (typeof Blockly.prompt === 'function') {
       Blockly.prompt('リスト名を入力してください', defaultName, (name) => callback(name));
     } else {
-      callback(window.prompt('リスト名を入力してください', defaultName));
+      void showPromptDialog('リスト名を入力してください', defaultName).then((name) => callback(name));
     }
   };
 
@@ -1441,13 +1544,13 @@ const setupJsonDataManager = ({ workspace, storage, shareFeature }) => {
     renderRows();
   };
 
-  const createDatasetPrompt = () => {
+  const createDatasetPrompt = async () => {
     const defaultName = `データセット_${jsonDataStore.getDatasetNames().length + 1}`;
-    const name = window.prompt('データセット名', defaultName);
+    const name = await showPromptDialog('データセット名', defaultName);
     const normalized = String(name || '').trim();
     if (!normalized) return;
     if (jsonDataStore.hasDataset(normalized)) {
-      window.alert('同名のデータセットが既に存在します。');
+      await showAlertDialog('同名のデータセットが既に存在します。', { icon: 'error' });
       return;
     }
     jsonDataStore.createDataset(normalized, []);
@@ -1456,13 +1559,13 @@ const setupJsonDataManager = ({ workspace, storage, shareFeature }) => {
     scheduleSave();
   };
 
-  const renameDatasetPrompt = () => {
+  const renameDatasetPrompt = async () => {
     if (!selectedDataset) return;
-    const name = window.prompt('データセット名を変更', selectedDataset);
+    const name = await showPromptDialog('データセット名を変更', selectedDataset);
     const normalized = String(name || '').trim();
     if (!normalized || normalized === selectedDataset) return;
     if (!jsonDataStore.renameDataset(selectedDataset, normalized)) {
-      window.alert('データセット名の変更に失敗しました。');
+      await showAlertDialog('データセット名の変更に失敗しました。', { icon: 'error' });
       return;
     }
     selectedDataset = normalized;
@@ -1470,9 +1573,12 @@ const setupJsonDataManager = ({ workspace, storage, shareFeature }) => {
     scheduleSave();
   };
 
-  const deleteDataset = () => {
+  const deleteDataset = async () => {
     if (!selectedDataset) return;
-    const confirmed = window.confirm(`データセット「${selectedDataset}」を削除しますか？`);
+    const confirmed = await showConfirmDialog(`データセット「${selectedDataset}」を削除しますか？`, {
+      icon: 'warning',
+      confirmButtonText: '削除',
+    });
     if (!confirmed) return;
     jsonDataStore.removeDataset(selectedDataset);
     resolveDatasetSelection();
@@ -2090,6 +2196,21 @@ const initializeApp = async () => {
     } else {
       runBotBtn.classList.remove('md:inline-flex');
       runBotBtn.classList.add('hidden');
+    }
+  }
+  if (isLinuxClient) {
+    try {
+      const shouldShowLinuxRunnerNotice =
+        localStorage.getItem(LINUX_RUNNER_NOTICE_DISMISS_KEY) !== '1';
+      if (shouldShowLinuxRunnerNotice) {
+        showTopRightToast('Linuxでも実行できるようになりました。', {
+          icon: 'success',
+          timer: 3600,
+        });
+        localStorage.setItem(LINUX_RUNNER_NOTICE_DISMISS_KEY, '1');
+      }
+    } catch {
+      // Ignore storage errors in private mode or restricted browsers.
     }
   }
 
@@ -2925,7 +3046,7 @@ const initializeApp = async () => {
     }
     if (!codeGenErrorBox || !codeGenErrorList) {
       const messages = diagnostics.map((item) => item.message).join('\n');
-      window.alert(`静的構文解析エラー:\n${messages}`);
+      void showAlertDialog(`静的構文解析エラー:\n${messages}`, { icon: 'error' });
       return;
     }
     codeGenErrorList.innerHTML = '';
