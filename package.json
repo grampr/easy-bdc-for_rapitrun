@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "deploy": "wrangler publish",
+    "deploy": "wrangler deploy",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
