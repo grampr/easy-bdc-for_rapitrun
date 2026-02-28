@@ -9,23 +9,6 @@ const PLUGIN_NEWS_FEED_URL = 'https://raw.githubusercontent.com/EDBPlugin/News/r
 const PLUGIN_NEWS_FETCH_TIMEOUT_MS = 5000;
 const MAX_CONCURRENT_MANIFEST_FETCHES = 4;
 
-const confirmWithDialog = async (text, options = {}) => {
-    if (typeof window !== 'undefined' && typeof window.Swal?.fire === 'function') {
-        const result = await window.Swal.fire({
-            text,
-            icon: options.icon || 'question',
-            showCancelButton: true,
-            confirmButtonText: options.confirmButtonText || 'OK',
-            cancelButtonText: options.cancelButtonText || 'Cancel',
-            reverseButtons: options.reverseButtons ?? true,
-            focusCancel: options.focusCancel ?? true,
-            ...options.swal,
-        });
-        return !!result.isConfirmed;
-    }
-    return confirm(text);
-};
-
 export class PluginUI {
     constructor(pluginManager) {
         this.pluginManager = pluginManager;
@@ -388,12 +371,8 @@ export class PluginUI {
         // システムリセットボタン（履歴を消すボタン等から呼び出し可能にする）
         const resetBtn = document.getElementById('resetSystemBtn');
         if (resetBtn) {
-            resetBtn.addEventListener('click', async () => {
-                const confirmed = await confirmWithDialog('すべてのプラグインと設定を完全に削除し、初期状態に戻しますか？\nこの操作は取り消せません。', {
-                    icon: 'warning',
-                    confirmButtonText: '削除',
-                });
-                if (confirmed) {
+            resetBtn.addEventListener('click', () => {
+                if (confirm('すべてのプラグインと設定を完全に削除し、初期状態に戻しますか？\nこの操作は取り消せません。')) {
                     this.pluginManager.resetSystem();
                     this.renderMarketplace();
                     this.showSideSuccess('システムが完全にリセットされました。');
@@ -2299,10 +2278,7 @@ export class PluginUI {
                 }
             } else if (!isSharable) {
                 // 共有不可（ローカル）な場合はZIPエクスポートを提案
-                if (await confirmWithDialog('このプラグインはローカルに保存されています。ZIPファイルとしてエクスポートして共有しますか？', {
-                    icon: 'question',
-                    confirmButtonText: 'エクスポート',
-                })) {
+                if (confirm('このプラグインはローカルに保存されています。ZIPファイルとしてエクスポートして共有しますか？')) {
                     try {
                         await this.pluginManager.exportPluginAsZip(plugin.id);
                     } catch (e) {
@@ -2501,10 +2477,7 @@ export class PluginUI {
                 const fallbackBranch = String(updateContext?.fallbackBranch || 'main').trim() || 'main';
                 const fallbackReleaseRef = String(updateContext?.fallbackReleaseRef || '').trim();
                 if (!fallbackReleaseRef) {
-                    const useFallbackBranch = await confirmWithDialog(`インストール元ブランチ「${updateContext.targetRef}」は存在しません。\n代わりにブランチ「${fallbackBranch}」を使用して更新しますか？`, {
-                        icon: 'warning',
-                        confirmButtonText: '更新する',
-                    });
+                    const useFallbackBranch = confirm(`インストール元ブランチ「${updateContext.targetRef}」は存在しません。\n代わりにブランチ「${fallbackBranch}」を使用して更新しますか？`);
                     if (!useFallbackBranch) {
                         buttonElement.disabled = false;
                         buttonElement.innerHTML = originalHtml;
@@ -2513,12 +2486,7 @@ export class PluginUI {
                     }
                     targetRef = fallbackBranch;
                 } else {
-                    const useRelease = await confirmWithDialog(`インストール元ブランチ「${updateContext.targetRef}」は存在しません。\nOK: リリース「${fallbackReleaseRef}」で更新\nキャンセル: ブランチ「${fallbackBranch}」で更新`, {
-                        icon: 'question',
-                        confirmButtonText: 'リリースで更新',
-                        cancelButtonText: 'ブランチで更新',
-                        focusCancel: false,
-                    });
+                    const useRelease = confirm(`インストール元ブランチ「${updateContext.targetRef}」は存在しません。\nOK: リリース「${fallbackReleaseRef}」で更新\nキャンセル: ブランチ「${fallbackBranch}」で更新`);
                     targetRef = useRelease ? fallbackReleaseRef : fallbackBranch;
                 }
             }
