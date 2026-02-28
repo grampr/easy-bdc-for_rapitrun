@@ -10,12 +10,12 @@
     "deploy": "wrangler publish",
     "type-check": "tsc --noEmit"
   },
-  "dependencies": {},
   "devDependencies": {
+    "@types/node": "^25.3.2",
+    "glob": "^13.0.6",
+    "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
-    "wrangler": "^4.69.0",
-    "tailwindcss": "^4.2.1",
-    "@types/node": "^25.3.2"
+    "wrangler": "^4.69.0"
   }
 }
