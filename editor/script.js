@@ -2189,7 +2189,6 @@ const initializeApp = async () => {
       clientPlatform.includes('x11') ||
       clientUserAgent.includes('linux')) &&
     !clientUserAgent.includes('android');
-  const LINUX_RUNNER_NOTICE_DISMISS_KEY = 'runnerLinuxSupportNoticeDismissed';
   const isRunButtonSupportedClient = isWindowsClient || isLinuxClient;
   if (runBotBtn) {
     if (isRunButtonSupportedClient) {
@@ -3238,9 +3237,7 @@ const initializeApp = async () => {
         // Stop polling when showing any error modal.
         stopRunnerConsolePolling();
         setRunBotButtonState('idle');
-        if (runnerDownloadModal) {
-          toggleModal(runnerDownloadModal, true);
-        }
+        void showRunnerDownloadGuidance();
       }, 500);
     }
   });
@@ -3248,6 +3245,49 @@ const initializeApp = async () => {
   const closeRunnerDownloadModal = () => {
     if (runnerDownloadModal) {
       toggleModal(runnerDownloadModal, false);
+    }
+  };
+
+  const downloadRunnerArchive = () => {
+    const hostname = window.location.hostname || '';
+    const isBetaHost = /^beta(\.|-)/i.test(hostname);
+    const downloadUrl = isBetaHost
+      ? 'https://github.com/himais0giiiin/edbb-runner/archive/refs/heads/main.zip'
+      : 'https://github.com/himais0giiiin/edbb-runner/archive/refs/heads/main.zip';
+
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const showRunnerDownloadGuidance = async () => {
+    if (hasSweetAlert2()) {
+      const result = await window.Swal.fire({
+        title: '実行には edbb-runner が必要です',
+        icon: 'warning',
+        html: `
+          <div style="text-align:left;line-height:1.6;">
+            <p style="margin:0 0 10px 0;">edbb-runner を起動してから BOT を実行してください。</p>
+            <img src="../static/edbb-runner-howto.gif" alt="edbb-runner 使い方" style="display:block;width:100%;max-width:720px;margin:0 auto;border-radius:10px;border:1px solid rgba(148,163,184,0.35);">
+          </div>
+        `,
+        width: 860,
+        showCancelButton: true,
+        confirmButtonText: 'ダウンロード',
+        cancelButtonText: '閉じる',
+        reverseButtons: true,
+        focusCancel: true,
+      });
+      if (result.isConfirmed) {
+        downloadRunnerArchive();
+      }
+      return;
+    }
+    if (runnerDownloadModal) {
+      toggleModal(runnerDownloadModal, true);
     }
   };
 
@@ -3265,19 +3305,7 @@ const initializeApp = async () => {
   runnerDownloadCancelBtn?.addEventListener('click', closeRunnerDownloadModal);
 
   runnerDownloadBtn?.addEventListener('click', () => {
-    const hostname = window.location.hostname || '';
-    const isBetaHost = /^beta(\.|-)/i.test(hostname);
-    const downloadUrl = isBetaHost
-      ? 'https://github.com/himais0giiiin/edbb-runner/archive/refs/heads/main.zip'
-      : 'https://github.com/himais0giiiin/edbb-runner/archive/refs/heads/main.zip';
-
-    // Use direct archive endpoint + anchor click to avoid popup blockers.
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    downloadRunnerArchive();
     closeRunnerDownloadModal();
   });
 

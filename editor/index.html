@@ -1335,43 +1335,12 @@
             };
         }
     </script>
-    <script type="module" src="script.js?v=20260228a"></script>
-    <style>
-        #docsbotai-root {
-            position: fixed !important;
-            right: 0 !important;
-            bottom: 16px !important;
-            left: auto !important;
-            inset: auto 0 16px auto !important;
-            z-index: 9999 !important;
-        }
-    </style>
+    <script type="module" src="script.js?v=20260228b"></script>
     <script
-        type="text/javascript">window.DocsBotAI = window.DocsBotAI || {}, DocsBotAI.init = function (e) { return new Promise((t, r) => { var n = document.createElement("script"); n.type = "text/javascript", n.async = !0, n.src = "https://widget.docsbot.ai/chat.js"; let o = document.getElementsByTagName("script")[0]; o.parentNode.insertBefore(n, o), n.addEventListener("load", () => { let n; Promise.all([new Promise((t, r) => { window.DocsBotAI.mount(Object.assign({}, e)).then(t).catch(r) }), (n = function e(t) { return new Promise(e => { if (document.querySelector(t)) return e(document.querySelector(t)); let r = new MutationObserver(n => { if (document.querySelector(t)) return e(document.querySelector(t)), r.disconnect() }); r.observe(document.body, { childList: !0, subtree: !0 }) }) })("#docsbotai-root"),]).then(() => t()).catch(r) }), n.addEventListener("error", e => { r(e.message) }) }) };</script>
-    <script type="text/javascript">
-        (function () {
-            // Prevent duplicate widget bootstrap (can trigger double attachShadow inside third-party code).
-            if (window.__edbb_docsbot_init_done) return;
-            if (document.getElementById('docsbotai-root')) return;
-
-            try {
-                const maybePromise = DocsBotAI.init({ id: "yNKxXtOIWzKHaVVJL6hU/iorqhCRvATa3jlwX3S2S" });
-                if (maybePromise && typeof maybePromise.then === 'function') {
-                    maybePromise.then(() => {
-                        window.__edbb_docsbot_init_done = true;
-                    }).catch((error) => {
-                        window.__edbb_docsbot_init_done = false;
-                        console.warn('DocsBotAI init failed:', error);
-                    });
-                } else {
-                    window.__edbb_docsbot_init_done = true;
-                }
-            } catch (error) {
-                window.__edbb_docsbot_init_done = false;
-                console.warn('DocsBotAI init failed:', error);
-            }
-        })();
-    </script>
+    chatbot_id="69a2948cec318bd12391765d"
+    data-type="bar"
+    src="https://app.thinkstack.ai/bot/thinkstackai-loader.min.js"
+></script>
 </body>
 
 </html>
