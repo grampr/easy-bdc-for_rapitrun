@@ -199,7 +199,6 @@ export class PluginManager {
 
 
     async init() {
-        console.log('PluginManager initializing...');
 
         // 公認プラグインリストを配列形式で取得 (EDBP-API の plugins.json)
         try {
@@ -556,7 +555,7 @@ export class PluginManager {
         }
 
         const isNewVersion = parsedMinAppVersion && (
-            parsedMinAppVersion.major > 1 || 
+            parsedMinAppVersion.major > 1 ||
             (parsedMinAppVersion.major === 1 && parsedMinAppVersion.minor >= 1)
         );
 
