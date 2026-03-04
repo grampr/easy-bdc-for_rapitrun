@@ -141,6 +141,7 @@ export class FieldListDropdown extends Blockly.FieldDropdown {
         this.ensureValidValue_();
     }
     ensureValidValue_() {
+        if (!getListStore()) return;
         const options = getListVariableOptions(this);
         const values = options.map((option) => option[1]);
         const current = this.getValue();

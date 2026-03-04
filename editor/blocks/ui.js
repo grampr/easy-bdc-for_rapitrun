@@ -105,9 +105,7 @@ export function initUI() {
     };
     Blockly.Python.forBlock['get_input_value'] = function (block) {
         const idx = block.getFieldValue('INDEX');
-        return [
-            `interaction.data['components'][0]['components'][${idx}]['value']`,
-            Blockly.Python.ORDER_ATOMIC,
-        ];
+        const code = `(interaction.data['components'][0]['components'][${idx}]['value'] if len(interaction.data.get('components', [{}])[0].get('components', [])) > ${idx} else "")`;
+        return [code, Blockly.Python.ORDER_ATOMIC];
     };
 }

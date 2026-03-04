@@ -48,7 +48,7 @@ export function initChannels() {
     };
     Blockly.Python.forBlock['delete_channel'] = function (block) {
         const channelId = Blockly.Python.valueToCode(block, 'CHANNEL_ID', Blockly.Python.ORDER_NONE) || '0';
-        return `\n_ch = bot.get_channel(int(${channelId}))\nif _ch:\n    await _ch.delete()\n`;
+        return `\n_ch_id = int(${channelId}) if str(${channelId}).isdigit() else 0\n_ch = bot.get_channel(_ch_id)\nif _ch:\n    await _ch.delete()\n`;
     };
 
     Blockly.Blocks['get_server_info'] = {

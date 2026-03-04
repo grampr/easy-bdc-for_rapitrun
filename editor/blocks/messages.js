@@ -100,7 +100,12 @@ export function initMessages() {
     };
     Blockly.Python.forBlock['edit_reply'] = function (block) {
         const msg = Blockly.Python.valueToCode(block, 'MESSAGE', Blockly.Python.ORDER_NONE) || '""';
-        let contentCode = msg.startsWith('discord.Embed') ? `embed=${msg}` : `content=${msg}`;
+        const targetBlock = block.getInputTargetBlock('MESSAGE');
+        const isEmbed = targetBlock && targetBlock.outputConnection &&
+            (Array.isArray(targetBlock.outputConnection.getCheck())
+                ? targetBlock.outputConnection.getCheck().includes('Embed')
+                : targetBlock.outputConnection.getCheck() === 'Embed');
+        let contentCode = isEmbed ? `embed=${msg}` : `content=${msg}`;
         return `\nif 'ctx' in locals() and isinstance(ctx, discord.Interaction):\n    await ctx.edit_original_response(${contentCode})\n`;
     };
 
