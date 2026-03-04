@@ -44,7 +44,12 @@ export function initMessages() {
     Blockly.Python.forBlock['reply_message'] = function (block) {
         const msg = Blockly.Python.valueToCode(block, 'MESSAGE', Blockly.Python.ORDER_NONE) || '""';
         const ephemeral = block.getFieldValue('EPHEMERAL') === 'TRUE' ? 'True' : 'False';
-        let contentCode = msg.startsWith('discord.Embed') ? `embed=${msg}` : `content=${msg}`;
+        const targetBlock = block.getInputTargetBlock('MESSAGE');
+        const isEmbed = targetBlock && targetBlock.outputConnection &&
+            (Array.isArray(targetBlock.outputConnection.getCheck())
+                ? targetBlock.outputConnection.getCheck().includes('Embed')
+                : targetBlock.outputConnection.getCheck() === 'Embed');
+        let contentCode = isEmbed ? `embed=${msg}` : `content=${msg}`;
         return `\nif 'ctx' in locals():\n    if isinstance(ctx, discord.Interaction):\n        if ctx.response.is_done():\n            await ctx.followup.send(${contentCode}, ephemeral=${ephemeral})\n        else:\n            await ctx.response.send_message(${contentCode}, ephemeral=${ephemeral})\n    elif isinstance(ctx, commands.Context):\n        await ctx.send(${contentCode})\n    elif isinstance(ctx, discord.Message):\n        await ctx.reply(${contentCode})\n`;
     };
 
@@ -60,7 +65,12 @@ export function initMessages() {
     Blockly.Python.forBlock['send_dm'] = function (block) {
         const userId = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
         const msg = Blockly.Python.valueToCode(block, 'MESSAGE', Blockly.Python.ORDER_NONE) || '""';
-        const contentCode = msg.startsWith('discord.Embed') ? `embed=${msg}` : `content=${msg}`;
+        const targetBlock = block.getInputTargetBlock('MESSAGE');
+        const isEmbed = targetBlock && targetBlock.outputConnection &&
+            (Array.isArray(targetBlock.outputConnection.getCheck())
+                ? targetBlock.outputConnection.getCheck().includes('Embed')
+                : targetBlock.outputConnection.getCheck() === 'Embed');
+        const contentCode = isEmbed ? `embed=${msg}` : `content=${msg}`;
         return `\n_u_dm = bot.get_user(int(${userId})) or await bot.fetch_user(int(${userId}))\nif _u_dm:\n    await _u_dm.send(${contentCode})\n`;
     };
 
@@ -123,7 +133,12 @@ export function initMessages() {
     Blockly.Python.forBlock['send_channel_message'] = function (block) {
         const channelId = Blockly.Python.valueToCode(block, 'CHANNEL_ID', Blockly.Python.ORDER_NONE) || '0';
         const msg = Blockly.Python.valueToCode(block, 'MESSAGE', Blockly.Python.ORDER_NONE) || '""';
-        const contentArg = msg.startsWith('discord.Embed') ? `embed=${msg}` : `content=${msg}`;
+        const targetBlock = block.getInputTargetBlock('MESSAGE');
+        const isEmbed = targetBlock && targetBlock.outputConnection &&
+            (Array.isArray(targetBlock.outputConnection.getCheck())
+                ? targetBlock.outputConnection.getCheck().includes('Embed')
+                : targetBlock.outputConnection.getCheck() === 'Embed');
+        const contentArg = isEmbed ? `embed=${msg}` : `content=${msg}`;
         return `\n_ch_id = int(${channelId}) if str(${channelId}).isdigit() else 0\n_channel = bot.get_channel(_ch_id)\nif _channel:\n    await _channel.send(${contentArg})\n`;
     };
 
@@ -202,7 +217,7 @@ export function initMessages() {
     };
     Blockly.Python.forBlock['wait_for_message'] = function (block) {
         const timeout = Blockly.Python.valueToCode(block, 'TIMEOUT', Blockly.Python.ORDER_NONE) || '30';
-        const code = `\n(await bot.wait_for('message', check=lambda m: m.channel == ctx.channel and m.author == user, timeout=${timeout})).content\n`.trim();
+        const code = `(await bot.wait_for('message', check=lambda m: m.channel == ctx.channel and m.author == user, timeout=${timeout})).content`;
         return [code, Blockly.Python.ORDER_ATOMIC];
     };
 }

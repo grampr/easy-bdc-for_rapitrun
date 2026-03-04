@@ -12,9 +12,11 @@ export function initCommands() {
         },
     };
     Blockly.Python.forBlock['on_command_executed'] = function (block) {
-        const commandName = block.getFieldValue('COMMAND_NAME').toLowerCase();
+        const rawName = block.getFieldValue('COMMAND_NAME') || 'hello';
+        const commandName = rawName.toLowerCase();
+        const safeCommandName = commandName.replace(/[^a-z0-9_]/g, '_').replace(/^[0-9]/, '_$&');
         const branch = getBranchCode(block, 'DO');
-        return `\n@bot.tree.command(name="${commandName}", description="${commandName} command")\nasync def ${commandName}_cmd(interaction: discord.Interaction):\n    ctx = interaction\n    user = interaction.user\n${branch.trimEnd()}\n`;
+        return `\n@bot.tree.command(name="${commandName}", description="${commandName} command")\nasync def ${safeCommandName}_cmd(interaction: discord.Interaction):\n    ctx = interaction\n    user = interaction.user\n${branch.trimEnd()}\n`;
     };
 
     Blockly.Blocks['prefix_command'] = {
@@ -28,9 +30,11 @@ export function initCommands() {
         },
     };
     Blockly.Python.forBlock['prefix_command'] = function (block) {
-        const commandName = block.getFieldValue('COMMAND_NAME').replace(/^[!~#&?]/, '');
+        const rawName = block.getFieldValue('COMMAND_NAME') || 'ping';
+        const commandName = rawName.replace(/^[!~#&?]/, '');
+        const safeCommandName = commandName.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[0-9]/, '_$&');
         const branch = getBranchCode(block, 'DO');
-        return `\n@bot.command(name='${commandName}')\nasync def ${commandName}_cmd(ctx):\n    user = ctx.author\n${branch.trimEnd()}\n`;
+        return `\n@bot.command(name='${commandName}')\nasync def ${safeCommandName}_cmd(ctx):\n    user = ctx.author\n${branch.trimEnd()}\n`;
     };
 
     Blockly.Blocks['get_command_arg'] = {
@@ -44,7 +48,7 @@ export function initCommands() {
         },
     };
     Blockly.Python.forBlock['get_command_arg'] = function (block) {
-        const argName = block.getFieldValue('ARG_NAME');
-        return [`# Argument '${argName}' needed`, Blockly.Python.ORDER_ATOMIC];
+        const argName = block.getFieldValue('ARG_NAME') || 'name';
+        return [`"${argName}"`, Blockly.Python.ORDER_ATOMIC];
     };
 }

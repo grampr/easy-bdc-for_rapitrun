@@ -9,7 +9,7 @@ export function initEmbeds() {
     };
     Blockly.Python.forBlock['create_embed'] = function (block) {
         const embedVarName = Blockly.Python.nameDB_.getDistinctName('embed', Blockly.Names.VARIABLE_NAME);
-        let code = `\n${embedVarName} = discord.Embed(title="No Title", description="...", color=0x3498DB)\n`.trim() + '\n';
+        let code = `${embedVarName} = discord.Embed(title="No Title", description="...", color=0x3498DB)\n`;
         const propertiesCode = Blockly.Python.statementToCode(block, 'PROPERTIES');
         const lines = propertiesCode.split('\n');
         for (const line of lines) {
@@ -20,13 +20,13 @@ export function initEmbeds() {
                 code += line.replace(/embed\./g, `${embedVarName}.`) + '\n';
             }
         }
-        return [`${embedVarName}`, Blockly.Python.ORDER_ATOMIC];
+        return [`${code}${embedVarName}`, Blockly.Python.ORDER_ATOMIC];
     };
 
     Blockly.Blocks['set_embed_property'] = {
         init: function () {
             this.appendValueInput('VALUE')
-                .setCheck('String')
+                .setCheck(['String', 'Number'])
                 .appendField('設定：')
                 .appendField(
                     new Blockly.FieldDropdown([
@@ -45,7 +45,7 @@ export function initEmbeds() {
     Blockly.Python.forBlock['set_embed_property'] = function (block) {
         const property = block.getFieldValue('PROPERTY');
         const value = Blockly.Python.valueToCode(block, 'VALUE', Blockly.Python.ORDER_NONE) || '""';
-        if (property === 'color') return `embed.color = ${value}\n`;
+        if (property === 'color') return `embed.color = int(str(${value}), 0) if str(${value}).strip() else 0x3498DB\n`;
         if (property === 'image') return `embed.set_image(url=${value})\n`;
         if (property === 'title') return `embed.title = ${value}\n`;
         if (property === 'description') return `embed.description = ${value}\n`;

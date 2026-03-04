@@ -64,7 +64,7 @@ export function initUsers() {
     Blockly.Python.forBlock['member_has_role'] = function (block) {
         const userCode = Blockly.Python.valueToCode(block, 'USER', Blockly.Python.ORDER_NONE) || '0';
         const roleId = Blockly.Python.valueToCode(block, 'ROLE_ID', Blockly.Python.ORDER_NONE) || '0';
-        const code = `(discord.utils.get(ctx.guild.get_member(int(${userCode})).roles, id=int(${roleId})) is not None if "ctx" in locals() and ctx.guild and str(${userCode}).isdigit() and str(${roleId}).isdigit() else False)`;
+        const code = `(discord.utils.get(ctx.guild.get_member(int(${userCode})).roles, id=int(${roleId})) is not None if ("ctx" in locals() and ctx.guild and str(${userCode}).isdigit() and str(${roleId}).isdigit() and ctx.guild.get_member(int(${userCode}))) else False)`;
         return [code, Blockly.Python.ORDER_ATOMIC];
     };
 

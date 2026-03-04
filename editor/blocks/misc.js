@@ -3,12 +3,19 @@ import { normalizeMathNumberInput, normalizeMathNumberLiteral, getBranchCode } f
 export function initMisc() {
     Blockly.Blocks['custom_python_code'] = {
         init: function () {
-            this.appendDummyInput()
-                .appendField('🐍 Custom Code')
-                .appendField(new Blockly.FieldTextInput('print("Hello")'), 'CODE');
+            this.appendDummyInput().appendField('🐍 Pythonコード実行');
+            const FieldMultiline = (typeof FieldMultilineInput !== 'undefined')
+                ? FieldMultilineInput
+                : (Blockly.FieldMultilineInput || Blockly.FieldTextInput);
+
+            this.appendDummyInput().appendField(
+                new FieldMultiline("print('Hello World')"),
+                'CODE',
+            );
             this.setPreviousStatement(true, null);
             this.setNextStatement(true, null);
             this.setColour(60);
+            this.setTooltip('任意のPythonコードをここに記述して実行させます。');
         }
     };
     Blockly.Python.forBlock['custom_python_code'] = function (block) {

@@ -1,28 +1,7 @@
 // editor/core/workspace.js
 
 export const setupBlocklyEnvironment = () => {
-  // Define custom blocks (moved from top-level to safe scope)
-  if (!Blockly.Blocks['custom_python_code']) {
-    Blockly.Blocks['custom_python_code'] = {
-      init: function () {
-        this.appendDummyInput().appendField('🐍 Pythonコード実行');
-        // Check for FieldMultilineInput availability
-        const FieldMultiline = (typeof FieldMultilineInput !== 'undefined')
-          ? FieldMultilineInput
-          : (Blockly.FieldMultilineInput || Blockly.FieldTextInput);
-
-        this.appendDummyInput().appendField(
-          new FieldMultiline("print('Hello World')"),
-          'CODE',
-        );
-        this.setPreviousStatement(true, null);
-        this.setNextStatement(true, null);
-        this.setColour(60);
-        this.setTooltip('任意のPythonコードをここに記述して実行させます。');
-      },
-    };
-  }
-
+  // Modern Theme Definition
 
   // Modern Theme Definition
   const modernLightTheme = Blockly.Theme.defineTheme('modernLight', {
@@ -128,11 +107,15 @@ const ensureLiteralShadowForInput = (block, input) => {
 const ensureLiteralShadowsForBlock = (block) => {
   if (!block || block.isShadow?.() || block.isInsertionMarker?.()) return;
   if (block.workspace?.isFlyout) return;
-  block.inputList?.forEach((input) => ensureLiteralShadowForInput(block, input));
+  for (const input of block.inputList || []) {
+    ensureLiteralShadowForInput(block, input);
+  }
 };
 
 const ensureLiteralShadowsForWorkspace = (workspaceRef) => {
-  workspaceRef?.getAllBlocks(false).forEach((block) => ensureLiteralShadowsForBlock(block));
+  for (const block of workspaceRef?.getAllBlocks(false) || []) {
+    ensureLiteralShadowsForBlock(block);
+  }
 };
 
 export const setupLiteralInputAutofill = (workspaceRef) => {
@@ -153,7 +136,9 @@ export const setupLiteralInputAutofill = (workspaceRef) => {
       return;
     }
     if (event.type === Blockly.Events.BLOCK_CREATE) {
-      (event.ids || []).forEach((id) => queueBlockCheck(id));
+      for (const id of event.ids || []) {
+        queueBlockCheck(id);
+      }
       return;
     }
     if (event.type === Blockly.Events.BLOCK_MOVE) {

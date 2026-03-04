@@ -141,7 +141,7 @@ export function initChannels() {
     };
     Blockly.Python.forBlock['play_audio_file'] = function (block) {
         const path = Blockly.Python.valueToCode(block, 'FILEPATH', Blockly.Python.ORDER_NONE) || '""';
-        return `\nif 'ctx' in locals() and ctx.guild.voice_client:\n    if not ctx.guild.voice_client.is_playing():\n        ctx.guild.voice_client.play(discord.FFmpegPCMAudio(${path}))\n`;
+        return `\nif 'ctx' in locals() and getattr(ctx, 'guild', None) and getattr(ctx.guild, 'voice_client', None):\n    if not ctx.guild.voice_client.is_playing():\n        ctx.guild.voice_client.play(discord.FFmpegPCMAudio(${path}))\n`;
     };
 
     Blockly.Blocks['leave_voice_channel'] = {
@@ -153,6 +153,6 @@ export function initChannels() {
         },
     };
     Blockly.Python.forBlock['leave_voice_channel'] = function (block) {
-        return `\nif 'ctx' in locals() and ctx.guild.voice_client:\n    await ctx.guild.voice_client.disconnect()\n`;
+        return `\nif 'ctx' in locals() and getattr(ctx, 'guild', None) and getattr(ctx.guild, 'voice_client', None):\n    await ctx.guild.voice_client.disconnect()\n`;
     };
 }

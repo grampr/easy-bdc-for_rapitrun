@@ -41,24 +41,32 @@ const convertComponentBlock = (block) => {
   return updated;
 };
 
-const buildInteractionHandler = (componentEvents, modalEvents) => {
+const buildInteractionHandler = (componentEvents, modalEvents, isCog = true) => {
   let componentBody = componentEvents.trim()
-    ? componentEvents.replace(/await on_button_/g, 'await self.on_button_')
-    : '            pass';
+    ? (isCog ? componentEvents.replace(/await on_button_/g, 'await self.on_button_') : componentEvents)
+    : '                pass';
   let modalBody = modalEvents.trim()
-    ? modalEvents.replace(/await on_modal_/g, 'await self.on_modal_')
-    : '            pass';
+    ? (isCog ? modalEvents.replace(/await on_modal_/g, 'await self.on_modal_') : modalEvents)
+    : '                pass';
+
+  const indent = '    ';
+  const prefix = isCog ? `${indent}@commands.Cog.listener()\n${indent}async def on_interaction(self, interaction):` : '@bot.event\nasync def on_interaction(interaction):';
+  const selfParam = isCog ? 'self, ' : '';
+
+  // Ensure componentBody and modalBody are shifted right if they are not already indented enough
+  const finalComponentBody = componentBody.split('\n').map(line => '    ' + line).join('\n');
+  const finalModalBody = modalBody.split('\n').map(line => '    ' + line).join('\n');
 
   return `
-  @commands.Cog.listener()
-  async def on_interaction(self, interaction):
-  try:
-  if interaction.type == discord.InteractionType.component:
-${componentBody}
+${isCog ? '    @commands.Cog.listener()' : '@bot.event'}
+async def on_interaction(${isCog ? 'self, ' : ''}interaction):
+    try:
+        if interaction.type == discord.InteractionType.component:
+${finalComponentBody}
         elif interaction.type == discord.InteractionType.modal_submit:
-${modalBody}
+${finalModalBody}
     except Exception as e:
-  print(f"Interaction Error: {e}")
+        print(f"Interaction Error: {e}")
 `.trim();
 };
 
@@ -188,9 +196,10 @@ function extractInteractionEvents(code) {
     const lines = [`            custom_id = str((interaction.data or {}).get('custom_id', ''))`];
     ids.forEach((id, index) => {
       const escapedId = id.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const safeId = id.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[0-9]/, '_$&');
       const keyword = index === 0 ? 'if' : 'elif';
       lines.push(`            ${keyword} custom_id == '${escapedId}':`);
-      lines.push(`                await ${prefix}${id}(interaction)`);
+      lines.push(`                await ${prefix}${safeId}(interaction)`);
     });
     return lines.join('\n');
   };
@@ -483,10 +492,17 @@ export const generatePythonCode = (workspace) => {
 
   const {
     cleanedCode,
+    componentEvents,
+    modalEvents,
     hasComponentEvents,
     hasModalEvents,
   } = extractInteractionEventsSafe(rawCode);
-  const bodyCode = cleanedCode;
+
+  let bodyCode = cleanedCode;
+  if (hasComponentEvents || hasModalEvents) {
+    const handler = buildInteractionHandler(componentEvents, modalEvents, false);
+    bodyCode = bodyCode.trim() + '\n\n' + handler;
+  }
 
   // --- Dependency Analysis ---
   const usesJson =
@@ -633,14 +649,14 @@ const buildCogFile = (className, blocks, imports, sharedImports = '', preamble =
   return `
 ${header}
 
-${preambleBlock} class ${className}(commands.Cog):
+${preambleBlock}class ${className}(commands.Cog):
     def __init__(self, bot):
-  self.bot = bot
+        self.bot = bot
 
 ${body}
 
 async def setup(bot):
-  await bot.add_cog(${className}(bot))
+    await bot.add_cog(${className}(bot))
     `.trim();
 };
 
@@ -706,12 +722,14 @@ const deriveGroupMeta = (block) => {
 
 export const generateSplitPythonFiles = (workspace) => {
   if (!workspace) return {};
+  Blockly.Python.init(workspace);
   const topBlocks = getCodegenTopBlocks(workspace);
-  const topBlockEntries = topBlocks.map((block) => ({
-    block,
-    rawGroup: blockCodeToString(Blockly.Python.blockToCode(block)),
-  }));
-  const rawAll = topBlockEntries.map(({ rawGroup }) => rawGroup).join('\n');
+  const topBlockEntries = topBlocks.map((block) => {
+    const code = blockCodeToString(Blockly.Python.blockToCode(block));
+    return { block, rawGroup: code };
+  });
+  const finishedCode = Blockly.Python.finish(topBlockEntries.map(({ rawGroup }) => rawGroup).join('\n'));
+  const rawAll = finishedCode;
   const { cleanedCode: allCleaned } = extractInteractionEventsSafe(rawAll);
 
   const sharedModule = buildSharedModule(allCleaned);
@@ -727,7 +745,7 @@ export const generateSplitPythonFiles = (workspace) => {
   const makeUniqueSlug = (base) => {
     const current = nameCounter.get(base) || 0;
     nameCounter.set(base, current + 1);
-    return current === 0 ? base : `${base}_${current + 1} `;
+    return current === 0 ? base : `${base}_${current + 1}`;
   };
 
   topBlockEntries.forEach(({ block, rawGroup }) => {
@@ -746,8 +764,8 @@ export const generateSplitPythonFiles = (workspace) => {
 
     const { kind, label } = deriveGroupMeta(block);
     const baseSlug = slugify(`${kind}_${label}`);
-    const fileSlug = makeUniqueSlug(baseSlug);
-    const className = `${toPascalCase(fileSlug)} Cog`.replace(/^[0-9]/, 'Cog$&');
+    const fileSlug = makeUniqueSlug(baseSlug).trim();
+    const className = `${toPascalCase(fileSlug)}Cog`.replace(/^[0-9]/, 'Cog$&');
 
     const needsInteractionHandler = hasComponentEvents || hasModalEvents;
     const imports = buildImports(cleanedCode, needsInteractionHandler);
@@ -762,7 +780,7 @@ export const generateSplitPythonFiles = (workspace) => {
     if (usesModal) sharedSymbols.push('EasyModal');
     const sharedImports =
       sharedModule && sharedSymbols.length
-        ? `from.shared import ${sharedSymbols.join(', ')} `
+        ? `from .shared import ${sharedSymbols.join(', ')}`
         : '';
 
     let fileContent = '';

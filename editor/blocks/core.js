@@ -88,6 +88,7 @@ export class FieldJsonDatasetDropdown extends Blockly.FieldDropdown {
         this.ensureValidValue_();
     }
     ensureValidValue_() {
+        if (!getJsonDataStore()) return;
         const options = getJsonDatasetOptions();
         const values = options.map((option) => option[1]);
         const current = this.getValue();
