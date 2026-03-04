@@ -8,8 +8,6 @@ import { PluginManager } from "./plugin.js";
 import { PluginUI, PLUGIN_FEATURE_TOGGLES_STORAGE_KEY } from "./plugin-ui.js";
 import { BlockSearch } from "./block-search.js";
 
-
-
 const PROJECT_TITLE_STORAGE_KEY = 'edbb_project_title';
 
 let workspace;
@@ -19,105 +17,9 @@ const LIST_STORE_KEY = 'edbb_list_store';
 const JSON_DATA_STORE_KEY = 'edbb_json_store';
 const JSON_GUI_DATASET_LOCAL_KEY = 'edbb_json_gui_dataset_store_v1';
 
-const hasSweetAlert2 = () => typeof window !== 'undefined' && typeof window.Swal?.fire === 'function';
-
-const showConfirmDialog = async (text, options = {}) => {
-  if (hasSweetAlert2()) {
-    const result = await window.Swal.fire({
-      text,
-      icon: options.icon || 'question',
-      showCancelButton: true,
-      confirmButtonText: options.confirmButtonText || 'OK',
-      cancelButtonText: options.cancelButtonText || 'Cancel',
-      reverseButtons: options.reverseButtons ?? true,
-      focusCancel: options.focusCancel ?? true,
-      ...options.swal,
-    });
-    return !!result.isConfirmed;
-  }
-  return window.confirm(text);
-};
-
-const showPromptDialog = async (title, defaultValue = '', options = {}) => {
-  if (hasSweetAlert2()) {
-    const result = await window.Swal.fire({
-      title,
-      input: 'text',
-      inputValue: defaultValue ?? '',
-      inputAutoTrim: true,
-      showCancelButton: true,
-      confirmButtonText: options.confirmButtonText || 'OK',
-      cancelButtonText: options.cancelButtonText || 'Cancel',
-      reverseButtons: options.reverseButtons ?? true,
-      focusCancel: options.focusCancel ?? false,
-      ...options.swal,
-    });
-    if (!result.isConfirmed) return null;
-    return typeof result.value === 'string' ? result.value : '';
-  }
-  return window.prompt(title, defaultValue ?? '');
-};
-
-const showAlertDialog = async (text, options = {}) => {
-  if (hasSweetAlert2()) {
-    await window.Swal.fire({
-      text,
-      icon: options.icon || 'info',
-      confirmButtonText: options.confirmButtonText || 'OK',
-      ...options.swal,
-    });
-    return;
-  }
-  window.alert(text);
-};
-
-const showTopRightToast = (text, options = {}) => {
-  if (hasSweetAlert2()) {
-    window.Swal.fire({
-      toast: true,
-      position: 'top-end',
-      text,
-      icon: options.icon || 'info',
-      showConfirmButton: false,
-      timer: options.timer ?? 3200,
-      timerProgressBar: true,
-      ...options.swal,
-    });
-    return;
-  }
-
-  const toast = document.createElement('div');
-  toast.textContent = String(text ?? '');
-  toast.style.position = 'fixed';
-  toast.style.top = '16px';
-  toast.style.right = '16px';
-  toast.style.zIndex = '250';
-  toast.style.maxWidth = 'min(380px, calc(100vw - 24px))';
-  toast.style.padding = '10px 12px';
-  toast.style.borderRadius = '10px';
-  toast.style.border = '1px solid rgba(96, 165, 250, 0.45)';
-  toast.style.background = 'rgba(30, 64, 175, 0.95)';
-  toast.style.color = '#dbeafe';
-  toast.style.fontSize = '13px';
-  toast.style.fontWeight = '600';
-  toast.style.lineHeight = '1.4';
-  toast.style.boxShadow = '0 12px 28px -12px rgba(15, 23, 42, 0.65)';
-  toast.style.opacity = '0';
-  toast.style.transform = 'translateY(-6px)';
-  toast.style.transition = 'opacity 180ms ease, transform 180ms ease';
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => {
-    toast.style.opacity = '1';
-    toast.style.transform = 'translateY(0)';
-  });
-
-  const duration = Number(options.timer ?? 3200);
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(-6px)';
-    setTimeout(() => toast.remove(), 200);
-  }, Number.isFinite(duration) ? duration : 3200);
-};
+import { hasSweetAlert2, showConfirmDialog, showPromptDialog, showAlertDialog, showTopRightToast } from './core/ui.js';
+import { analyzeWorkspaceForCodegen, generatePythonCode, generateSplitPythonFiles, downloadTextFile, renderSplitFiles } from './core/export.js';
+import { setupBlocklyEnvironment, setupLiteralInputAutofill } from './core/workspace.js';
 
 const listStore = (() => {
   let lists = new Map();
@@ -237,17 +139,20 @@ const listStore = (() => {
   };
 })();
 
-const toPythonJsonLiteral = (value) => {
+/**
+ * JavaScriptの値をPythonのリテラル形式の文字列に変換します。
+ */
+const serializeToPythonLiteral = (value) => {
   if (value === null) return 'None';
   if (Array.isArray(value)) {
-    return `[${value.map((item) => toPythonJsonLiteral(item)).join(', ')}]`;
+    return `[${value.map((item) => serializeToPythonLiteral(item)).join(', ')}]`;
   }
   if (typeof value === 'string') return JSON.stringify(value);
   if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '0';
   if (typeof value === 'boolean') return value ? 'True' : 'False';
   if (value && typeof value === 'object') {
     const entries = Object.entries(value).map(
-      ([key, item]) => `${JSON.stringify(key)}: ${toPythonJsonLiteral(item)}`,
+      ([key, item]) => `${JSON.stringify(key)}: ${serializeToPythonLiteral(item)}`,
     );
     return `{${entries.join(', ')}}`;
   }
@@ -416,7 +321,7 @@ const jsonDataStore = (() => {
 
   const toPythonLiteral = (name) => {
     const { data } = buildDatasetData(name);
-    return toPythonJsonLiteral(data);
+    return serializeToPythonLiteral(data);
   };
 
   const getDatasetNames = () => Array.from(datasets.keys());
@@ -466,10 +371,10 @@ const jsonDataStore = (() => {
   };
 })();
 
-// listStore assignment moved to initializeApp
-
-
-const toPythonLiteral = (raw) => {
+/**
+ * UIから入力された生の文字列を、最適なPythonリテラル形式（数値、真偽値、または引用符付き文字列）に変換します。
+ */
+const parseRawToPythonLiteral = (raw) => {
   const original = String(raw ?? '');
   const trimmed = original.trim();
   if (!trimmed) return null;
@@ -496,7 +401,7 @@ const buildListInitializationCode = (generator) => {
     if (!variable) return;
     const name = generator.nameDB_.getName(variable.name, Blockly.Names.VARIABLE_NAME);
     const serialized = items
-      .map((item) => toPythonLiteral(item))
+      .map((item) => parseRawToPythonLiteral(item))
       .filter((item) => item !== null);
     lines.push(`${name} = [${serialized.join(', ')}]`);
   });
@@ -523,175 +428,6 @@ const ensureListGenerator = (() => {
 
 
 
-const setupBlocklyEnvironment = () => {
-  // Define custom blocks (moved from top-level to safe scope)
-  if (!Blockly.Blocks['custom_python_code']) {
-    Blockly.Blocks['custom_python_code'] = {
-      init: function () {
-        this.appendDummyInput().appendField('🐍 Pythonコード実行');
-        // Check for FieldMultilineInput availability
-        const FieldMultiline = (typeof FieldMultilineInput !== 'undefined')
-          ? FieldMultilineInput
-          : (Blockly.FieldMultilineInput || Blockly.FieldTextInput);
-
-        this.appendDummyInput().appendField(
-          new FieldMultiline("print('Hello World')"),
-          'CODE',
-        );
-        this.setPreviousStatement(true, null);
-        this.setNextStatement(true, null);
-        this.setColour(60);
-        this.setTooltip('任意のPythonコードをここに記述して実行させます。');
-      },
-    };
-  }
-
-
-  // Modern Theme Definition
-  const modernLightTheme = Blockly.Theme.defineTheme('modernLight', {
-    base: Blockly.Themes.Classic,
-    componentStyles: {
-      workspaceBackgroundColour: '#f8fafc', // slate-50
-      toolboxBackgroundColour: '#ffffff',
-      toolboxForegroundColour: '#475569',
-      flyoutBackgroundColour: '#ffffff',
-      flyoutForegroundColour: '#475569',
-      flyoutOpacity: 0.95,
-      scrollbarColour: '#cbd5e1',
-      insertionMarkerColour: '#6366f1', // Indigo
-      insertionMarkerOpacity: 0.3,
-      cursorColour: '#6366f1',
-    },
-    fontStyle: {
-      family: 'Plus Jakarta Sans, sans-serif',
-      weight: '600',
-      size: 12,
-    },
-  });
-
-  const modernDarkTheme = Blockly.Theme.defineTheme('modernDark', {
-    base: Blockly.Themes.Classic,
-    componentStyles: {
-      workspaceBackgroundColour: '#020617', // slate-950
-      toolboxBackgroundColour: '#0f172a', // slate-900
-      toolboxForegroundColour: '#cbd5e1',
-      flyoutBackgroundColour: '#0f172a',
-      flyoutForegroundColour: '#cbd5e1',
-      flyoutOpacity: 0.95,
-      scrollbarColour: '#334155',
-      insertionMarkerColour: '#818cf8', // Indigo light
-      insertionMarkerOpacity: 0.3,
-      cursorColour: '#818cf8',
-    },
-    fontStyle: {
-      family: 'Plus Jakarta Sans, sans-serif',
-      weight: '600',
-      size: 12,
-    },
-    blockStyles: {
-      hat_blocks: { colourPrimary: '#a55b80' },
-    },
-  });
-
-  // blocks.js has already extended the global Blockly object
-  // Keep indentation width fixed so generated function bodies are consistent.
-  Blockly.Python.INDENT = '    ';
-
-  return { modernLightTheme, modernDarkTheme };
-};
-
-const PRIMITIVE_LITERAL_INPUT_CHECKS = new Set(['String', 'Number']);
-
-const getLiteralShadowTypeForChecks = (checks) => {
-  const normalized = (Array.isArray(checks) ? checks : [checks]).filter(Boolean);
-  if (!normalized.length) return null;
-  const uniqueChecks = [...new Set(normalized)];
-  if (uniqueChecks.some((check) => !PRIMITIVE_LITERAL_INPUT_CHECKS.has(check))) {
-    return null;
-  }
-  if (uniqueChecks.includes('Number')) {
-    return 'math_number';
-  }
-  return 'text';
-};
-
-const createLiteralShadowBlock = (workspaceRef, blockType) => {
-  if (!workspaceRef || !blockType) return null;
-  const shadow = workspaceRef.newBlock(blockType);
-  shadow.setShadow(true);
-  if (blockType === 'math_number') {
-    shadow.setFieldValue('0', 'NUM');
-  }
-  if (blockType === 'text') {
-    shadow.setFieldValue('', 'TEXT');
-  }
-  if (workspaceRef.rendered) {
-    shadow.initSvg?.();
-    shadow.render?.();
-  }
-  return shadow;
-};
-
-const ensureLiteralShadowForInput = (block, input) => {
-  const valueInputType = Blockly.inputTypes?.VALUE ?? Blockly.INPUT_VALUE;
-  if (!input || input.type !== valueInputType) return;
-  const connection = input.connection;
-  if (!connection || connection.targetConnection) return;
-  const blockType = getLiteralShadowTypeForChecks(connection.getCheck?.() || null);
-  if (!blockType) return;
-  const shadow = createLiteralShadowBlock(block.workspace, blockType);
-  if (!shadow?.outputConnection) return;
-  try {
-    connection.connect(shadow.outputConnection);
-  } catch (error) {
-    shadow.dispose(false, true);
-  }
-};
-
-const ensureLiteralShadowsForBlock = (block) => {
-  if (!block || block.isShadow?.() || block.isInsertionMarker?.()) return;
-  if (block.workspace?.isFlyout) return;
-  block.inputList?.forEach((input) => ensureLiteralShadowForInput(block, input));
-};
-
-const ensureLiteralShadowsForWorkspace = (workspaceRef) => {
-  workspaceRef?.getAllBlocks(false).forEach((block) => ensureLiteralShadowsForBlock(block));
-};
-
-const setupLiteralInputAutofill = (workspaceRef) => {
-  if (!workspaceRef) return;
-
-  const queueBlockCheck = (blockId) => {
-    if (!blockId) return;
-    setTimeout(() => {
-      const block = workspaceRef.getBlockById(blockId);
-      ensureLiteralShadowsForBlock(block);
-    }, 0);
-  };
-
-  workspaceRef.addChangeListener((event) => {
-    if (!event || event.isUiEvent) return;
-    if (event.type === Blockly.Events.FINISHED_LOADING) {
-      ensureLiteralShadowsForWorkspace(workspaceRef);
-      return;
-    }
-    if (event.type === Blockly.Events.BLOCK_CREATE) {
-      (event.ids || []).forEach((id) => queueBlockCheck(id));
-      return;
-    }
-    if (event.type === Blockly.Events.BLOCK_MOVE) {
-      queueBlockCheck(event.blockId);
-      queueBlockCheck(event.newParentId);
-      queueBlockCheck(event.oldParentId);
-      return;
-    }
-    if (event.type === Blockly.Events.BLOCK_CHANGE) {
-      queueBlockCheck(event.blockId);
-    }
-  });
-
-  ensureLiteralShadowsForWorkspace(workspaceRef);
-};
 
 const html = document.documentElement;
 const isMobileDevice =
@@ -713,408 +449,6 @@ const applyMobileToolboxIcons = (toolboxEl) => {
   });
 };
 
-function extractInteractionEvents(code) {
-  const source = String(code || '');
-  const markerRegex = /^[ \t]*#\s*(BUTTON_EVENT|MODAL_EVENT)\s*:\s*(.+?)\s*$/gm;
-  const componentIds = [];
-  const modalIds = [];
-  let match;
-
-  while ((match = markerRegex.exec(source)) !== null) {
-    const eventType = match[1];
-    const customId = String(match[2] || '').trim();
-    if (!customId) continue;
-    if (eventType === 'BUTTON_EVENT') {
-      if (!componentIds.includes(customId)) componentIds.push(customId);
-    } else if (eventType === 'MODAL_EVENT') {
-      if (!modalIds.includes(customId)) modalIds.push(customId);
-    }
-  }
-
-  const cleanedCode = source
-    .split('\n')
-    .filter((line) => !/^[ \t]*#\s*(BUTTON_EVENT|MODAL_EVENT)\s*:/.test(line))
-    .join('\n');
-
-  const buildDispatchBody = (ids, prefix) => {
-    if (!ids.length) return '';
-    const lines = [`            custom_id = str((interaction.data or {}).get('custom_id', ''))`];
-    ids.forEach((id, index) => {
-      const escapedId = id.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-      const keyword = index === 0 ? 'if' : 'elif';
-      lines.push(`            ${keyword} custom_id == '${escapedId}':`);
-      lines.push(`                await ${prefix}${id}(interaction)`);
-    });
-    return lines.join('\n');
-  };
-
-  const componentEvents = buildDispatchBody(componentIds, 'on_button_');
-  const modalEvents = buildDispatchBody(modalIds, 'on_modal_');
-
-  return {
-    cleanedCode,
-    componentEvents,
-    modalEvents,
-    hasComponentEvents: componentIds.length > 0,
-    hasModalEvents: modalIds.length > 0,
-  };
-}
-
-const extractInteractionEventsSafe = (code) => {
-  if (typeof extractInteractionEvents === 'function') {
-    return extractInteractionEvents(code);
-  }
-  if (typeof window !== 'undefined' && typeof window.extractInteractionEvents === 'function') {
-    return window.extractInteractionEvents(code);
-  }
-  return {
-    cleanedCode: String(code || ''),
-    componentEvents: '',
-    modalEvents: '',
-    hasComponentEvents: false,
-    hasModalEvents: false,
-  };
-};
-
-const PYTHON_IDENTIFIER_PATTERN = (() => {
-  try {
-    return new RegExp('^[_\\p{L}][_\\p{L}\\p{N}]*$', 'u');
-  } catch (error) {
-    return /^[A-Za-z_][A-Za-z0-9_]*$/;
-  }
-})();
-
-const isPythonIdentifierLike = (value) => PYTHON_IDENTIFIER_PATTERN.test(String(value ?? ''));
-
-const COMMAND_VALIDATION_RULES = {
-  on_command_executed: {
-    label: 'スラッシュコマンド',
-    normalize: (rawName) => String(rawName ?? '').trim().toLowerCase(),
-    invalidMessage:
-      'このエディターではコマンド名を Python の関数名にも使うため、先頭は文字または_、以降は文字/数字/_のみ使用できます。',
-  },
-  prefix_command: {
-    label: 'プレフィックスコマンド',
-    normalize: (rawName) => String(rawName ?? '').trim().replace(/^[!~#&?]/, ''),
-    invalidMessage:
-      'このエディターではコマンド名を Python の関数名にも使うため、先頭は文字または_、以降は文字/数字/_のみ使用できます。',
-  },
-};
-
-const formatBlockRef = (block) => {
-  const shortId = String(block?.id || '').slice(0, 8);
-  return shortId ? `ブロックID: ${shortId}` : 'ブロックID不明';
-};
-
-const analyzeWorkspaceForCodegen = (workspaceRef) => {
-  if (!workspaceRef) return [];
-
-  const diagnostics = [];
-  const commandRegistry = new Map();
-  const handlerRegistry = new Map();
-  const relevantBlockIds = getCodegenRelevantBlockIds(workspaceRef);
-
-  relevantBlockIds.forEach((blockId) => {
-    const block = workspaceRef.getBlockById(blockId);
-    if (!block || block.isShadow?.()) return;
-    if (typeof block.isEnabled === 'function' && !block.isEnabled()) return;
-
-    const rule = COMMAND_VALIDATION_RULES[block.type];
-    if (!rule) return;
-
-    const rawName = block.getFieldValue('COMMAND_NAME');
-    const normalizedName = rule.normalize(rawName);
-    const blockRef = formatBlockRef(block);
-    const shownName = normalizedName || '(空)';
-
-    if (!normalizedName) {
-      diagnostics.push({
-        blockId: block.id,
-        message: `${rule.label}名が空です。${blockRef}`,
-      });
-      return;
-    }
-
-    if (!isPythonIdentifierLike(normalizedName)) {
-      diagnostics.push({
-        blockId: block.id,
-        message: `${rule.label}名「${shownName}」は無効です。${rule.invalidMessage} ${blockRef}`,
-      });
-      return;
-    }
-
-    const commandKey = `${block.type}:${normalizedName}`;
-    const firstRegisteredCommand = commandRegistry.get(commandKey);
-    if (firstRegisteredCommand) {
-      diagnostics.push({
-        blockId: block.id,
-        message: `${rule.label}名「${shownName}」が重複しています。${formatBlockRef(firstRegisteredCommand.block)} / ${blockRef}`,
-      });
-    } else {
-      commandRegistry.set(commandKey, { block, normalizedName });
-    }
-
-    const handlerName = `${normalizedName}_cmd`;
-    const firstRegisteredHandler = handlerRegistry.get(handlerName);
-    if (firstRegisteredHandler && firstRegisteredHandler.block.id !== block.id) {
-      diagnostics.push({
-        blockId: block.id,
-        message: `Python側の関数名「${handlerName}」が重複します。${formatBlockRef(firstRegisteredHandler.block)} / ${blockRef}`,
-      });
-    } else {
-      handlerRegistry.set(handlerName, { block, handlerName });
-    }
-  });
-
-  return diagnostics;
-};
-
-const hasNonShadowConnectedDescendant = (block) => {
-  if (!block?.getChildren) return false;
-
-  const stack = [...(block.getChildren(false) || [])];
-  while (stack.length) {
-    const child = stack.pop();
-    if (!child) continue;
-
-    const disabled = typeof child.isEnabled === 'function' && !child.isEnabled();
-    if (!child.isShadow?.() && !disabled) {
-      return true;
-    }
-
-    if (child.getChildren) {
-      stack.push(...(child.getChildren(false) || []));
-    }
-  }
-
-  return false;
-};
-
-const isOrphanTopBlock = (block) => {
-  if (!block || block.isShadow?.()) return false;
-  if (typeof block.isEnabled === 'function' && !block.isEnabled()) return false;
-  if (block.getParent?.()) return false;
-  if (block.previousConnection || block.outputConnection) return true;
-  return !hasNonShadowConnectedDescendant(block);
-};
-
-const getCodegenTopBlocks = (workspaceRef) => {
-  if (!workspaceRef?.getTopBlocks) return [];
-  return workspaceRef
-    .getTopBlocks(true)
-    .filter((block) => block && !block.isShadow?.())
-    .filter((block) => !(typeof block.isEnabled === 'function' && !block.isEnabled()))
-    .filter((block) => !isOrphanTopBlock(block));
-};
-
-const getCodegenRelevantBlockIds = (workspaceRef) => {
-  const ids = new Set();
-  getCodegenTopBlocks(workspaceRef).forEach((topBlock) => {
-    const descendants = topBlock?.getDescendants?.(false) || [topBlock];
-    descendants.forEach((block) => {
-      if (!block || block.isShadow?.()) return;
-      if (typeof block.isEnabled === 'function' && !block.isEnabled()) return;
-      ids.add(block.id);
-    });
-  });
-  return ids;
-};
-
-const workspaceToCodeExcludingOrphans = (workspaceRef) => {
-  if (!workspaceRef) return '';
-
-  const generator = Blockly.Python;
-  const code = [];
-  generator.init(workspaceRef);
-
-  getCodegenTopBlocks(workspaceRef).forEach((block) => {
-    let line = generator.blockToCode(block);
-    if (Array.isArray(line)) line = line[0];
-    if (line) code.push(line);
-  });
-
-  if (typeof generator.finish !== 'function') {
-    return code.join('\n');
-  }
-
-  const finishedCode = generator.finish(code.join('\n'));
-  return String(finishedCode || '').replace(/^\s+\n/, '');
-};
-
-// --- Code Generation & UI Sync ---
-const buildInlineRuntimeHelpers = ({ usesJson, usesModal, usesLogging }) => {
-  let helpers = '';
-
-  if (usesLogging) {
-    helpers += `logging.basicConfig(level = logging.INFO, format = '%(asctime)s - %(levelname)s - %(message)s')\n\n`;
-  }
-
-  if (usesJson) {
-    helpers += `_JSON_DATA_DIR = 'json'\n\n`;
-    helpers += `def _resolve_json_path(filename):\n`;
-    helpers += `    _raw_name = '' if filename is None else str(filename).strip()\n`;
-    helpers += `    _safe_name = os.path.basename(_raw_name) if _raw_name else 'dataset.json'\n`;
-    helpers += `    return os.path.join(_JSON_DATA_DIR, _safe_name)\n\n`;
-    helpers += `def _load_json_data(filename):\n`;
-    helpers += `    _path = _resolve_json_path(filename)\n`;
-    helpers += `    if not os.path.exists(_path):\n`;
-    helpers += `        return {}\n`;
-    helpers += `    try:\n`;
-    helpers += `        with open(_path, 'r', encoding = 'utf-8') as f:\n`;
-    helpers += `            return json.load(f)\n`;
-    helpers += `    except Exception as e:\n`;
-    helpers += `        logging.error(f"JSON Load Error: {e}")\n`;
-    helpers += `        return {}\n\n`;
-    helpers += `def _save_json_data(filename, data):\n`;
-    helpers += `    try:\n`;
-    helpers += `        _path = _resolve_json_path(filename)\n`;
-    helpers += `        os.makedirs(os.path.dirname(_path), exist_ok = True)\n`;
-    helpers += `        with open(_path, 'w', encoding = 'utf-8') as f:\n`;
-    helpers += `            json.dump(data, f, ensure_ascii = False, indent = 4)\n`;
-    helpers += `    except Exception as e:\n`;
-    helpers += `        logging.error(f"JSON Save Error: {e}")\n\n`;
-    helpers += `def _save_json_dataset_cache():\n`;
-    helpers += `    _cache = globals().get('_edbb_json_dataset_cache', {})\n`;
-    helpers += `    _files = globals().get('_edbb_json_dataset_files', {})\n`;
-    helpers += `    if not isinstance(_cache, dict) or not isinstance(_files, dict):\n`;
-    helpers += `        return\n`;
-    helpers += `    for _dataset_name, _dataset_data in _cache.items():\n`;
-    helpers += `        _filename = _files.get(_dataset_name)\n`;
-    helpers += `        if not _filename:\n`;
-    helpers += `            continue\n`;
-    helpers += `        _save_json_data(_filename, _dataset_data)\n\n`;
-  }
-
-  if (usesModal) {
-    helpers += `class EasyModal(discord.ui.Modal):\n`;
-    helpers += `    def __init__(self, title, custom_id, inputs):\n`;
-    helpers += `        super().__init__(title = title, timeout = None, custom_id = custom_id)\n`;
-    helpers += `        for item in inputs:\n`;
-    helpers += `            self.add_item(discord.ui.TextInput(label = item['label'], custom_id = item['id']))\n\n`;
-  }
-
-  return helpers.trim();
-};
-
-const generatePythonCode = () => {
-  if (!workspace) return '';
-
-  // --- Filter top-level blocks (Issue #28) ---
-  // Only allow event-related blocks, procedures, and specifically allowed blocks at the top level.
-  const topBlocks = workspace.getTopBlocks(true);
-  const allowedTopBlockTypes = [
-    'on_ready',
-    'on_message_create',
-    'on_member_join',
-    'on_member_remove',
-    'on_command_executed',
-    'prefix_command',
-    'on_reaction_add',
-    'on_button_click',
-    'on_modal_submit',
-    'procedures_defnoreturn',
-    'procedures_defreturn',
-    'print_to_console',
-    'custom_python_code',
-  ];
-
-  Blockly.Python.init(workspace);
-  const codeParts = [];
-  topBlocks.forEach((block) => {
-    if (block && !block.isShadow() && allowedTopBlockTypes.includes(block.type)) {
-      let line = Blockly.Python.blockToCode(block);
-      if (Array.isArray(line)) {
-        // Value blocks return [code, order], but at the top level we only want the code.
-        line = line[0];
-      }
-      if (line) {
-        codeParts.push(line);
-      }
-    }
-  });
-  const rawCode = Blockly.Python.finish(codeParts.join('\n'));
-
-  const {
-    cleanedCode,
-    hasComponentEvents,
-    hasModalEvents,
-  } = extractInteractionEventsSafe(rawCode);
-  const bodyCode = cleanedCode;
-
-  // --- Dependency Analysis ---
-  const usesJson =
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache') ||
-    bodyCode.includes('json.');
-  const usesModal = bodyCode.includes('EasyModal');
-  const usesRandom = bodyCode.includes('random.');
-  const usesAsyncio = bodyCode.includes('asyncio.');
-  const usesDatetime = bodyCode.includes('datetime.');
-  const usesMath = bodyCode.includes('math.');
-  const usesLogging = bodyCode.includes('logging.') || usesJson; // JSON helpers use logging
-  const needInteractionHandler = hasComponentEvents || hasModalEvents;
-
-  // --- Build Imports ---
-  const imports = [
-    'import discord',
-    'from discord import app_commands',
-    'from discord.ext import commands',
-    'import os',
-  ];
-  if (needInteractionHandler || usesModal || bodyCode.includes('discord.ui')) imports.push('from discord import ui');
-  if (usesRandom) imports.push('import random');
-  if (usesAsyncio) imports.push('import asyncio');
-  if (usesDatetime) imports.push('import datetime');
-  if (usesMath) imports.push('import math');
-  if (usesJson) {
-    imports.push('import json');
-  }
-  if (usesLogging) imports.push('import logging');
-
-  const header = imports.join('\n');
-  const inlineHelpers = buildInlineRuntimeHelpers({ usesJson, usesModal, usesLogging });
-  const helperSection = inlineHelpers ? `\n${inlineHelpers}\n` : '';
-
-  const fullBoiler = `
-# Easy Discord Bot Builderによって作成されました！ 製作：@himais0giiiin
-# Created with Easy Discord Bot Builder! created by @himais0giiiin!
-# Optimized Version
-
-${header}
-
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-intents.voice_states = True
-
-# Botの作成
-bot = commands.Bot(command_prefix='!', intents=intents)
-
-# ----------------------------
-
-# --- ユーザー作成部分 ---
-${helperSection}
-${bodyCode}
-# --------------------------
-
-if __name__ == "__main__":
-    # トークンの設定
-    # Set your token here
-    token = "TOKEN"
-
-    # Token check
-    token = os.getenv("DISCORD_TOKEN", token) # 環境変数DISCORD_TOKENがあればそちらを優先 (If DISCORD_TOKEN environment variable is set, it will be used)
-    if token == "TOKEN":
-        print('\\x1b[31m!!!!注意!!!! トークンを設定していない場合は、環境変数DISCORD_TOKENを設定するか、上のtoken変数を書き換えてください。\\x1b[0m')
-        print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the DISCORD_TOKEN environment variable or replace the token variable above.\\x1b[0m')
-        exit(1)
-
-    bot.run(token)
-`;
-
-  return fullBoiler.trim();
-};
 
 const setupListManager = ({ workspace, storage, shareFeature, workspaceContainer }) => {
   const panel = document.createElement('div');
@@ -1701,447 +1035,6 @@ const setupJsonDataManager = ({ workspace, storage, shareFeature }) => {
   return { render, saveNow };
 };
 
-const indentBlock = (block, spaces = 4) =>
-  block
-    .split('\n')
-    .map((line) => (line.trim() === '' ? '' : `${' '.repeat(spaces)}${line} `))
-    .join('\n');
-
-const addSelfParam = (block) =>
-  block.replace(/async def ([^(]+)\(([^)]*)\)/, (match, name, params) => {
-    const trimmed = params.trim();
-    if (!trimmed) return `async def ${name} (self)`;
-    if (trimmed.startsWith('self')) return `async def ${name} (${trimmed})`;
-    return `async def ${name} (self, ${trimmed})`;
-  });
-
-const convertEventBlock = (block) => {
-  let updated = block.replace('@bot.event', '@commands.Cog.listener()');
-  updated = addSelfParam(updated);
-  updated = updated.replace(/\bbot\./g, 'self.bot.');
-  return updated;
-};
-
-const convertSlashCommandBlock = (block) => {
-  let updated = block.replace('@bot.tree.command', '@app_commands.command');
-  updated = addSelfParam(updated);
-  updated = updated.replace(/\bbot\./g, 'self.bot.');
-  return updated;
-};
-
-const convertPrefixCommandBlock = (block) => {
-  let updated = block.replace('@bot.command', '@commands.command');
-  updated = addSelfParam(updated);
-  updated = updated.replace(/\bbot\./g, 'self.bot.');
-  return updated;
-};
-
-const convertComponentBlock = (block) => {
-  let updated = addSelfParam(block);
-  updated = updated.replace(/\bbot\./g, 'self.bot.');
-  return updated;
-};
-
-const buildInteractionHandler = (componentEvents, modalEvents) => {
-  let componentBody = componentEvents.trim()
-    ? componentEvents.replace(/await on_button_/g, 'await self.on_button_')
-    : '            pass';
-  let modalBody = modalEvents.trim()
-    ? modalEvents.replace(/await on_modal_/g, 'await self.on_modal_')
-    : '            pass';
-
-  return `
-  @commands.Cog.listener()
-  async def on_interaction(self, interaction):
-  try:
-  if interaction.type == discord.InteractionType.component:
-${componentBody}
-        elif interaction.type == discord.InteractionType.modal_submit:
-${modalBody}
-    except Exception as e:
-  print(f"Interaction Error: {e}")
-`.trim();
-};
-
-const buildImports = (bodyCode, needsInteractionHandler) => {
-  const imports = [
-    'import discord',
-    'from discord import app_commands',
-    'from discord.ext import commands',
-  ];
-  if (needsInteractionHandler || bodyCode.includes('EasyModal') || bodyCode.includes('discord.ui')) {
-    imports.push('from discord import ui');
-  }
-  if (bodyCode.includes('random.')) imports.push('import random');
-  if (bodyCode.includes('asyncio.')) imports.push('import asyncio');
-  if (bodyCode.includes('datetime.')) imports.push('import datetime');
-  if (bodyCode.includes('math.')) imports.push('import math');
-  if (
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache') ||
-    bodyCode.includes('json.')
-  ) {
-    imports.push('import json');
-    imports.push('import os');
-  }
-  if (
-    bodyCode.includes('logging.') ||
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache')
-  ) {
-    imports.push('import logging');
-  }
-  return imports;
-};
-
-const buildSharedModule = (bodyCode) => {
-  const usesJson =
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache') ||
-    bodyCode.includes('json.');
-  const usesModal = bodyCode.includes('EasyModal');
-  const usesLogging = bodyCode.includes('logging.') || usesJson;
-
-  if (!usesJson && !usesModal && !usesLogging) return '';
-
-  let content = `# Shared helpers\n`;
-  if (usesLogging) {
-    content += `import logging\n\n`;
-    content += `logging.basicConfig(level = logging.INFO, format = '%(asctime)s - %(levelname)s - %(message)s') \n\n`;
-  }
-  if (usesJson) {
-    content += `import json\nimport os\n\n`;
-    content += `_JSON_DATA_DIR = 'json'\n\n`;
-    content += `def _resolve_json_path(filename): \n`;
-    content += `    _raw_name = '' if filename is None else str(filename).strip() \n`;
-    content += `    _safe_name = os.path.basename(_raw_name) if _raw_name else 'dataset.json' \n`;
-    content += `    return os.path.join(_JSON_DATA_DIR, _safe_name) \n\n`;
-    content += `def _load_json_data(filename): \n`;
-    content += `    _path = _resolve_json_path(filename) \n`;
-    content += `    if not os.path.exists(_path): \n`;
-    content += `        return {}\n`;
-    content += `    try: \n`;
-    content += `        with open(_path, 'r', encoding = 'utf-8') as f: \n`;
-    content += `            return json.load(f) \n`;
-    content += `    except Exception as e: \n`;
-    content += `        logging.error(f"JSON Load Error: {e}") \n`;
-    content += `        return {}\n\n`;
-    content += `def _save_json_data(filename, data): \n`;
-    content += `    try: \n`;
-    content += `        _path = _resolve_json_path(filename) \n`;
-    content += `        os.makedirs(os.path.dirname(_path), exist_ok = True) \n`;
-    content += `        with open(_path, 'w', encoding = 'utf-8') as f: \n`;
-    content += `            json.dump(data, f, ensure_ascii = False, indent = 4) \n`;
-    content += `    except Exception as e: \n`;
-    content += `        logging.error(f"JSON Save Error: {e}") \n\n`;
-    content += `def _save_json_dataset_cache(): \n`;
-    content += `    _cache = globals().get('_edbb_json_dataset_cache', {}) \n`;
-    content += `    _files = globals().get('_edbb_json_dataset_files', {}) \n`;
-    content += `    if not isinstance(_cache, dict) or not isinstance(_files, dict): \n`;
-    content += `        return \n`;
-    content += `    for _dataset_name, _dataset_data in _cache.items(): \n`;
-    content += `        _filename = _files.get(_dataset_name) \n`;
-    content += `        if not _filename: \n`;
-    content += `            continue \n`;
-    content += `        _save_json_data(_filename, _dataset_data) \n\n`;
-  }
-  if (usesModal) {
-    content += `import discord\n\n`;
-    content += `class EasyModal(discord.ui.Modal): \n`;
-    content += `    def __init__(self, title, custom_id, inputs): \n`;
-    content += `        super().__init__(title = title, timeout = None, custom_id = custom_id) \n`;
-    content += `        for item in inputs: \n`;
-    content += `            self.add_item(discord.ui.TextInput(label = item['label'], custom_id = item['id'])) \n`;
-  }
-  return content.trim();
-};
-
-const buildCogFile = (className, blocks, imports, sharedImports = '', preamble = '') => {
-  const body = blocks.map((block) => indentBlock(block)).join('\n\n');
-  const header = `${imports.join('\n')} \n${sharedImports} `.trim();
-  const preambleBlock = preamble ? `${preamble} \n\n` : '';
-  return `
-${header}
-
-${preambleBlock} class ${className}(commands.Cog):
-    def __init__(self, bot):
-  self.bot = bot
-
-${body}
-
-async def setup(bot):
-  await bot.add_cog(${className}(bot))
-    `.trim();
-};
-
-const buildModuleFile = (imports, sharedImports, body, preamble = '') => {
-  const header = `${imports.join('\n')} \n${sharedImports} `.trim();
-  const preambleBlock = preamble ? `${preamble} \n\n` : '';
-  return `
-${header}
-
-${preambleBlock}${body}
-
-async def setup(bot):
-  pass
-`.trim();
-};
-
-const blockCodeToString = (code) => {
-  if (!code) return '';
-  if (Array.isArray(code)) return code[0] || '';
-  return code;
-};
-
-const slugify = (value) => {
-  const base = String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  return base || 'group';
-};
-
-const toPascalCase = (value) =>
-  value
-    .split('_')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join('');
-
-const deriveGroupMeta = (block) => {
-  const type = block?.type || 'group';
-  let kind = 'misc';
-  let label = type;
-
-  if (['on_ready', 'on_message_create', 'on_member_join', 'on_member_remove', 'on_reaction_add'].includes(type)) {
-    kind = 'event';
-  } else if (type === 'on_command_executed') {
-    kind = 'slash';
-  } else if (type === 'prefix_command') {
-    kind = 'prefix';
-  } else if (type === 'on_button_click') {
-    kind = 'button';
-  } else if (type === 'on_modal_submit') {
-    kind = 'modal';
-  }
-
-  if (type === 'on_command_executed' || type === 'prefix_command') {
-    label = block.getFieldValue('COMMAND_NAME') || type;
-  } else if (type === 'on_button_click' || type === 'on_modal_submit') {
-    label = block.getFieldValue('CUSTOM_ID') || type;
-  }
-
-  return { kind, label, type };
-};
-
-const generateSplitPythonFiles = () => {
-  if (!workspace) return {};
-  const topBlocks = getCodegenTopBlocks(workspace);
-  const topBlockEntries = topBlocks.map((block) => ({
-    block,
-    rawGroup: blockCodeToString(Blockly.Python.blockToCode(block)),
-  }));
-  const rawAll = topBlockEntries.map(({ rawGroup }) => rawGroup).join('\n');
-  const { cleanedCode: allCleaned } = extractInteractionEventsSafe(rawAll);
-
-  const sharedModule = buildSharedModule(allCleaned);
-  const files = { 'cogs/__init__.py': '' };
-  if (sharedModule) files['cogs/shared.py'] = sharedModule;
-
-  const procedureDefs = topBlockEntries
-    .filter(({ block, rawGroup }) => block?.type?.startsWith('procedures_def') && rawGroup?.trim())
-    .map(({ rawGroup }) => rawGroup.trim());
-  const nameCounter = new Map();
-  const cogsToLoad = [];
-
-  const makeUniqueSlug = (base) => {
-    const current = nameCounter.get(base) || 0;
-    nameCounter.set(base, current + 1);
-    return current === 0 ? base : `${base}_${current + 1} `;
-  };
-
-  topBlockEntries.forEach(({ block, rawGroup }) => {
-    if (!rawGroup || !rawGroup.trim()) return;
-    if (block?.type?.startsWith('procedures_def')) {
-      return;
-    }
-
-    const {
-      cleanedCode,
-      componentEvents,
-      modalEvents,
-      hasComponentEvents,
-      hasModalEvents,
-    } = extractInteractionEventsSafe(rawGroup);
-
-    const { kind, label } = deriveGroupMeta(block);
-    const baseSlug = slugify(`${kind}_${label}`);
-    const fileSlug = makeUniqueSlug(baseSlug);
-    const className = `${toPascalCase(fileSlug)} Cog`.replace(/^[0-9]/, 'Cog$&');
-
-    const needsInteractionHandler = hasComponentEvents || hasModalEvents;
-    const imports = buildImports(cleanedCode, needsInteractionHandler);
-    const usesJson =
-      cleanedCode.includes('_load_json_data') ||
-      cleanedCode.includes('_save_json_data') ||
-      cleanedCode.includes('_save_json_dataset_cache') ||
-      cleanedCode.includes('json.');
-    const usesModal = cleanedCode.includes('EasyModal');
-    const sharedSymbols = [];
-    if (usesJson) sharedSymbols.push('_load_json_data', '_save_json_data', '_save_json_dataset_cache');
-    if (usesModal) sharedSymbols.push('EasyModal');
-    const sharedImports =
-      sharedModule && sharedSymbols.length
-        ? `from.shared import ${sharedSymbols.join(', ')} `
-        : '';
-
-    let fileContent = '';
-    const procedurePreamble = procedureDefs.length ? procedureDefs.join('\n\n') : '';
-
-    if (kind === 'event') {
-      fileContent = buildCogFile(
-        className,
-        [convertEventBlock(cleanedCode)],
-        imports,
-        sharedImports,
-        procedurePreamble,
-      );
-    } else if (kind === 'slash') {
-      fileContent = buildCogFile(
-        className,
-        [convertSlashCommandBlock(cleanedCode)],
-        imports,
-        sharedImports,
-        procedurePreamble,
-      );
-    } else if (kind === 'prefix') {
-      fileContent = buildCogFile(
-        className,
-        [convertPrefixCommandBlock(cleanedCode)],
-        imports,
-        sharedImports,
-        procedurePreamble,
-      );
-    } else if (kind === 'button' || kind === 'modal') {
-      const blocks = [];
-      if (needsInteractionHandler) {
-        blocks.push(buildInteractionHandler(componentEvents, modalEvents));
-      }
-      blocks.push(convertComponentBlock(cleanedCode));
-      fileContent = buildCogFile(className, blocks, imports, sharedImports, procedurePreamble);
-    } else {
-      fileContent = buildModuleFile(imports, sharedImports, cleanedCode.trim(), procedurePreamble);
-    }
-
-    const filePath = `cogs/${fileSlug}.py`;
-    files[filePath] = fileContent;
-    cogsToLoad.push(filePath.replace('cogs/', 'cogs.').replace('.py', ''));
-  });
-
-  const botFile = `
-# Easy Discord Bot Builder - Split Cogs Version
-
-import os
-import discord
-from discord.ext import commands
-
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-intents.voice_states = True
-
-class EasyBot(commands.Bot):
-    async def setup_hook(self):
-        for ext in ${JSON.stringify(cogsToLoad)}:
-            await self.load_extension(ext)
-
-bot = EasyBot(command_prefix='!', intents=intents)
-
-if __name__ == "__main__":
-    # トークンの設定
-    # Set your token here
-    token = "TOKEN"
-
-    # Token check
-    token = os.getenv("DISCORD_TOKEN", token) # 環境変数DISCORD_TOKENがあればそちらを優先 (If DISCORD_TOKEN environment variable is set, it will be used)
-    if token == "TOKEN":
-        print('\\x1b[31m!!!!注意!!!! トークンを設定していない場合は、環境変数DISCORD_TOKENを設定するか、上のtoken変数を書き換えてください。\\x1b[0m')
-        print('\\x1b[31m!!!!Warning!!!! If you have not set a token, please set the DISCORD_TOKEN environment variable or replace the token variable above.\\x1b[0m')
-        exit(1)
-
-    bot.run(token)
-`.trim();
-
-  files['bot.py'] = botFile;
-  return files;
-};
-
-const downloadTextFile = (filename, content) => {
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-};
-
-const renderSplitFiles = (files) => {
-  const container = document.getElementById('splitFileList');
-  container.innerHTML = '';
-  Object.entries(files).forEach(([path, content]) => {
-    if (content == null) return;
-    const item = document.createElement('div');
-    item.className =
-      'rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden';
-    item.innerHTML = `
-      <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-mono text-xs">
-        <div class="text-slate-600 dark:text-slate-300 font-bold overflow-hidden text-ellipsis whitespace-nowrap" title="${path}">${path}</div>
-        <div class="flex items-center gap-2 shrink-0">
-          <button class="splitCopyBtn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800" data-path="${path}">
-            <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy
-          </button>
-          <button class="splitDownloadBtn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm" data-path="${path}">
-            <i data-lucide="download" class="w-3.5 h-3.5"></i> DL
-          </button>
-        </div>
-      </div>
-      <pre class="p-4 text-xs font-mono bg-[#0f172a] text-[#e2e8f0] overflow-x-auto selection:bg-indigo-500/30"></pre>
-    `;
-    const pre = item.querySelector('pre');
-    if (pre) pre.textContent = content;
-    container.appendChild(item);
-  });
-
-  container.querySelectorAll('.splitCopyBtn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const path = btn.getAttribute('data-path');
-      if (!path || !files[path]) return;
-      navigator.clipboard.writeText(files[path]);
-      btn.textContent = 'Copied';
-      setTimeout(() => {
-        btn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy';
-        lucide.createIcons();
-      }, 1200);
-    });
-  });
-
-  container.querySelectorAll('.splitDownloadBtn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const path = btn.getAttribute('data-path');
-      if (!path || !files[path]) return;
-      const safeName = path.replace(/\//g, '__');
-      downloadTextFile(safeName, files[path]);
-    });
-  });
-
-  lucide.createIcons();
-};
 
 const initializeApp = async () => {
   window.__edbb_initialized = true;
@@ -2515,7 +1408,7 @@ const initializeApp = async () => {
       return;
     }
     try {
-      liveCodeOutput.textContent = generatePythonCode();
+      liveCodeOutput.textContent = generatePythonCode(workspace);
       // Remove highlighted dataset to prevent re-highlighting warning
       delete liveCodeOutput.dataset.highlighted;
       hljs.highlightElement(liveCodeOutput);
@@ -3155,7 +2048,7 @@ const initializeApp = async () => {
     // Blocklyの選択ハイライトなどを解除
     if (workspace) Blockly.hideChaff();
     if (!validateBeforeCodegen()) return;
-    codeOutput.textContent = generatePythonCode();
+    codeOutput.textContent = generatePythonCode(workspace);
     toggleModal(codeModal, true);
   });
 
@@ -3192,7 +2085,7 @@ const initializeApp = async () => {
     }
 
     try {
-      const botCode = generatePythonCode();
+      const botCode = generatePythonCode(workspace);
       const response = await fetch(buildRunnerUrl(''), {
         method: 'POST',
         headers: {
@@ -3290,7 +2183,7 @@ const initializeApp = async () => {
   const openSplitModal = () => {
     if (!splitCodeModal) return;
     if (!validateBeforeCodegen()) return;
-    const files = generateSplitPythonFiles();
+    const files = generateSplitPythonFiles(workspace);
     renderSplitFiles(files);
     splitCodeModal.classList.remove('hidden');
     splitCodeModal.classList.add('flex');
@@ -3320,7 +2213,7 @@ const initializeApp = async () => {
       toggleModal(splitCodeModal, false);
       return;
     }
-    const files = generateSplitPythonFiles();
+    const files = generateSplitPythonFiles(workspace);
     Object.entries(files).forEach(([path, content]) => {
       if (content == null) return;
       const safeName = path.replace(/\//g, '__');
@@ -3330,7 +2223,7 @@ const initializeApp = async () => {
 
   downloadZipBtn?.addEventListener('click', async () => {
     if (!validateBeforeCodegen()) return;
-    let code = generatePythonCode();
+    let code = generatePythonCode(workspace);
 
     // Inject imports for .env support
     if (!code.includes('from dotenv import load_dotenv')) {
@@ -3403,12 +2296,12 @@ const startApp = async (retryCount = 0) => {
     return;
   }
 
-  // Dynamically load blocks.js
+  // Dynamically load blocks/index.js
   if (!Blockly.Blocks['on_ready']) {
     try {
-      await import('./blocks.js');
+      await import('./blocks/index.js');
     } catch (e) {
-      console.error('Failed to load blocks.js', e);
+      console.error('Failed to load blocks/index.js', e);
     }
   }
 

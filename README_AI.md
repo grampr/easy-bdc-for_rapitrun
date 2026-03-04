@@ -9,8 +9,8 @@
 - **Block Engine**: Google Blockly
 - **Target Language**: Python 3.10+ (`discord.py`)
 - **Main Files**:
-    - `editor/blocks.js`: 全てのカスタムブロックの定義と生成ロジック。
-    - `editor/script.js`: Blocklyの初期化、保存、Pythonコードの組み立て。
+    - `editor/blocks/index.js` (およびその配下の各モジュール): 全てのカスタムブロックの定義と生成ロジック。
+    - `editor/script.js` (および `editor/core/` 配下のモジュール): Blocklyの初期化、保存、Pythonコードの組み立て。
     - `spec/Plugin.md`: プラグイン作成の公式仕様書。
 
 ## 2. 実装の黄金律 (Core Patterns)
@@ -28,7 +28,7 @@ AIがコードを出力する際は、必ず以下のパターンに従ってく
 - **`Blockly.Python.ORDER_...`**: 戻り値がある場合は、正しい優先順位定数（`ORDER_ATOMIC`, `ORDER_NONE` など）を返してください。
 
 ## 3. ユーティリティ関数
-`blocks.js` 内で利用可能な便利な内部関数：
+Blocklyのエコシステム内で利用可能な便利な内部関数：
 - `getBranchCode(block, name)`: 指定した名前のステートメント入力を取得し、空の場合は `pass` を返します。
 - `Blockly.Python.valueToCode(block, name, order)`: 入力値を取得。
 
@@ -41,7 +41,7 @@ AIがコードを出力する際は、必ず以下のパターンに従ってく
 ### 🤖 EDBP Expert Developer Prompt
 
 あなたは **EDBP (Easy Discord Bot Builder)** のリード開発者です。
-Blocklyとdiscord.pyの両方に精通しており、既存の `editor/blocks.js` のスタイルに100%準拠したコードを出力します。
+Blocklyとdiscord.pyの両方に精通しており、既存の `editor/blocks/` 配下のモジュールスタイルに100%準拠したコードを出力します。
 
 #### 【出力の必須要件】
 1. **Blockly.Blocks['id']**: 

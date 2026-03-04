@@ -81,22 +81,24 @@ export class PluginUI {
             const toast = document.createElement('div');
             toast.setAttribute('role', 'alert');
             toast.setAttribute('aria-live', 'assertive');
-            toast.style.position = 'fixed';
-            toast.style.top = '88px';
-            toast.style.right = '16px';
-            toast.style.maxWidth = 'min(420px, calc(100vw - 24px))';
-            toast.style.padding = '12px 14px';
-            toast.style.borderRadius = '10px';
-            toast.style.fontSize = '13px';
-            toast.style.fontWeight = '600';
-            toast.style.lineHeight = '1.4';
-            toast.style.boxShadow = '0 12px 28px -12px rgba(15, 23, 42, 0.65)';
-            toast.style.zIndex = '220';
-            toast.style.whiteSpace = 'pre-wrap';
-            toast.style.pointerEvents = 'none';
-            toast.style.opacity = '0';
-            toast.style.transform = 'translateX(120%)';
-            toast.style.transition = 'opacity 220ms ease, transform 220ms ease';
+            Object.assign(toast.style, {
+                position: 'fixed',
+                top: '88px',
+                right: '16px',
+                maxWidth: 'min(420px, calc(100vw - 24px))',
+                padding: '12px 14px',
+                borderRadius: '10px',
+                fontSize: '13px',
+                fontWeight: '600',
+                lineHeight: '1.4',
+                boxShadow: '0 12px 28px -12px rgba(15, 23, 42, 0.65)',
+                zIndex: '220',
+                whiteSpace: 'pre-wrap',
+                pointerEvents: 'none',
+                opacity: '0',
+                transform: 'translateX(120%)',
+                transition: 'opacity 220ms ease, transform 220ms ease'
+            });
             document.body.appendChild(toast);
             this.sideErrorToast = toast;
         }
@@ -363,7 +365,7 @@ export class PluginUI {
                 if (!file) return;
                 try {
                     const manifest = await this.pluginManager.peekManifestFromZip(file);
-                    
+
                     // 危険なプラグインのチェック
                     const level = manifest.trustLevel?.level ?? manifest.trustLevel;
                     if (level === 'danger') {
@@ -822,7 +824,7 @@ export class PluginUI {
                     let level = pluginData?.trustLevel?.level ?? pluginData?.trustLevel;
                     let trustReason = pluginData?.trustLevel?.reason;
                     let pName = pluginData?.name || info.fullName;
-                    
+
                     if (!level) {
                         try {
                             const manifestUrl = `https://raw.githubusercontent.com/${info.fullName}/${info.branch || 'main'}/manifest.json`;
@@ -837,7 +839,7 @@ export class PluginUI {
                                 trustReason = fetchedTrust?.reason;
                                 pName = fetchedManifest.name || pName;
                             }
-                        } catch(e) {
+                        } catch (e) {
                             console.warn(`Failed to fetch manifest for ${info.fullName}:`, e);
                         }
                     }
@@ -1793,8 +1795,8 @@ export class PluginUI {
             const title = updateContext?.branchMissing
                 ? `branch missing: ${updateContext?.targetRef || 'unknown'}`
                 : updateContext?.installChannel === 'branch'
-                ? `branch: ${updateContext.targetRef} / latest: ${String(updateContext?.latestCommitSha || '').slice(0, 7) || 'unknown'}`
-                : `release: ${String(plugin?.installReleaseTag || plugin?.installRef || 'unknown')} -> ${updateContext?.targetRef || 'unknown'}`;
+                    ? `branch: ${updateContext.targetRef} / latest: ${String(updateContext?.latestCommitSha || '').slice(0, 7) || 'unknown'}`
+                    : `release: ${String(plugin?.installReleaseTag || plugin?.installRef || 'unknown')} -> ${updateContext?.targetRef || 'unknown'}`;
             const status = {
                 hasUpdate,
                 title: latestVersion ? `current: ${plugin.version} / latest: ${latestVersion}` : title,
@@ -2268,7 +2270,6 @@ export class PluginUI {
                 // 詳細表示を即座に更新してレスポンスを良くする
                 this.showDetail(plugin);
             } catch (error) {
-                console.error('Plugin toggle failed:', error);
                 this.showSideError('プラグインの切り替えに失敗しました: ' + error.message);
                 btnText.textContent = originalText;
                 toggleBtn.disabled = false;
