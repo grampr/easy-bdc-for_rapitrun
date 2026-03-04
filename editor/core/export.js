@@ -759,6 +759,9 @@ export const generateSplitPythonFiles = (workspace) => {
     const fileSlug = makeUniqueSlug(baseSlug).trim();
     const className = `${toPascalCase(fileSlug)}Cog`.replace(/^[0-9]/, 'Cog$&');
 
+    const needsInteractionHandler = hasComponentEvents || hasModalEvents;
+    const imports = buildImports(cleanedCode, needsInteractionHandler);
+
     const usesJson =
       cleanedCode.includes('_load_json_data') ||
       cleanedCode.includes('_save_json_data') ||
