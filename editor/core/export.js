@@ -140,15 +140,19 @@ export const renderSplitFiles = (files) => {
   });
 
   container.querySelectorAll('.splitCopyBtn').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const path = btn.getAttribute('data-path');
       if (!path || !Object.hasOwn(files, path)) return;
-      navigator.clipboard.writeText(files[path] || '');
-      btn.textContent = 'Copied';
-      setTimeout(() => {
-        btn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy';
-        lucide.createIcons();
-      }, 1200);
+      try {
+        await navigator.clipboard.writeText(files[path] || '');
+        btn.textContent = 'Copied';
+        setTimeout(() => {
+          btn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy';
+          lucide.createIcons();
+        }, 1200);
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+      }
     });
   });
 
