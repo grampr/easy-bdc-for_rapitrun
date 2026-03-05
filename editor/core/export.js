@@ -62,6 +62,17 @@ ${modalBody}
 `.trim();
 };
 
+const detectJsonUsage = (code) => {
+  const source = String(code || '');
+  return (
+    source.includes('_load_json_data') ||
+    source.includes('_save_json_data') ||
+    source.includes('_resolve_json_path') ||
+    source.includes('_save_json_dataset_cache') ||
+    source.includes('json.')
+  );
+};
+
 const buildImports = (bodyCode, needsInteractionHandler) => {
   const imports = [
     'import discord',
@@ -75,20 +86,13 @@ const buildImports = (bodyCode, needsInteractionHandler) => {
   if (bodyCode.includes('asyncio.')) imports.push('import asyncio');
   if (bodyCode.includes('datetime.')) imports.push('import datetime');
   if (bodyCode.includes('math.')) imports.push('import math');
-  if (
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache') ||
-    bodyCode.includes('json.')
-  ) {
+  if (detectJsonUsage(bodyCode)) {
     imports.push('import json');
     imports.push('import os');
   }
   if (
     bodyCode.includes('logging.') ||
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache')
+    detectJsonUsage(bodyCode)
   ) {
     imports.push('import logging');
   }
@@ -138,7 +142,7 @@ export const renderSplitFiles = (files) => {
   container.querySelectorAll('.splitCopyBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const path = btn.getAttribute('data-path');
-      if (!path || !(path in files)) return;
+      if (!path || !Object.hasOwn(files, path)) return;
       navigator.clipboard.writeText(files[path] || '');
       btn.textContent = 'Copied';
       setTimeout(() => {
@@ -151,7 +155,7 @@ export const renderSplitFiles = (files) => {
   container.querySelectorAll('.splitDownloadBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const path = btn.getAttribute('data-path');
-      if (!path || !(path in files)) return;
+      if (!path || !Object.hasOwn(files, path)) return;
       const safeName = path.replace(/\//g, '__');
       downloadTextFile(safeName, files[path]);
     });
@@ -497,11 +501,7 @@ export const generatePythonCode = (workspace) => {
   }
 
   // --- Dependency Analysis ---
-  const usesJson =
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache') ||
-    bodyCode.includes('json.');
+  const usesJson = detectJsonUsage(bodyCode);
   const usesModal = bodyCode.includes('EasyModal');
   const usesRandom = bodyCode.includes('random.');
   const usesAsyncio = bodyCode.includes('asyncio.');
@@ -572,11 +572,7 @@ if __name__ == "__main__":
 };
 
 const buildSharedModule = (bodyCode) => {
-  const usesJson =
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache') ||
-    bodyCode.includes('json.');
+  const usesJson = detectJsonUsage(bodyCode);
   const usesModal = bodyCode.includes('EasyModal');
   const usesLogging = bodyCode.includes('logging.') || usesJson;
 
@@ -762,12 +758,7 @@ export const generateSplitPythonFiles = (workspace) => {
     const needsInteractionHandler = hasComponentEvents || hasModalEvents;
     const imports = buildImports(cleanedCode, needsInteractionHandler);
 
-    const usesJson =
-      cleanedCode.includes('_load_json_data') ||
-      cleanedCode.includes('_save_json_data') ||
-      cleanedCode.includes('_resolve_json_path') ||
-      cleanedCode.includes('_save_json_dataset_cache') ||
-      cleanedCode.includes('json.');
+    const usesJson = detectJsonUsage(cleanedCode);
     const usesModal = cleanedCode.includes('EasyModal');
     const sharedSymbols = [];
     if (usesJson) sharedSymbols.push('_load_json_data', '_save_json_data', '_resolve_json_path', '_save_json_dataset_cache');
