@@ -49,25 +49,28 @@ const buildInteractionHandler = (componentEvents, modalEvents, isCog = true) => 
     ? (isCog ? modalEvents.replace(/await on_modal_/g, 'await self.on_modal_') : modalEvents)
     : '                pass';
 
-  const indent = '    ';
-  const prefix = isCog ? `${indent}@commands.Cog.listener()\n${indent}async def on_interaction(self, interaction):` : '@bot.event\nasync def on_interaction(interaction):';
-  const selfParam = isCog ? 'self, ' : '';
-
-  // Ensure componentBody and modalBody are shifted right if they are not already indented enough
-  const finalComponentBody = componentBody.split('\n').map(line => '    ' + line).join('\n');
-  const finalModalBody = modalBody.split('\n').map(line => '    ' + line).join('\n');
-
   return `
-${isCog ? '    @commands.Cog.listener()' : '@bot.event'}
+${isCog ? '@commands.Cog.listener()' : '@bot.event'}
 async def on_interaction(${isCog ? 'self, ' : ''}interaction):
     try:
         if interaction.type == discord.InteractionType.component:
-${finalComponentBody}
+${componentBody}
         elif interaction.type == discord.InteractionType.modal_submit:
-${finalModalBody}
+${modalBody}
     except Exception as e:
         print(f"Interaction Error: {e}")
 `.trim();
+};
+
+const detectJsonUsage = (code) => {
+  const source = String(code || '');
+  return (
+    source.includes('_load_json_data') ||
+    source.includes('_save_json_data') ||
+    source.includes('_resolve_json_path') ||
+    source.includes('_save_json_dataset_cache') ||
+    source.includes('json.')
+  );
 };
 
 const buildImports = (bodyCode, needsInteractionHandler) => {
@@ -83,20 +86,13 @@ const buildImports = (bodyCode, needsInteractionHandler) => {
   if (bodyCode.includes('asyncio.')) imports.push('import asyncio');
   if (bodyCode.includes('datetime.')) imports.push('import datetime');
   if (bodyCode.includes('math.')) imports.push('import math');
-  if (
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache') ||
-    bodyCode.includes('json.')
-  ) {
+  if (detectJsonUsage(bodyCode)) {
     imports.push('import json');
     imports.push('import os');
   }
   if (
     bodyCode.includes('logging.') ||
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache')
+    detectJsonUsage(bodyCode)
   ) {
     imports.push('import logging');
   }
@@ -144,22 +140,26 @@ export const renderSplitFiles = (files) => {
   });
 
   container.querySelectorAll('.splitCopyBtn').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const path = btn.getAttribute('data-path');
-      if (!path || !files[path]) return;
-      navigator.clipboard.writeText(files[path]);
-      btn.textContent = 'Copied';
-      setTimeout(() => {
-        btn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy';
-        lucide.createIcons();
-      }, 1200);
+      if (!path || !Object.hasOwn(files, path)) return;
+      try {
+        await navigator.clipboard.writeText(files[path] || '');
+        btn.textContent = 'Copied';
+        setTimeout(() => {
+          btn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy';
+          lucide.createIcons();
+        }, 1200);
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+      }
     });
   });
 
   container.querySelectorAll('.splitDownloadBtn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const path = btn.getAttribute('data-path');
-      if (!path || !files[path]) return;
+      if (!path || !Object.hasOwn(files, path)) return;
       const safeName = path.replace(/\//g, '__');
       downloadTextFile(safeName, files[path]);
     });
@@ -505,11 +505,7 @@ export const generatePythonCode = (workspace) => {
   }
 
   // --- Dependency Analysis ---
-  const usesJson =
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache') ||
-    bodyCode.includes('json.');
+  const usesJson = detectJsonUsage(bodyCode);
   const usesModal = bodyCode.includes('EasyModal');
   const usesRandom = bodyCode.includes('random.');
   const usesAsyncio = bodyCode.includes('asyncio.');
@@ -580,11 +576,7 @@ if __name__ == "__main__":
 };
 
 const buildSharedModule = (bodyCode) => {
-  const usesJson =
-    bodyCode.includes('_load_json_data') ||
-    bodyCode.includes('_save_json_data') ||
-    bodyCode.includes('_save_json_dataset_cache') ||
-    bodyCode.includes('json.');
+  const usesJson = detectJsonUsage(bodyCode);
   const usesModal = bodyCode.includes('EasyModal');
   const usesLogging = bodyCode.includes('logging.') || usesJson;
 
@@ -769,14 +761,11 @@ export const generateSplitPythonFiles = (workspace) => {
 
     const needsInteractionHandler = hasComponentEvents || hasModalEvents;
     const imports = buildImports(cleanedCode, needsInteractionHandler);
-    const usesJson =
-      cleanedCode.includes('_load_json_data') ||
-      cleanedCode.includes('_save_json_data') ||
-      cleanedCode.includes('_save_json_dataset_cache') ||
-      cleanedCode.includes('json.');
+
+    const usesJson = detectJsonUsage(cleanedCode);
     const usesModal = cleanedCode.includes('EasyModal');
     const sharedSymbols = [];
-    if (usesJson) sharedSymbols.push('_load_json_data', '_save_json_data', '_save_json_dataset_cache');
+    if (usesJson) sharedSymbols.push('_load_json_data', '_save_json_data', '_resolve_json_path', '_save_json_dataset_cache');
     if (usesModal) sharedSymbols.push('EasyModal');
     const sharedImports =
       sharedModule && sharedSymbols.length

@@ -3,7 +3,8 @@ import {
     buildJsonRuntimeSaveCode,
     isJsonRuntimeDatasetCode,
     getJsonDatasetLiteral,
-    buildJsonDatasetAccessCode
+    buildJsonDatasetAccessCode,
+    JSON_DATASET_EMPTY_ID
 } from './core.js';
 
 export function initJson() {
@@ -163,7 +164,7 @@ export function initJson() {
     };
     Blockly.Python.forBlock['json_dataset_set_value'] = function (block) {
         const datasetName = block.getFieldValue('DATASET');
-        if (!datasetName || datasetName === '__edbb_json_dataset_empty__') return '';
+        if (!datasetName || datasetName === JSON_DATASET_EMPTY_ID) return '';
         const keyCode = Blockly.Python.valueToCode(block, 'KEY', Blockly.Python.ORDER_NONE) || '""';
         const valueCode = Blockly.Python.valueToCode(block, 'VALUE', Blockly.Python.ORDER_NONE) || 'None';
         const literal = getJsonDatasetLiteral(datasetName);
@@ -193,7 +194,7 @@ export function initJson() {
     };
     Blockly.Python.forBlock['json_dataset_delete_key'] = function (block) {
         const datasetName = block.getFieldValue('DATASET');
-        if (!datasetName || datasetName === '__edbb_json_dataset_empty__') return '';
+        if (!datasetName || datasetName === JSON_DATASET_EMPTY_ID) return '';
         const keyCode = Blockly.Python.valueToCode(block, 'KEY', Blockly.Python.ORDER_NONE) || '""';
         const literal = getJsonDatasetLiteral(datasetName);
         const datasetCode = buildJsonDatasetAccessCode(datasetName, literal);

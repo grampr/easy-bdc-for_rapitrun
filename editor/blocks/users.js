@@ -81,7 +81,7 @@ export function initUsers() {
     Blockly.Python.forBlock['kick_user'] = function (block) {
         const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
         const reason = Blockly.Python.valueToCode(block, 'REASON', Blockly.Python.ORDER_NONE) || 'None';
-        return `\nif 'ctx' in locals() and ctx.guild:\n    _m = ctx.guild.get_member(int(${user}))\n    if _m: await _m.kick(reason=${reason})\n`;
+        return `\nif 'ctx' in locals() and ctx.guild and str(${user}).isdigit():\n    _m = ctx.guild.get_member(int(${user}))\n    if _m: await _m.kick(reason=${reason})\n`;
     };
 
     Blockly.Blocks['ban_user'] = {
@@ -97,7 +97,7 @@ export function initUsers() {
     Blockly.Python.forBlock['ban_user'] = function (block) {
         const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
         const reason = Blockly.Python.valueToCode(block, 'REASON', Blockly.Python.ORDER_NONE) || 'None';
-        return `\nif 'ctx' in locals() and ctx.guild:\n    _m = ctx.guild.get_member(int(${user}))\n    if _m: await _m.ban(reason=${reason})\n`;
+        return `\nif 'ctx' in locals() and ctx.guild and str(${user}).isdigit():\n    _m = ctx.guild.get_member(int(${user}))\n    if _m: await _m.ban(reason=${reason})\n`;
     };
 
     Blockly.Blocks['timeout_user'] = {
@@ -113,7 +113,7 @@ export function initUsers() {
     Blockly.Python.forBlock['timeout_user'] = function (block) {
         const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
         const mins = Blockly.Python.valueToCode(block, 'MINUTES', Blockly.Python.ORDER_NONE) || '5';
-        return `\nif 'ctx' in locals() and ctx.guild:\n    _m = ctx.guild.get_member(int(${user}))\n    if _m:\n        await _m.timeout(datetime.timedelta(minutes=int(${mins})))\n`;
+        return `\nif 'ctx' in locals() and ctx.guild and str(${user}).isdigit() and str(${mins}).isdigit():\n    _m = ctx.guild.get_member(int(${user}))\n    if _m:\n        await _m.timeout(datetime.timedelta(minutes=int(${mins})))\n`;
     };
 
     Blockly.Blocks['add_user_role'] = {
@@ -129,7 +129,7 @@ export function initUsers() {
     Blockly.Python.forBlock['add_user_role'] = function (block) {
         const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
         const role = Blockly.Python.valueToCode(block, 'ROLE_ID', Blockly.Python.ORDER_NONE) || '0';
-        return `\nif 'ctx' in locals() and ctx.guild:\n    _m = ctx.guild.get_member(int(${user}))\n    _r = ctx.guild.get_role(int(${role}))\n    if _m and _r: await _m.add_roles(_r)\n`;
+        return `\nif 'ctx' in locals() and ctx.guild and str(${user}).isdigit() and str(${role}).isdigit():\n    _m = ctx.guild.get_member(int(${user}))\n    _r = ctx.guild.get_role(int(${role}))\n    if _m and _r: await _m.add_roles(_r)\n`;
     };
 
     Blockly.Blocks['remove_user_role'] = {
@@ -145,7 +145,7 @@ export function initUsers() {
     Blockly.Python.forBlock['remove_user_role'] = function (block) {
         const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
         const role = Blockly.Python.valueToCode(block, 'ROLE_ID', Blockly.Python.ORDER_NONE) || '0';
-        return `\nif 'ctx' in locals() and ctx.guild:\n    _m = ctx.guild.get_member(int(${user}))\n    _r = ctx.guild.get_role(int(${role}))\n    if _m and _r: await _m.remove_roles(_r)\n`;
+        return `\nif 'ctx' in locals() and ctx.guild and str(${user}).isdigit() and str(${role}).isdigit():\n    _m = ctx.guild.get_member(int(${user}))\n    _r = ctx.guild.get_role(int(${role}))\n    if _m and _r: await _m.remove_roles(_r)\n`;
     };
 
     Blockly.Blocks['change_nickname'] = {
@@ -161,6 +161,6 @@ export function initUsers() {
     Blockly.Python.forBlock['change_nickname'] = function (block) {
         const user = Blockly.Python.valueToCode(block, 'USER_ID', Blockly.Python.ORDER_NONE) || '0';
         const name = Blockly.Python.valueToCode(block, 'NAME', Blockly.Python.ORDER_NONE) || '"New Nick"';
-        return `\nif 'ctx' in locals() and ctx.guild:\n    _m = ctx.guild.get_member(int(${user}))\n    if _m: await _m.edit(nick=${name})\n`;
+        return `\nif 'ctx' in locals() and ctx.guild and str(${user}).isdigit():\n    _m = ctx.guild.get_member(int(${user}))\n    if _m: await _m.edit(nick=${name})\n`;
     };
 }

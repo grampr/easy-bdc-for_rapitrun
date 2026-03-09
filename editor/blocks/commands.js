@@ -16,7 +16,7 @@ export function initCommands() {
         const commandName = rawName.toLowerCase();
         const safeCommandName = commandName.replace(/[^a-z0-9_]/g, '_').replace(/^[0-9]/, '_$&');
         const branch = getBranchCode(block, 'DO');
-        return `\n@bot.tree.command(name="${commandName}", description="${commandName} command")\nasync def ${safeCommandName}_cmd(interaction: discord.Interaction):\n    ctx = interaction\n    user = interaction.user\n${branch.trimEnd()}\n`;
+        return `\n@bot.tree.command(name=${JSON.stringify(commandName)}, description=${JSON.stringify(commandName + " command")})\nasync def ${safeCommandName}_cmd(interaction: discord.Interaction):\n    ctx = interaction\n    user = interaction.user\n${branch.trimEnd()}\n`;
     };
 
     Blockly.Blocks['prefix_command'] = {
@@ -34,7 +34,7 @@ export function initCommands() {
         const commandName = rawName.replace(/^[!~#&?]/, '');
         const safeCommandName = commandName.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[0-9]/, '_$&');
         const branch = getBranchCode(block, 'DO');
-        return `\n@bot.command(name='${commandName}')\nasync def ${safeCommandName}_cmd(ctx):\n    user = ctx.author\n${branch.trimEnd()}\n`;
+        return `\n@bot.command(name=${JSON.stringify(commandName)})\nasync def ${safeCommandName}_cmd(ctx):\n    user = ctx.author\n${branch.trimEnd()}\n`;
     };
 
     Blockly.Blocks['get_command_arg'] = {
