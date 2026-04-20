@@ -1187,10 +1187,6 @@ const initializeApp = async () => {
 
   const syncResponsiveSplitLayout = () => {
     if (!workspaceContainer) return;
-    if (!workspaceContainer.classList.contains('split-view')) {
-      workspaceContainer.classList.remove('split-view-compact');
-      return;
-    }
 
     const rect = workspaceContainer.getBoundingClientRect();
     const safeHeight = Math.max(1, rect.height);
@@ -1280,6 +1276,17 @@ const initializeApp = async () => {
     theme: initialTheme,
   });
   setupLiteralInputAutofill(workspace);
+
+  // --- Smooth Resize Observer ---
+  // CSSトランジション中も滑らかにBlocklyをリサイズさせる
+  if (window.ResizeObserver && blocklyDiv) {
+    const resizeObserver = new ResizeObserver(() => {
+      if (workspace) {
+        Blockly.svgResize(workspace);
+      }
+    });
+    resizeObserver.observe(blocklyDiv);
+  }
 
   // --- ワークスペース保存クラスの初期化 ---
   storage = new WorkspaceStorage(workspace);
