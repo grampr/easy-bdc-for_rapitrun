@@ -1217,6 +1217,9 @@ html.is-mobile #blocklyDiv {
 
 #workspace-container.split-view-compact {
   flex-direction: column;
+  --split-compact-gap: 12px;
+  --split-compact-block-size: calc((100% - var(--split-compact-gap)) * 0.58);
+  --split-compact-preview-size: calc((100% - var(--split-compact-gap)) * 0.42);
 }
 
 #workspace-container.split-view-compact #blocklyDiv {
@@ -1234,16 +1237,19 @@ html.is-mobile #blocklyDiv {
 }
 
 #workspace-container.split-view.split-view-compact #blocklyDiv {
-  flex: 0 0 58%;
-  height: 58%;
-  min-height: 320px;
+  flex: 0 0 var(--split-compact-block-size);
+  height: var(--split-compact-block-size);
+  min-width: 0;
+  min-height: min(320px, var(--split-compact-block-size));
 }
 
 #workspace-container.split-view.split-view-compact #liveCodeArea {
-  flex: 0 0 42%;
-  height: 42%;
-  min-height: 220px;
+  flex: 0 0 var(--split-compact-preview-size);
+  height: var(--split-compact-preview-size);
+  min-width: 0;
+  min-height: min(220px, var(--split-compact-preview-size));
   border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-left: none;
 }
 
 .dark #workspace-container.split-view.split-view-compact #liveCodeArea {
